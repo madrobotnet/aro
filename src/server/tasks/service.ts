@@ -3,6 +3,7 @@ import {
   parseTasks, toggleTask, type TaskEntry, type TaskItem, type TaskList, type TaskState, type TaskToggle,
 } from "@/lib/tasks";
 import { db, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { notesCopy } from "@/server/i18n/copy";
 import { assertNoteId, getNote, updateNote, type NoteDetail } from "@/server/notes/service";
@@ -37,6 +38,26 @@ const matches = (state: TaskState, task: TaskItem): boolean => {
 
 /** Tasks from active notes (not trashed, not archived), newest note first, in line order. */
 export async function listTasks(state: TaskState): Promise<TaskList> {
+  if (databaseBackend() === "sqlite") {
+    const store = await sqliteStore();
+    const predicate = state === "open" ? "(instr(body,'[ ]')>0 OR instr(body,char(91)||char(9)||char(93))>0)"
+      : state === "done" ? "(instr(body,'[x]')>0 OR instr(body,'[X]')>0)"
+        : "(instr(body,'[ ]')>0 OR instr(body,char(91)||char(9)||char(93))>0 OR instr(body,'[x]')>0 OR instr(body,'[X]')>0)";
+    const rows = store.all<{ id: string; title: string; body: string; daily_date: string | null; updated_at: string }>(
+      `SELECT id,title,body,daily_date,updated_at FROM notes WHERE deleted_at IS NULL AND status<>'archived' AND ${predicate} ORDER BY updated_at DESC,id DESC LIMIT ?`,
+      [TASK_NOTE_LIMIT + 1],
+    );
+    const tasks: TaskEntry[] = [];
+    for (const row of rows.slice(0, TASK_NOTE_LIMIT)) {
+      for (const task of parseTasks(row.body)) {
+        if (!matches(state, task)) continue;
+        if (tasks.length === TASK_RESULT_LIMIT) return { tasks, truncated: true };
+        tasks.push({ ...task, noteId: row.id, title: row.title, dailyDate: row.daily_date,
+          noteUpdatedAt: new Date(row.updated_at).toISOString() });
+      }
+    }
+    return { tasks, truncated: rows.length > TASK_NOTE_LIMIT };
+  }
   const pool = await db();
   const result = await pool.query<TaskNoteRow>(
     `SELECT id,title,body,to_char(daily_date,'YYYY-MM-DD') AS daily_date,updated_at FROM notes
@@ -61,6 +82,20 @@ export async function listTasks(state: TaskState): Promise<TaskList> {
 export async function toggleNoteTask(input: ToggleNoteTaskInput): Promise<{ note: NoteDetail; task: TaskItem }> {
   assertNoteId(input.noteId);
   const task: TaskItem = { line: input.line, text: input.expectedText, done: input.done };
+  if (databaseBackend() === "sqlite") {
+    const store = await sqliteStore();
+    const { getSQLiteNote, updateSQLiteNote } = await import("@/server/notes/sqlite");
+    const note = store.transaction(q => {
+      const row = getSQLiteNote(q, input.noteId);
+      if (!row) throw new ApiError("not_found", notesCopy.notFound);
+      if (row.deletedAt) throw new ApiError("conflict", notesCopy.trashedReadOnly, { reason: "trashed" });
+      if (row.archived) throw new ApiError("conflict", tasksCopy.archived, { reason: "archived" });
+      const result = toggleTask(row.body, input);
+      if (!result.ok) throw new ApiError("conflict", tasksCopy.mismatch, { reason: "mismatch" });
+      return result.changed ? updateSQLiteNote(q, row.id, { body: result.body }, "task-toggle") : row;
+    });
+    return { note, task };
+  }
   const note = await tx(async (client) => {
     const locked = await client.query<LockedNoteRow>(
       "SELECT body,status,deleted_at FROM notes WHERE id=$1 FOR UPDATE", [input.noteId],

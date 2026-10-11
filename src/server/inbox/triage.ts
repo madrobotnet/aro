@@ -1,10 +1,12 @@
 import type { PoolClient } from "pg";
 import { stripInboxUrlStatus } from "@/lib/inbox-url-status";
 import { query, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { inboxCopy, notesCopy } from "@/server/i18n/copy";
 import { assertNoteId, updateNote, type NoteDetail } from "@/server/notes/service";
 import { assertInboxId, mapItem, type InboxItemDto, type InboxRow } from "./service";
+import { mergeSQLiteInbox, restoreSQLiteInbox, snoozeSQLiteInbox } from "./sqlite";
 
 export type MergeInboxInput = { noteId: string; expectedUpdatedAt?: string };
 
@@ -16,6 +18,7 @@ async function lockItem(client: PoolClient, id: string): Promise<InboxRow> {
 
 export async function restoreInbox(id: string): Promise<InboxItemDto> {
   assertInboxId(id);
+  if (databaseBackend() === "sqlite") return (await sqliteStore()).transaction((q) => restoreSQLiteInbox(q, id));
   return tx(async (client) => {
     const item = await lockItem(client, id);
     if (item.promoted_note_id) throw new ApiError("conflict", inboxCopy.alreadyPromoted);
@@ -30,6 +33,7 @@ export async function snoozeInbox(id: string, until: Date, now = new Date()): Pr
   limit.setUTCFullYear(limit.getUTCFullYear() + 1);
   if (until.getTime() <= now.getTime()) throw new ApiError("validation", inboxCopy.snoozePast);
   if (until.getTime() > limit.getTime()) throw new ApiError("validation", inboxCopy.snoozeTooFar);
+  if (databaseBackend() === "sqlite") return (await sqliteStore()).transaction((q) => snoozeSQLiteInbox(q, id, until));
   return tx(async (client) => {
     const item = await lockItem(client, id);
     if (item.discarded_at || item.promoted_note_id) throw new ApiError("conflict", inboxCopy.snoozeClosed);
@@ -42,6 +46,7 @@ export async function snoozeInbox(id: string, until: Date, now = new Date()): Pr
 
 export async function unsnoozeInbox(id: string): Promise<InboxItemDto> {
   assertInboxId(id);
+  if (databaseBackend() === "sqlite") return (await sqliteStore()).transaction((q) => snoozeSQLiteInbox(q, id, null));
   const [row] = await query<InboxRow>("UPDATE inbox_items SET snoozed_until=NULL WHERE id=$1 RETURNING *", [id]);
   if (!row) throw new ApiError("not_found", inboxCopy.notFound);
   return mapItem(row);
@@ -58,6 +63,7 @@ function mergedBody(noteBody: string, item: InboxRow): string {
 export async function mergeInbox(id: string, input: MergeInboxInput): Promise<NoteDetail> {
   assertInboxId(id);
   assertNoteId(input.noteId);
+  if (databaseBackend() === "sqlite") return (await sqliteStore()).transaction((q) => mergeSQLiteInbox(q, id, input));
   return tx(async (client) => {
     const item = await lockItem(client, id);
     if (item.discarded_at) throw new ApiError("conflict", inboxCopy.mergeDiscarded);

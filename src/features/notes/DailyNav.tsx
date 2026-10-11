@@ -66,16 +66,29 @@ export function DailyNav({ date }: DailyNavProps) {
       const popover = popoverRef.current;
       if (!root || !popover) return;
       const anchor = root.getBoundingClientRect();
-      const maxLeft = document.documentElement.clientWidth - EDGE_GAP - popover.offsetWidth;
-      popover.style.top = `${anchor.bottom + EDGE_GAP}px`;
-      popover.style.left = `${Math.max(EDGE_GAP, Math.min(anchor.left, maxLeft))}px`;
+      const viewport = window.visualViewport;
+      const top = (viewport?.offsetTop ?? 0) + EDGE_GAP;
+      const left = (viewport?.offsetLeft ?? 0) + EDGE_GAP;
+      const height = viewport?.height ?? window.innerHeight;
+      const width = viewport?.width ?? document.documentElement.clientWidth;
+      popover.style.maxHeight = `${Math.max(0, height - 2 * EDGE_GAP)}px`;
+      const bottom = top + height - 2 * EDGE_GAP;
+      const below = anchor.bottom + EDGE_GAP;
+      const preferredTop = below + popover.offsetHeight <= bottom
+        ? below : anchor.top - EDGE_GAP - popover.offsetHeight;
+      popover.style.top = `${Math.max(top, Math.min(preferredTop, bottom - popover.offsetHeight))}px`;
+      popover.style.left = `${Math.max(left, Math.min(anchor.left, left + width - 2 * EDGE_GAP - popover.offsetWidth))}px`;
     };
     place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    window.visualViewport?.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("scroll", place);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      window.visualViewport?.removeEventListener("resize", place);
+      window.visualViewport?.removeEventListener("scroll", place);
     };
   }, [calendar]);
 
@@ -106,7 +119,7 @@ export function DailyNav({ date }: DailyNavProps) {
           ref={popoverRef}
           role="dialog"
           aria-label={copy.calendar.label}
-          className="fixed z-20 surface-card p-3 shadow-pop motion-safe:animate-[sb-pop-in_160ms_var(--ease-out-soft)]"
+          className="fixed z-50 max-w-[calc(100vw-16px)] overflow-auto surface-card p-3 shadow-pop motion-safe:animate-[sb-pop-in_160ms_var(--ease-out-soft)]"
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             event.stopPropagation();

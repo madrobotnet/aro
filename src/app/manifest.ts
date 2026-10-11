@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: BRAND_DESCRIPTION.en,
     lang: "en",
     id: "/",
-    start_url: "/",
+    start_url: "/icons/offline-capture.html",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

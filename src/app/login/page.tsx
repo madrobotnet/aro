@@ -6,6 +6,7 @@ import { sanitizeNextUrl } from "@/features/auth/next-url";
 import { getRequestLocale } from "@/lib/i18n/server";
 import { getSession } from "@/server/auth/session";
 import { setupState } from "@/server/setup/service";
+import { databaseConfigured } from "@/server/db/backend";
 
 export async function generateMetadata(): Promise<Metadata> {
   const copy = LOGIN_COPY[await getRequestLocale()];
@@ -15,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const next = sanitizeNextUrl(params.next);
-  if (!process.env.DATABASE_URL?.trim()) redirect("/setup");
+  if (!databaseConfigured()) redirect("/setup");
   if (await getSession()) redirect(next);
   if (await setupState() !== "complete") redirect("/setup");
 

@@ -2,6 +2,7 @@ import type { QueryResultRow } from "pg";
 import type { NoteRevision, NoteRevisionSummary, RevisionReason } from "@/lib/note-revisions";
 import { excerpt } from "@/lib/wikilinks";
 import { query, queryOne } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { notesCopy } from "@/server/i18n/copy";
 import { assertNoteId, updateNote, type NoteDetail } from "./service";
@@ -20,6 +21,10 @@ async function assertNoteExists(noteId: string): Promise<void> {
 }
 
 export async function listRevisions(noteId: string): Promise<NoteRevisionSummary[]> {
+  if (databaseBackend() === "sqlite") {
+    const { listSQLiteRevisions } = await import("./sqlite");
+    return listSQLiteRevisions(await sqliteStore(), noteId);
+  }
   await assertNoteExists(noteId);
   const rows = await query<SummaryRow>(
     `SELECT id,created_at,reason,title,left(body,2000) AS head,char_length(body)::int AS body_length
@@ -33,6 +38,10 @@ export async function listRevisions(noteId: string): Promise<NoteRevisionSummary
 }
 
 export async function getRevision(noteId: string, revisionId: string): Promise<NoteRevision> {
+  if (databaseBackend() === "sqlite") {
+    const { getSQLiteRevision } = await import("./sqlite");
+    return getSQLiteRevision(await sqliteStore(), noteId, revisionId);
+  }
   await assertNoteExists(noteId);
   assertNoteId(revisionId);
   const row = await queryOne<RevisionRow>("SELECT * FROM note_revisions WHERE id=$1 AND note_id=$2", [revisionId, noteId]);

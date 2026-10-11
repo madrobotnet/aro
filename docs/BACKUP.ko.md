@@ -1,0 +1,105 @@
+# 설치 백업과 복원 검증
+
+운영자 호스트에 **Node.js 22 이상**, Docker, Docker Compose 및 로컬 Docker
+데몬 접근 권한이 필요합니다. Node는 관리 명령의 추가 요구 사항이며 앱 설치
+자체에 필요한 호스트 런타임은 아닙니다. 다음 파일을 함께 배포하세요:
+`scripts/backup.mjs`, `scripts/restore-check.mjs`, `scripts/backup/common.mjs`.
+Node 기본 모듈만 사용하며 소스 트리나 `node_modules`에 의존하지 않습니다.
+Bun은 테스트 실행에만 필요합니다.
+
+## 백업
+
+```sh
+node scripts/backup.mjs \
+  --install-dir /srv/irang \
+  --project irang \
+  --output /private/backups/irang-20261011
+```
+
+세 옵션은 필수입니다. 출력의 부모 디렉터리는 미리 만들어야 하며 출력
+디렉터리는 존재하지 않아야 하고 설치 디렉터리 밖에 있어야 합니다.
+`--compose-file FILE`로 하나의 Compose 파일을 지정할 수 있습니다.
+설치 디렉터리 기준 상대 경로나 절대 경로를 받으며 기본값은 `compose.yml`입니다.
+암묵적인 override 파일, 호스트 환경변수 보간, 프로젝트 이름 추론은 없습니다.
+`--help`만 전달하면 사용법을 출력합니다. 알 수 없는 옵션, 중복 옵션, 누락된
+값은 종료 코드 1입니다. 성공 시 `BACKUP_OK <디렉터리>`와 종료 코드 0을 반환합니다.
+
+설치에는 `.env`, 배포된 `release.json`, 기본 `app`/`db` 서비스가 있어야
+합니다. 이미지 참조와 앱 OCI 버전/리비전 라벨이 release 정보와 일치해야 합니다.
+DB는 PostgreSQL 18로 실행 중이어야 합니다. 앱은 실행 또는 중지 상태를
+지원하지만 일시 정지/재시작 중 상태는 지원하지 않습니다. 앱의 `/app/.data`와
+DB 데이터는 해당 Compose 프로젝트 라벨이 있는 이름 지정 볼륨이어야 합니다.
+추가 앱 마운트/서비스, app-data 내부 링크/장치 파일은 누락시키지 않고 거부합니다.
+
+앱을 중지한 동안 전체 DB 덤프와 app-data를 함께 복사합니다. 별도 DB/파일
+작성자를 중지하고 작업 중 설치 설정을 변경하지 마세요. 이전에 실행 중이던
+앱만 다시 시작하며 백업 실패, SIGINT/SIGTERM 때도 재시작을 시도합니다.
+SIGKILL, 호스트 장애, Docker 데몬 장애에서는 보장할 수 없으므로 상태를
+확인하세요. 앱/제공자 호출이나 마이그레이션은 수행하지 않습니다.
+
+새 디렉터리는 0700, 파일은 모두 0600입니다:
+
+| 파일 | 내용 |
+| --- | --- |
+| `database.sql` | 노트, 휴지통, 설정, 세션, 채팅을 포함한 전체 DB |
+| `app-data.tar.gz` | 첨부 및 CLI 인증 파일, 모드와 UID/GID 유지 |
+| `operator.env` | 운영자 설정과 비밀정보 |
+| `compose.yml` | 선택한 원본 Compose 파일 |
+| `release.json` | 설치 버전/리비전/이미지 정보 |
+| `deployment.json` | 프로젝트, 고정 로컬 이미지 ID, 볼륨, 이미지 참조, 해석된 Compose 설정 |
+| `manifest.json` | 형식/버전/리비전, 스트리밍 바이트 수/SHA-256, 정규화된 DB 내용 해시 |
+
+전체 백업을 비밀정보로 보호하세요. 체크섬은 손상 검출용이며 악의적인 교체를
+인증하지 않는 비서명 백업입니다. 이미지는 기록만 하며 내보내지 않습니다.
+특히 기록된 정확한 DB 이미지를 별도로 보관하세요. Compose의 초기화 bind
+마운트/사용자 추가 의존성은 번들에 포함하지 않으므로 원본 설치 패키지와
+추가 파일을 별도로 보존하세요.
+
+실패하면 `BACKUP_FAILED`와 종료 코드 1을 반환합니다. 명령 진단 출력에는
+비밀정보가 있을 수 있어 출력하지 않습니다. 진단용 부분 디렉터리는 남지만
+완료 manifest가 없으므로 복원하지 마세요. 기존 출력은 덮어쓰지 않으며
+다른 경로로 재시도해야 합니다.
+
+## 별도 빈 환경 복원 검증
+
+```sh
+node scripts/restore-check.mjs \
+  --backup /private/backups/irang-20261011 \
+  --expected-version 2.4.0
+```
+
+두 옵션은 필수입니다. Docker 자원을 만들기 전에 디렉터리/파일 비공개 권한,
+일반 파일 여부와 심볼릭 링크 금지, 정확한 파일 목록, manifest 형식, 명시한
+예상 버전, release 리비전, 이미지 ID, 전체 체크섬을 검증합니다. 기록된 정확한
+DB 이미지 ID가 로컬에 있어야 하며 이미지를 내려받지 않습니다.
+
+무작위 `irang-backup-qa-<UUID>` 이름 공간에서 충돌을 거부하고 소유자 라벨이
+있는 새 빈 볼륨 두 개와 DB 컨테이너를 만듭니다. 포트 공개, Docker 네트워크,
+앱 프로세스, 운영 인증정보, 제공자 호출은 없습니다. `second_brain` 역할을
+만들고 `postgres`로 `ON_ERROR_STOP` 및 단일 트랜잭션 복원을 수행합니다.
+재덤프로 전체 스키마/데이터를 비교하며 PostgreSQL 무작위 restrict 토큰만
+제외합니다. 아카이브 경로 탈출, 링크/장치를 거부한 뒤 빈 app-data 볼륨에
+풀고 다시 압축해 바이트, 모드, 소유권, 시간을 비교합니다.
+
+성공/실패 모두 이번 실행의 소유자 라벨이 일치하는 자원만 삭제합니다.
+삭제 완료 후에만 `RESTORE_CHECK_OK <이름 공간> (database/files verified; sandbox removed)`
+및 종료 코드 0을 반환합니다. 복원 또는 삭제 실패는 `RESTORE_CHECK_FAILED`와
+종료 코드 1입니다. 삭제 실패 시 해당 소유 QA 자원만 확인하고 다른 설치를
+삭제하지 마세요. 기존 설치를 대상으로 하는 옵션이나 운영 복원 기능은 없습니다.
+
+저장된 DB/파일 복구만 검증합니다. HTTP 동작, 앱 시작, 제공자 인증, 버전
+업그레이드, PostgreSQL 메이저 이전은 검증하지 않습니다. 실제 복구는 SETUP의
+별도 빈 설치 복원 절차를 따르세요. 예약, 원격 저장소, 가져오기는 범위 밖입니다.
+
+## 집중 테스트
+
+```sh
+bun --no-env-file test scripts/backup.test.mjs
+IRANG_BACKUP_CONTAINER_QA=1 bun --no-env-file test scripts/backup.test.mjs
+```
+
+두 번째 명령은 로컬 `pgvector/pgvector:0.8.6-pg18`, Docker/Compose도 필요합니다.
+고유한 로컬 fixture 이미지를 빌드해 실제 DB 행/확장, 바이너리 첨부/인증 파일,
+권한, 이전 실행/중지 상태, 실패 시 재시작, 덮어쓰기 금지, 검증 자원 정리를
+확인합니다. 자체 fixture 컨테이너/볼륨/이미지만 제거하며 실제 인증정보나
+제공자 호출은 사용하지 않습니다.

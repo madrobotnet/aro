@@ -316,4 +316,100 @@ CREATE TABLE note_passages (
 CREATE INDEX note_passages_model_idx ON note_passages(model_id);
 `,
   },
+  {
+    id: "0011_chat_requests",
+    sql: `
+CREATE TABLE chat_requests (
+  id uuid PRIMARY KEY,
+  thread_id uuid NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+  content text NOT NULL,
+  assistant_id uuid NULL REFERENCES chat_messages(id) ON DELETE CASCADE
+);
+CREATE INDEX chat_requests_thread_idx ON chat_requests(thread_id);
+`,
+  },
+  {
+    id: "0012_capture_requests",
+    sql: `
+-- Retain replay identity/outcome even if an inbox item or owner is removed.
+CREATE TABLE capture_requests (
+  id uuid PRIMARY KEY,
+  owner_id uuid NOT NULL,
+  content text NOT NULL,
+  outcome text NOT NULL CHECK (jsonb_typeof(outcome::jsonb) = 'object')
+);
+`,
+  },
+  {
+    id: "0013_agent_access",
+    sql: `
+CREATE TABLE agent_tokens (
+  id uuid PRIMARY KEY,
+  owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  prefix text NOT NULL,
+  token_hash text NOT NULL UNIQUE CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+  scopes text NOT NULL CHECK (jsonb_typeof(scopes::jsonb)='array'),
+  allowed_note_ids text NOT NULL CHECK (jsonb_typeof(allowed_note_ids::jsonb)='array'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
+);
+CREATE TABLE agent_proposals (
+  id uuid PRIMARY KEY,
+  token_id uuid NOT NULL REFERENCES agent_tokens(id) ON DELETE CASCADE,
+  note_id uuid NOT NULL,
+  expected_version text NOT NULL,
+  patch text NOT NULL CHECK (jsonb_typeof(patch::jsonb)='object'),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  reviewed_at timestamptz
+);
+CREATE INDEX agent_proposals_status_idx ON agent_proposals(status,created_at DESC,id);
+CREATE TABLE agent_requests (
+  token_id uuid NOT NULL REFERENCES agent_tokens(id) ON DELETE CASCADE,
+  tool text NOT NULL CHECK (tool IN ('capture_inbox','propose_note_update')),
+  request_id uuid NOT NULL,
+  content_hash text NOT NULL,
+  outcome text NOT NULL CHECK (jsonb_typeof(outcome::jsonb)='object'),
+  PRIMARY KEY(token_id,tool,request_id)
+);
+CREATE TABLE agent_activity (
+  id uuid PRIMARY KEY,
+  token_id uuid NOT NULL REFERENCES agent_tokens(id) ON DELETE CASCADE,
+  tool text NOT NULL,
+  status text NOT NULL CHECK (status IN ('ok','denied','error')),
+  target_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX agent_activity_time_idx ON agent_activity(created_at DESC,id);
+`,
+  },
+  {
+    id: "0014_note_shares",
+    sql: `
+CREATE TABLE note_shares (
+  id uuid PRIMARY KEY,
+  owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  note_id uuid NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+  title text NOT NULL,
+  body text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  CHECK (expires_at > created_at AND expires_at <= created_at + interval '7 days')
+);
+CREATE INDEX note_shares_note_idx ON note_shares(note_id,created_at DESC,id);
+CREATE FUNCTION revoke_inactive_note_shares() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.deleted_at IS NOT NULL OR NEW.status = 'archived' THEN
+    UPDATE note_shares SET revoked_at = COALESCE(revoked_at,now()) WHERE note_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER note_shares_inactive AFTER UPDATE OF deleted_at,status ON notes
+FOR EACH ROW EXECUTE FUNCTION revoke_inactive_note_shares();
+`,
+  },
 ];

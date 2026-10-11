@@ -21,8 +21,8 @@ const content = [
 try {
   await writeFile(target, content, { flag: "wx", mode: 0o600 });
   console.log(`Created ${target}`);
-  console.log(`Installation code: ${setupToken}`);
-  console.log("Keep this code private. Enter it on /setup after starting the server.");
+  console.log("Installation code is stored only in the private environment file.");
+  console.log("Read SETUP_TOKEN locally in a private terminal and enter it on /setup.");
 } catch (error) {
   if (error instanceof Error && "code" in error && error.code === "EEXIST") {
     console.error("The environment file already exists; it was not changed.");

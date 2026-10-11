@@ -1,6 +1,11 @@
-# Irang: Installation & Configuration
+# Aro: Installation & Configuration
 
-This guide covers a self-hosted Irang instance for one owner. The deployment
+The unshipped source is now Aro. The release commands in this guide still install
+published Irang 2.3.2 from `madrobotnet/aro`, not the Aro development checkout.
+Keep published image/archive names and existing database, cookie, environment
+and volume identifiers unchanged.
+
+This guide covers a self-hosted Aro instance for one owner. The deployment
 has two Docker Compose services (the Next.js app and a Postgres database) and
 two active named data volumes. You **don't need** Bun or Node on the host:
 the operator scripts run inside the selected application image.
@@ -18,9 +23,9 @@ process and publication status: [RELEASING.md](RELEASING.md).
 | `db` | `pgvector/pgvector:0.8.6-pg18` | Internal only (no host port). Healthcheck `pg_isready -U postgres -d second_brain`; the app waits for it. On a **fresh** data volume the Postgres entrypoint runs `docker/postgres/production/01-app-role.sql`. It precreates the `pgcrypto`, `vector`, and `pg_trgm` extensions and the restricted application role (section 4). |
 
 Compose prefixes named volumes with the project name, which defaults to the
-directory name. For example, `irang_app-data` belongs to a fresh clone, while
-`second-brain_app-data` may belong to an install cloned before the repository
-was renamed:
+directory name. A fresh `aro` clone uses `aro_app-data`; an existing installation
+may use `irang_app-data` or `second-brain_app-data`. Keep the original project
+name and physical volumes when upgrading:
 
 | Volume | Mounted at | Contents |
 | --- | --- | --- |
@@ -74,7 +79,7 @@ all release assets into an empty directory, verify their checksums, then extract
 ```sh
 mkdir irang-release-2.3.2
 cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/irang
+gh release download v2.3.2 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
 tar -xzf irang-2.3.2-install.tar.gz
 cd irang
@@ -100,8 +105,8 @@ If GHCR access isn't available, build the public source locally. Select the
 verified release tag before building; Compose has no build configuration:
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/irang.git
-cd irang
+git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+cd aro
 docker build --build-arg VERSION=2.3.2 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
 IRANG_IMAGE=irang:local
@@ -112,7 +117,7 @@ export IRANG_IMAGE
 
 From the extracted `irang/` directory or source checkout, run the selected image.
 The script creates the file Compose reads (`./.env`) with fresh random secrets
-and mode `0600`. It prints the installation code once:
+and mode `0600`. The published 2.3.2 image prints the installation code once:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
@@ -126,6 +131,12 @@ Created /install/.env
 Installation code: <64 hex chars>
 Keep this code private. Enter it on /setup after starting the server.
 ```
+
+The development version no longer prints secrets. Open the generated private
+`.env` locally and copy its `SETUP_TOKEN` value into `/setup`; do not share the
+file or terminal recording. The development [server installer](INSTALL-SERVER.md)
+also offers terminal-only `--token` retrieval. Do not generate a replacement
+token merely because the existing token was not printed.
 
 For a source build, add `IRANG_IMAGE=irang:local` to the generated `.env`;
 the shell export above won't survive a new session. For loopback HTTP, change
@@ -458,13 +469,13 @@ For ChatGPT, Gemini, Copilot, OpenRouter or xAI, select Auth and start the
 connection in the form. During first-run setup, enter the installation code
 before starting the connection. Open the provider's login
 page; enter the displayed device code when requested. Return to the original
-Irang tab and save once it reports the authorization is ready.
+Aro tab and save once it reports the authorization is ready.
 
 - ChatGPT displays a one-time code and a link to OpenAI's device verification
-  page. Enter that code on the OpenAI page, not in Irang. Device code
+  page. Enter that code on the OpenAI page, not in Aro. Device code
   login must be enabled in ChatGPT security settings or workspace permissions.
 - Gemini opens Google sign-in. Copy the authorization code Google gives you
-  back into the original Irang form and submit it there. No server
+  back into the original Aro form and submit it there. No server
   terminal is needed. The Auth default `gemini-3.5-flash` follows Gemini CLI's
   base tier and can map to 3.8 Flash when the account has access; selecting a
   newer model does not grant that access.
@@ -556,6 +567,10 @@ without changing the active chat connection.
   inactive profile does not change either selection or disable legacy behavior.
 
 ## 9. Data, backup, and upgrades
+
+The development checkout provides [manifest-checked backup and disposable restore
+verification commands](BACKUP.md), requiring host Node.js 22+. The published
+2.3.2 archive predates these tools; the manual procedure below remains available.
 
 Permanent note deletion records attachment cleanup in the same database
 transaction. Physical files are removed only after that transaction commits.
@@ -831,7 +846,7 @@ without `-v`.
 
 ## 13. License
 
-Irang's application code is licensed under [MIT](../LICENSE). That doesn't
+Aro's application code is licensed under [MIT](../LICENSE). That doesn't
 relicense dependencies, fonts, runtimes, official account-login CLIs, the
 operating-system image, or provider services.
 See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Images retain full

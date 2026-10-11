@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { query, queryOne, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { SESSION_COOKIE, sessionTtlDays } from "./config";
 
 export type Session = { id: string; userId: string; expiresAt: string };
@@ -34,6 +35,10 @@ export async function createSession(input: {
   userAgent: string | null;
   ip: string | null;
 }): Promise<{ token: string; expiresAt: Date }> {
+  if (databaseBackend() === "sqlite") {
+    const { createSQLiteSession } = await import("./sqlite");
+    return createSQLiteSession(await sqliteStore(), input);
+  }
   const userId = await ownerId(input.passwordHash);
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + sessionTtlDays() * 86_400_000);
@@ -45,6 +50,18 @@ export async function createSession(input: {
 }
 
 export async function sessionFromToken(token: string): Promise<Session | null> {
+  if (databaseBackend() === "sqlite") {
+    const { sqliteTimestamp } = await import("@/server/db/sqlite");
+    const store = await sqliteStore();
+    const now = sqliteTimestamp(new Date());
+    const row = store.get<{ id: string; user_id: string; expires_at: string }>(
+      `UPDATE sessions SET last_seen_at = ?
+       WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?
+       RETURNING id, user_id, expires_at`,
+      [now, hashToken(token), now],
+    );
+    return row ? { id: row.id, userId: row.user_id, expiresAt: new Date(row.expires_at).toISOString() } : null;
+  }
   const row = await queryOne<{ id: string; user_id: string; expires_at: Date }>(
     `UPDATE sessions SET last_seen_at = now()
       WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
@@ -55,10 +72,25 @@ export async function sessionFromToken(token: string): Promise<Session | null> {
 }
 
 export async function revokeToken(token: string): Promise<void> {
+  if (databaseBackend() === "sqlite") {
+    const { sqliteTimestamp } = await import("@/server/db/sqlite");
+    (await sqliteStore()).run(
+      "UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+      [sqliteTimestamp(new Date()), hashToken(token)],
+    );
+    return;
+  }
   await query("UPDATE sessions SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL", [hashToken(token)]);
 }
 
 export async function revokeAllSessions(): Promise<number> {
+  if (databaseBackend() === "sqlite") {
+    const { sqliteTimestamp, readSQLiteNumber } = await import("@/server/db/sqlite");
+    const result = (await sqliteStore()).run(
+      "UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL", [sqliteTimestamp(new Date())],
+    );
+    return typeof result.changes === "bigint" ? readSQLiteNumber(result.changes) : result.changes;
+  }
   const rows = await query<{ id: string }>("UPDATE sessions SET revoked_at = now() WHERE revoked_at IS NULL RETURNING id");
   return rows.length;
 }

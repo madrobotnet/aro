@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises";
 import { query } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { storagePath } from "./attachment-storage";
 
 /** Failed removals keep their durable key for the next startup or purge. */
@@ -16,7 +17,11 @@ export async function retryAttachmentCleanup(): Promise<void> {
   // This is the best-effort task boundary, never the committed note operation.
   try {
     while (true) {
-      const rows = await query<{ storage_key: string }>(
+      const rows = databaseBackend() === "sqlite"
+        ? (await sqliteStore()).all<{ storage_key: string }>(
+          "SELECT storage_key FROM attachment_cleanup WHERE storage_key>? ORDER BY storage_key LIMIT 32", [cursor],
+        )
+        : await query<{ storage_key: string }>(
         `SELECT storage_key FROM attachment_cleanup
          WHERE storage_key > $1 ORDER BY storage_key LIMIT 32`,
         [cursor],
@@ -27,7 +32,9 @@ export async function retryAttachmentCleanup(): Promise<void> {
         cursor = row.storage_key;
         try {
           await rm(storagePath(row.storage_key), { force: true });
-          await query("DELETE FROM attachment_cleanup WHERE storage_key=$1", [row.storage_key]);
+          if (databaseBackend() === "sqlite") {
+            (await sqliteStore()).run("DELETE FROM attachment_cleanup WHERE storage_key=?", [row.storage_key]);
+          } else await query("DELETE FROM attachment_cleanup WHERE storage_key=$1", [row.storage_key]);
         } catch (error) {
           recordFailure(error);
         }

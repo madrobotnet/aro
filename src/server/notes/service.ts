@@ -15,6 +15,7 @@ import {
   parseWikiLinks,
 } from "@/lib/wikilinks";
 import { db, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { notesCopy, UNTITLED, untitledCandidate } from "@/server/i18n/copy";
 import { defaultDailyTemplateBody } from "@/server/templates/service";
@@ -172,11 +173,19 @@ async function createInTransaction(input: CreateNoteInput, client: PoolClient, l
 }
 
 export async function createNote(input: CreateNoteInput, client?: PoolClient, locale: Locale = "ko"): Promise<Note> {
+  if (!client && databaseBackend() === "sqlite") {
+    const { createSQLiteNote } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => createSQLiteNote(q, input, locale));
+  }
   return client ? createInTransaction(input, client, locale) : tx((transaction) => createInTransaction(input, transaction, locale));
 }
 
 export async function getNote(id: string): Promise<NoteDetail | null> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") {
+    const { getSQLiteNote } = await import("./sqlite");
+    return getSQLiteNote(await sqliteStore(), id);
+  }
   const q = await executor();
   const result = await q.query<NoteRow>("SELECT * FROM notes WHERE id=$1", [id]);
   return result.rows[0] ? mapNote(result.rows[0]) : null;
@@ -184,6 +193,10 @@ export async function getNote(id: string): Promise<NoteDetail | null> {
 
 export async function updateNote(id: string, input: UpdateNoteInput, options: UpdateNoteOptions = {}): Promise<NoteDetail> {
   assertNoteId(id);
+  if (!options.client && databaseBackend() === "sqlite") {
+    const { updateSQLiteNote } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => updateSQLiteNote(q, id, input, options.reason));
+  }
   const { client: caller, reason = "edit" } = options;
   const run = async (client: PoolClient): Promise<NoteDetail> => {
     const currentResult = await client.query<NoteRow>("SELECT * FROM notes WHERE id=$1 FOR UPDATE", [id]);
@@ -215,6 +228,10 @@ export async function updateNote(id: string, input: UpdateNoteInput, options: Up
 
 export async function trashNote(id: string): Promise<NoteDetail> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") {
+    const { trashSQLiteNote } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => trashSQLiteNote(q, id));
+  }
   return tx(async (client) => {
     const sources = await client.query<{ id: string; body: string }>(
       "SELECT n.id,n.body FROM links l JOIN notes n ON n.id=l.from_note_id WHERE l.to_note_id=$1 AND n.deleted_at IS NULL", [id],
@@ -231,6 +248,10 @@ export async function trashNote(id: string): Promise<NoteDetail> {
 
 export async function restoreNote(id: string): Promise<NoteDetail> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") {
+    const { restoreSQLiteNote } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => restoreSQLiteNote(q, id));
+  }
   return tx(async (client) => {
     const trashed = await client.query<NoteRow>(
       "SELECT * FROM notes WHERE id=$1 AND deleted_at IS NOT NULL FOR UPDATE", [id],
@@ -303,6 +324,14 @@ export async function purgeInTransaction(client: PoolClient, id: string, scope: 
 
 export async function purgeNote(id: string): Promise<void> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") {
+    const { purgeSQLiteNote } = await import("./sqlite");
+    (await sqliteStore()).transaction((q) => {
+      if (!purgeSQLiteNote(q, id, "trashed")) throw new ApiError("conflict", notesCopy.purgeOnlyTrashed);
+    });
+    await retryAttachmentCleanup();
+    return;
+  }
   await tx(async (client) => {
     if (!(await purgeInTransaction(client, id, "trashed"))) throw new ApiError("conflict", notesCopy.purgeOnlyTrashed);
   });
@@ -321,6 +350,10 @@ function parseCursor(cursor: string): Cursor {
 }
 
 export async function listNotes(input: ListNotesInput): Promise<{ notes: NoteListItem[]; nextCursor: string | null }> {
+  if (databaseBackend() === "sqlite") {
+    const { listSQLiteNotes } = await import("./sqlite");
+    return listSQLiteNotes(await sqliteStore(), input);
+  }
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
   const values: unknown[] = [];
   const where = [input.trash ? "deleted_at IS NOT NULL" : "deleted_at IS NULL"];
@@ -348,6 +381,10 @@ export async function listNotes(input: ListNotesInput): Promise<{ notes: NoteLis
 }
 
 export async function findNoteTitles(qText = "", limit = 10): Promise<NoteTitleMatch[]> {
+  if (databaseBackend() === "sqlite") {
+    const { findSQLiteNoteTitles } = await import("./sqlite");
+    return findSQLiteNoteTitles(await sqliteStore(), qText, limit);
+  }
   const q = await executor();
   const result = await q.query<NoteRef & { matched_alias: string | null }>(
     `SELECT id,title,CASE WHEN title ILIKE $1 THEN NULL ELSE (
@@ -364,6 +401,10 @@ export async function findNoteTitles(qText = "", limit = 10): Promise<NoteTitleM
 }
 
 export async function getOrCreateByTitle(titleInput: string): Promise<Note> {
+  if (databaseBackend() === "sqlite") {
+    const { getOrCreateSQLiteByTitle } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => getOrCreateSQLiteByTitle(q, titleInput));
+  }
   const title = titleInput.trim();
   if (!title) throw new ApiError("validation", notesCopy.titleRequired);
   return tx(async (client) => {
@@ -381,6 +422,10 @@ export async function getOrCreateByTitle(titleInput: string): Promise<Note> {
 }
 
 export async function getOrCreateDaily(date: string): Promise<Note> {
+  if (databaseBackend() === "sqlite") {
+    const { getOrCreateSQLiteDaily } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => getOrCreateSQLiteDaily(q, date));
+  }
   return tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`daily:${date}`]);
     const existing = await client.query<NoteRow>("SELECT * FROM notes WHERE daily_date=$1 AND deleted_at IS NULL", [date]);
@@ -412,6 +457,10 @@ function contextFor(body: string, names: readonly string[]): string {
 
 export async function getNoteLinks(id: string): Promise<NoteLinks> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") {
+    const { getSQLiteNoteLinks } = await import("./sqlite");
+    return getSQLiteNoteLinks(await sqliteStore(), id);
+  }
   const q = await executor();
   const noteResult = await q.query<NoteRow>("SELECT * FROM notes WHERE id=$1", [id]);
   const note = noteResult.rows[0];
@@ -440,6 +489,10 @@ export async function getNoteLinks(id: string): Promise<NoteLinks> {
 }
 
 export async function listTags(): Promise<TagCount[]> {
+  if (databaseBackend() === "sqlite") {
+    const { listSQLiteTags } = await import("./sqlite");
+    return listSQLiteTags(await sqliteStore());
+  }
   const q = await executor();
   const result = await q.query<TagCount>(
     "SELECT tag,count(*)::int AS count FROM notes,unnest(tags) tag WHERE deleted_at IS NULL GROUP BY tag ORDER BY count DESC,tag",

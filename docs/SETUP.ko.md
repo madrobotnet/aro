@@ -1,8 +1,13 @@
-# 이랑: 설치와 설정
+# 아로: 설치와 설정
+
+아직 발행되지 않은 개발 소스의 이름은 아로입니다. 이 안내의 릴리스 명령은
+`madrobotnet/aro`에서 새 아로 개발판이 아닌 발행된 이랑 2.3.2를 설치합니다.
+발행된 이미지와 아카이브 이름, 기존 데이터베이스, 쿠키, 환경변수와 볼륨
+식별자는 그대로 유지하세요.
 
 [English](SETUP.md) · [한국어](SETUP.ko.md) · [한국어 README](../README.ko.md)
 
-이 안내는 소유자 한 명이 직접 호스팅하는 이랑 인스턴스를 다룹니다. 배포 구성은
+이 안내는 소유자 한 명이 직접 호스팅하는 아로 인스턴스를 다룹니다. 배포 구성은
 Docker Compose 서비스 두 개(Next.js 앱과 Postgres 데이터베이스)와 실제로
 마운트되는 데이터 볼륨 두 개입니다. 각 볼륨에는 이름이 지정됩니다.
 설치할 호스트에는 Bun이나 Node가 **필요하지 않습니다**.
@@ -22,8 +27,9 @@ Docker Compose 서비스 두 개(Next.js 앱과 Postgres 데이터베이스)와 
 | `db` | `pgvector/pgvector:0.8.6-pg18` | 내부 전용이며 호스트 포트를 열지 않습니다. 상태 검사 명령은 `pg_isready -U postgres -d second_brain`이고, 앱은 통과할 때까지 기다립니다. **새** 데이터 볼륨에서는 Postgres 진입점이 `docker/postgres/production/01-app-role.sql`을 실행해 `pgcrypto`, `vector`, `pg_trgm` 확장과 권한이 제한된 앱 역할을 미리 만듭니다(4절). |
 
 Compose는 이름이 지정된 볼륨에 프로젝트 이름을 접두사로 붙입니다. 기본 프로젝트
-이름은 디렉터리 이름이므로, 새로 복제한 저장소에서는 `irang_app-data`, 저장소
-이름이 바뀌기 전에 복제한 설치에서는 `second-brain_app-data`가 될 수 있습니다.
+이름은 디렉터리 이름이므로, 새 `aro` 체크아웃에서는 `aro_app-data`가 됩니다.
+기존 설치는 `irang_app-data` 또는 `second-brain_app-data`일 수 있습니다.
+업그레이드할 때 원래 프로젝트 이름과 물리 볼륨을 유지하세요.
 
 | 볼륨 | 마운트 위치 | 내용 |
 | --- | --- | --- |
@@ -81,7 +87,7 @@ Compose에는 이전 버전의 키 `second_brain_pg18`도 선언되어 있지만
 ```sh
 mkdir irang-release-2.3.2
 cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/irang
+gh release download v2.3.2 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
 tar -xzf irang-2.3.2-install.tar.gz
 cd irang
@@ -108,8 +114,8 @@ GHCR에 접근할 수 없다면 공개 소스를 로컬에서 빌드하세요. �
 태그를 선택하세요. Compose에는 빌드 설정이 없습니다.
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/irang.git
-cd irang
+git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+cd aro
 docker build --build-arg VERSION=2.3.2 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
 IRANG_IMAGE=irang:local
@@ -120,7 +126,7 @@ export IRANG_IMAGE
 
 압축을 푼 `irang/` 디렉터리 또는 소스 체크아웃에서 선택한 이미지를 실행합니다.
 Compose가 읽을 `./.env`를 새 무작위 비밀 값과 권한 `0600`으로 만들고, 설치
-확인 코드를 한 번 출력합니다.
+확인 코드를 발행된 2.3.2 이미지에서는 한 번 출력합니다.
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
@@ -134,6 +140,12 @@ Created /install/.env
 Installation code: <64 hex chars>
 Keep this code private. Enter it on /setup after starting the server.
 ```
+
+개발 버전은 비밀 값을 출력하지 않습니다. 생성된 비공개 `.env`를 로컬에서
+열어 `SETUP_TOKEN` 값을 `/setup`에 입력하세요. 파일이나 터미널 녹화는
+공유하지 마세요. 개발판 [서버 설치 도구](INSTALL-SERVER.md)는 비공개
+터미널에서만 `--token` 조회도 지원합니다. 출력이 없다는 이유로 새 토큰을
+생성해 기존 값을 교체하지 마세요.
 
 소스에서 빌드했다면 생성된 `.env`에 `IRANG_IMAGE=irang:local`을 추가하세요.
 앞서 셸에서 설정한 환경변수는 새 세션에 유지되지 않습니다. 루프백 HTTP에서는
@@ -471,13 +483,13 @@ CLI 자격 증명 파일은 영속 `app-data` 볼륨에 보관합니다.
 ChatGPT, Gemini, Copilot, OpenRouter, xAI는 양식에서 Auth를 선택하고 연결을
 시작합니다. 최초 설정 중이라면 먼저 설치 확인 코드를 입력하세요. 제공자의
 로그인 페이지를 열고, 기기 코드를 요구하면 표시된 코드를 입력합니다.
-원래 이랑 탭으로 돌아와 인증 준비 완료가 표시되면 저장하세요.
+원래 아로 탭으로 돌아와 인증 준비 완료가 표시되면 저장하세요.
 
 - ChatGPT는 일회용 코드와 OpenAI 기기 확인 페이지 링크를 표시합니다.
-  코드는 이랑이 아닌 OpenAI 페이지에 입력합니다. ChatGPT 보안 설정 또는
+  코드는 아로가 아닌 OpenAI 페이지에 입력합니다. ChatGPT 보안 설정 또는
   워크스페이스 권한에서 기기 코드 로그인을 허용해야 합니다.
 - Gemini는 Google 로그인 페이지를 엽니다. Google이 제공한 인증 코드를
-  원래 이랑 양식에 복사해 제출하세요. 서버 터미널은 필요하지 않습니다.
+  원래 아로 양식에 복사해 제출하세요. 서버 터미널은 필요하지 않습니다.
   Auth 기본 모델 `gemini-3.5-flash`는 Gemini CLI의 기본 이용 등급을 따르며,
   계정에 권한이 있으면 3.8 Flash로 연결될 수 있습니다. 더 새 모델을
   선택한다고 그 모델의 접근 권한이 생기지는 않습니다.
@@ -570,6 +582,10 @@ TypeSafe는 API 키를 사용합니다. OpenRouter는 API 키 또는 앞서 설�
 
 <a id="9-data-backup-and-upgrades"></a>
 ## 9. 데이터, 백업, 업그레이드
+
+개발 체크아웃의 [백업·격리 복원 검증 명령](BACKUP.ko.md)은 버전과 파일 체크섬을
+확인하며 호스트 Node.js 22 이상이 필요합니다. 이미 발행된 2.3.2 아카이브에는
+이 도구가 없습니다. 아래 수동 절차도 계속 사용할 수 있습니다.
 
 노트를 영구 삭제하면 같은 DB 트랜잭션에 첨부파일 정리 작업을 기록합니다.
 실제 파일은 트랜잭션 커밋 뒤에만 지웁니다. 저장소에 일시적으로 접근할 수
@@ -846,7 +862,7 @@ Bun 1.4.2와 Docker를 사용합니다. Node 22는 상위 프로젝트 계정 �
 <a id="13-license"></a>
 ## 13. 라이선스
 
-이랑의 앱 코드는 [MIT](../LICENSE) 라이선스입니다. 이 라이선스가 의존성,
+아로의 앱 코드는 [MIT](../LICENSE) 라이선스입니다. 이 라이선스가 의존성,
 폰트, 런타임, 공식 계정 로그인 CLI, 운영체제 이미지, 제공자 서비스의
 라이선스나 약관까지 바꾸지는 않습니다.
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)를 참고하세요.

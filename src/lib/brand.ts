@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import type { Locale, LocalizedText } from "./i18n/locale";
 
 /**
- * Irang brand: product names, install name and the "Interlock" mark geometry.
+ * Aro brand: product names, install name and the "Interlock" mark geometry.
  * Operational identifiers (repository, package, database, cookie and storage keys) keep their names.
  */
 
-/** Product name per UI language. Korean reads 이랑; English reads Irang (EE-rahng). */
-export const BRAND_NAMES: LocalizedText = { ko: "이랑", en: "Irang" };
+/** Product name per UI language. Korean reads 아로; English reads Aro. */
+export const BRAND_NAMES: LocalizedText = { ko: "아로", en: "Aro" };
 
 /**
  * Installed-app name: manifest name/short_name, applicationName and the Apple home-screen title.

@@ -2,6 +2,8 @@ import { aiAuthCopy } from "@/server/i18n/ai-auth-copy";
 import { ConnectionProfileSchema, type ConnectionProfile } from "@/lib/ai-settings";
 import type { AuthProtocolOptions } from "@/lib/ai-auth";
 import { tx } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
+import { refreshedSQLiteConnectionProfile } from "./sqlite-refresh";
 import { ApiError } from "@/server/http";
 import { AI_SETTINGS_LOCK } from "@/server/setup/ai-profile-store";
 import { OAuthProtocolError, refreshCredential } from "./protocol";
@@ -11,6 +13,7 @@ export async function refreshedConnectionProfile(
   id: string,
   options: AuthProtocolOptions & { readonly forceIfAccessToken?: string } = {},
 ): Promise<ConnectionProfile | null> {
+  if (databaseBackend() === "sqlite") return refreshedSQLiteConnectionProfile(id, options);
   return tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [AI_SETTINGS_LOCK]);
     const result = await client.query<{ id: string; name: string; purpose: string; connection: unknown }>(

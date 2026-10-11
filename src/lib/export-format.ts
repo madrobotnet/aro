@@ -1,3 +1,7 @@
+import type { Nodes } from "mdast";
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { normalizeTitle } from "./wikilinks";
+
 export type ExportNote = {
   readonly id: string;
   readonly title: string;
@@ -11,6 +15,81 @@ export type ExportNote = {
   readonly archived: boolean;
   readonly body: string;
 };
+
+export type ExportNoteFile = {
+  readonly id: string;
+  readonly title: string;
+  readonly aliases: readonly string[];
+  readonly path: string;
+};
+
+/** Input order is creation time, then ID. Titles beat aliases; the source is excluded like app links. */
+export function createPortableLinkResolver(notes: readonly ExportNoteFile[]): (target: string, sourceId: string) => string | undefined {
+  const titles = new Map<string, ExportNoteFile[]>();
+  const aliases = new Map<string, ExportNoteFile[]>();
+  for (const note of notes) {
+    for (const [index, names] of [[titles, [note.title]], [aliases, note.aliases]] as const) {
+      for (const name of names) {
+        const key = normalizeTitle(name);
+        const matches = index.get(key) ?? [];
+        matches.push(note);
+        index.set(key, matches);
+      }
+    }
+  }
+  return (target, sourceId) => {
+    const key = normalizeTitle(target);
+    const note = titles.get(key)?.find((note) => note.id !== sourceId)
+      ?? aliases.get(key)?.find((note) => note.id !== sourceId);
+    return note?.path.slice("notes/".length);
+  };
+}
+
+/** Wiki-capable readers resolve the actual filename, not the original (possibly unsafe) title. */
+export function rewritePortableWikiLinks(body: string, sourceId: string, resolve: (target: string, sourceId: string) => string | undefined): string {
+  // CommonMark positions distinguish code from paragraphs inside lists and quotes.
+  const nodes: Nodes[] = [fromMarkdown(body)];
+  const excluded: Array<[number, number]> = [];
+  while (nodes.length > 0) {
+    const node = nodes.pop();
+    if (!node) break;
+    if (node.type === "code" || node.type === "inlineCode") {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      if (start !== undefined && end !== undefined) excluded.push([start, end]);
+    } else if ("children" in node) nodes.push(...node.children);
+  }
+  let masked = "";
+  let cursor = 0;
+  for (const [start, end] of excluded.sort((a, b) => a[0] - b[0])) {
+    masked += body.slice(cursor, start) + " ".repeat(end - start);
+    cursor = end;
+  }
+  masked += body.slice(cursor);
+  let out = "";
+  let last = 0;
+  let codeIndex = 0;
+  for (const match of masked.matchAll(/\[\[([^\[\]\n|#]+)(?:#([^\[\]\n|]+))?(?:\|([^\[\]\n]+))?\]\]/g)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    let code = excluded[codeIndex];
+    while (code && code[1] <= start) code = excluded[++codeIndex];
+    if (code && code[0] < end) continue;
+    let escapeStart = start;
+    while (body[escapeStart - 1] === "\\") escapeStart--;
+    if ((start - escapeStart) % 2 === 1) continue;
+    const target = match[1]?.trim();
+    if (!target) continue;
+    const filename = resolve(target, sourceId);
+    if (filename === undefined) continue;
+    const token = body.slice(start, end);
+    const suffix = token.slice(2).search(/[|#\]]/);
+    out += body.slice(last, start);
+    out += `[[${filename}${token.slice(2 + suffix, -2)}${match[3] === undefined ? `|${target}` : ""}]]`;
+    last = end;
+  }
+  return out + body.slice(last);
+}
 
 /** UTF-8 budget for one name before the collision suffix and extension (most file systems allow 255). */
 const NAME_BYTES = 150;
@@ -110,7 +189,12 @@ export function frontMatter(note: ExportNote): string {
   ].join("\n");
 }
 
-/** Front matter followed by the body, verbatim apart from rewritten attachment links. */
-export function noteMarkdown(note: ExportNote, attachmentHrefs: ReadonlyMap<string, string>): string {
-  return frontMatter(note) + rewriteAttachmentLinks(note.body, attachmentHrefs);
+/** Front matter and body; attachment links are rewritten, wiki links only with an explicit resolver. */
+export function noteMarkdown(
+  note: ExportNote,
+  attachmentHrefs: ReadonlyMap<string, string>,
+  resolve?: (target: string, sourceId: string) => string | undefined,
+): string {
+  const body = resolve ? rewritePortableWikiLinks(note.body, note.id, resolve) : note.body;
+  return frontMatter(note) + rewriteAttachmentLinks(body, attachmentHrefs);
 }

@@ -24,6 +24,7 @@ import { forgetNoteDraft, getNoteDraft } from "./draft-store";
 import { refreshNoteViews } from "./note-cache";
 import { mergeTaskToggle } from "./note-draft";
 import { PurgeNoteDialog } from "./trash-actions";
+import { ShareNoteDialog } from "./ShareNoteDialog";
 
 export function NoteDetail({ noteId }: { noteId: string }) {
   const copy = useCopy(NOTES_COPY);
@@ -197,6 +198,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
           <Link href="/notes" className="mr-auto inline-flex min-h-touch items-center text-sm text-mute hover:text-ink lg:hidden">{copy.detail.backToList}</Link>
           {note.dailyDate ? <DailyNav date={note.dailyDate} /> : null}
           <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} />
+          {!note.archived ? <ShareNoteDialog noteId={note.id} beforeCreate={() => controller.flush()} /> : null}
           {/* Below `sm` the labels become screen-reader text, so the row stays one line on a 390px phone. */}
           <Button size="sm" className={TOOLBAR_BUTTON} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} leading={<Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} />} onClick={() => void patchFlag({ pinned: !note.pinned })}><span className="sr-only sm:not-sr-only">{copy.detail.pin}</span></Button>
           <Button size="sm" className={TOOLBAR_BUTTON} title={note.archived ? copy.detail.unarchive : copy.detail.archive} disabled={actionBusy} leading={<Archive aria-hidden className="size-4" />} onClick={() => void patchFlag({ archived: !note.archived })}><span className="sr-only sm:not-sr-only">{note.archived ? copy.detail.unarchive : copy.detail.archive}</span></Button>

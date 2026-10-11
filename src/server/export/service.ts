@@ -2,11 +2,13 @@ import { constants } from "node:fs";
 import { lstat, open, type FileHandle } from "node:fs/promises";
 import { crc32 } from "node:zlib";
 import { strToU8, Zip, ZipDeflate, ZipPassThrough } from "fflate";
-import type { Pool, QueryResultRow } from "pg";
+import type { PoolClient } from "pg";
 import {
-  attachmentHref, createNameAllocator, noteMarkdown, safeAttachmentName, safeFileName, type ExportNote,
+  attachmentHref, createNameAllocator, createPortableLinkResolver, noteMarkdown, safeAttachmentName, safeFileName,
+  type ExportNote, type ExportNoteFile,
 } from "@/lib/export-format";
 import { db } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { storagePath } from "@/server/notes/attachment-storage";
 
@@ -15,13 +17,29 @@ const READ_CHUNK_BYTES = 64 * 1024;
 /** Zip bytes buffered ahead of a slow download before the writer pauses. */
 const BUFFERED_BYTES = 1024 * 1024;
 
-type NoteRow = QueryResultRow & {
+export type NoteRow = {
   id: string; title: string; body: string; tags: string[]; aliases: string[]; pinned: boolean; status: string;
   source_url: string | null; daily_date: string | null; created_at: Date; updated_at: Date; cursor: string;
 };
-type AttachmentRow = QueryResultRow & { id: string; filename: string; storage_key: string; created_at: Date };
-type PlannedAttachment = { readonly path: string; readonly storageKey: string; readonly mtime: Date };
-type ExportPlan = { readonly attachments: readonly PlannedAttachment[]; readonly hrefs: ReadonlyMap<string, string> };
+export type AttachmentRow = { id: string; filename: string; storage_key: string; created_at: Date };
+type PlannedAttachment = { readonly id: string; readonly path: string; readonly storageKey: string; readonly mtime: Date };
+type Omission = { readonly id: string; readonly reason: "metadata_missing" | "file_missing" | "purge_race" };
+type ExportPlan = {
+  readonly attachments: readonly PlannedAttachment[];
+  readonly omissions: Omission[];
+  readonly notes: readonly ExportNoteFile[];
+};
+export type ExportOptions = { readonly wikiLinks?: "preserve" | "portable" };
+export type ExportSnapshot = {
+  metadata(): Promise<{
+    notes: { id: string; title: string; aliases: string[] }[];
+    attachments: AttachmentRow[];
+    missing: { id: string }[];
+  }>;
+  notes(): AsyncGenerator<NoteRow>;
+  close(): void | Promise<void>;
+};
+type ArchiveSource = { readonly snapshot: ExportSnapshot; readonly plan: ExportPlan; readonly now: Date; readonly options: ExportOptions };
 type Sink = { readonly cancelled: boolean; drained(): Promise<void> };
 
 // Exported notes are every note outside the trash (active and archived); chat and inbox live elsewhere.
@@ -42,6 +60,11 @@ const ATTACHMENTS_SQL = `
   SELECT a.id,a.filename,a.storage_key,a.created_at FROM attachments a
    WHERE a.note_id IN (SELECT id FROM exported) OR a.id IN (SELECT id FROM linked)
    ORDER BY a.created_at,a.id`;
+const MISSING_METADATA_SQL = `
+  SELECT DISTINCT lower(m[1]) AS id FROM notes,
+    regexp_matches(body,
+      '/api/attachments/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})', 'g') AS m
+  WHERE deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM attachments WHERE id=lower(m[1])::uuid)`;
 
 export function exportFileName(now: Date): string {
   return `irang-export-${now.toISOString().slice(0, 10)}.zip`;
@@ -69,31 +92,43 @@ function entry<T extends ZipDeflate | ZipPassThrough>(file: T, mtime: Date): T {
   return file;
 }
 
-async function planAttachments(pool: Pool): Promise<ExportPlan> {
-  const rows = (await pool.query<AttachmentRow>(ATTACHMENTS_SQL)).rows;
+async function planExport(snapshot: ExportSnapshot, options: ExportOptions): Promise<ExportPlan> {
+  const { notes: noteRows, attachments: rows, missing } = await snapshot.metadata();
+  const allocateNote = createNameAllocator();
+  const notes = noteRows.map((row) => ({
+    ...row,
+    path: `notes/${allocateNote(safeFileName(
+      options.wikiLinks === "portable" ? row.title.replace(/[#[\]]/g, "-") : row.title, "untitled",
+    ), ".md")}`,
+  }));
+  const omissions: Omission[] = missing.map(({ id }) => ({ id, reason: "metadata_missing" }));
   const allocate = createNameAllocator();
   const attachments: PlannedAttachment[] = [];
-  const hrefs = new Map<string, string>();
   for (const row of rows) {
     try {
-      if (!(await lstat(storagePath(row.storage_key))).isFile()) continue;
+      if (!(await lstat(storagePath(row.storage_key))).isFile()) {
+        omissions.push({ id: row.id, reason: "file_missing" });
+        continue;
+      }
     } catch (error) {
-      if (isMissingFile(error)) continue; // a missing file keeps its /api/attachments link
+      if (isMissingFile(error)) {
+        omissions.push({ id: row.id, reason: "file_missing" });
+        continue;
+      }
       throw error;
     }
     const { stem, extension } = safeAttachmentName(row.filename);
     const name = allocate(stem, extension);
-    attachments.push({ path: `attachments/${name}`, storageKey: row.storage_key, mtime: row.created_at });
-    hrefs.set(row.id, attachmentHref(name));
+    attachments.push({ id: row.id, path: `attachments/${name}`, storageKey: row.storage_key, mtime: row.created_at });
   }
-  return { attachments, hrefs };
+  return { attachments, omissions, notes };
 }
 
 /** Keyset pages ordered by creation, so the oldest of two same-titled notes keeps the plain name. */
-async function* exportedNotes(pool: Pool): AsyncGenerator<NoteRow> {
+async function* exportedNotes(client: PoolClient): AsyncGenerator<NoteRow> {
   let after: { at: string | null; id: string | null } = { at: null, id: null };
   for (;;) {
-    const { rows } = await pool.query<NoteRow>(NOTES_SQL, [after.at, after.id, NOTE_BATCH]);
+    const { rows } = await client.query<NoteRow>(NOTES_SQL, [after.at, after.id, NOTE_BATCH]);
     yield* rows;
     const last = rows.at(-1);
     if (!last || rows.length < NOTE_BATCH) return;
@@ -109,22 +144,25 @@ function toExportNote(row: NoteRow): ExportNote {
   };
 }
 
-async function writeAttachment(zip: Zip, sink: Sink, attachment: PlannedAttachment): Promise<void> {
+async function writeAttachment(zip: Zip, sink: Sink, attachment: PlannedAttachment): Promise<boolean> {
   let handle: FileHandle;
   try {
     handle = await open(storagePath(attachment.storageKey), constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch (error) {
-    if (isMissingFile(error)) return; // the file can vanish between planning and writing (a purge mid-export)
+    if (isMissingFile(error)) return false;
     throw error;
   }
   try {
+    if (sink.cancelled) return false;
+    if (!(await handle.stat()).isFile()) return false;
     const file = entry(new ZipPassThrough(attachment.path), attachment.mtime);
     zip.add(file);
     for (;;) {
       const chunk = new Uint8Array(READ_CHUNK_BYTES); // fresh buffer: the stream keeps each chunk
       const { bytesRead } = await handle.read(chunk, 0, READ_CHUNK_BYTES, null);
       file.push(chunk.subarray(0, bytesRead), bytesRead === 0);
-      if (bytesRead === 0 || sink.cancelled) return;
+      if (bytesRead === 0) return true;
+      if (sink.cancelled) return false;
       await sink.drained();
     }
   } finally {
@@ -132,39 +170,69 @@ async function writeAttachment(zip: Zip, sink: Sink, attachment: PlannedAttachme
   }
 }
 
-async function writeArchive(zip: Zip, sink: Sink, source: { pool: Pool; plan: ExportPlan }): Promise<void> {
-  const { pool, plan } = source;
-  const allocate = createNameAllocator();
-  for await (const row of exportedNotes(pool)) {
+/** Compression also obeys the byte budget, including large bodies and the ID mapping receipt. */
+async function writeText(zip: Zip, sink: Sink, path: string, mtime: Date, text: string): Promise<void> {
+  if (sink.cancelled) return;
+  const file = entry(new ZipDeflate(path, { level: 6 }), mtime);
+  const bytes = strToU8(text);
+  zip.add(file);
+  for (let offset = 0; offset < bytes.length; offset += READ_CHUNK_BYTES) {
     if (sink.cancelled) return;
-    const path = `notes/${allocate(safeFileName(row.title, "untitled"), ".md")}`;
-    const file = entry(new ZipDeflate(path, { level: 6 }), row.updated_at);
-    zip.add(file);
-    file.push(strToU8(noteMarkdown(toExportNote(row), plan.hrefs)), true);
+    file.push(bytes.subarray(offset, offset + READ_CHUNK_BYTES), false);
     await sink.drained();
   }
+  if (!sink.cancelled) file.push(new Uint8Array(0), true);
+  await sink.drained();
+}
+
+async function writeArchive(zip: Zip, sink: Sink, source: ArchiveSource): Promise<void> {
+  const { snapshot, plan } = source;
+  const hrefs = new Map<string, string>();
+  // Write bytes before rewriting any links. An open descriptor survives a concurrent unlink;
+  // a purge before open gets an omission receipt and retains its original API URL.
   for (const attachment of plan.attachments) {
     if (sink.cancelled) return;
-    await writeAttachment(zip, sink, attachment);
+    if (await writeAttachment(zip, sink, attachment)) {
+      hrefs.set(attachment.id, attachmentHref(attachment.path.slice("attachments/".length)));
+    } else {
+      plan.omissions.push({ id: attachment.id, reason: "purge_race" });
+    }
   }
-  zip.end();
+  const paths = new Map(plan.notes.map((note) => [note.id, note.path]));
+  const resolve = source.options.wikiLinks === "portable" ? createPortableLinkResolver(plan.notes) : undefined;
+  for await (const row of snapshot.notes()) {
+    if (sink.cancelled) return;
+    const path = paths.get(row.id);
+    if (path === undefined) throw new ApiError("internal", "Export snapshot note mapping is missing.");
+    await writeText(zip, sink, path, row.updated_at, noteMarkdown(toExportNote(row), hrefs, resolve));
+  }
+  if (sink.cancelled) return;
+  await writeText(zip, sink, "export-manifest.json", source.now, JSON.stringify({
+    version: 1,
+    wikiLinks: source.options.wikiLinks ?? "preserve",
+    notes: plan.notes,
+    attachments: plan.attachments.filter(({ id }) => hrefs.has(id)).map(({ id, path }) => ({ id, path })),
+    omittedAttachments: plan.omissions.sort((a, b) => a.id.localeCompare(b.id)),
+  }));
+  if (!sink.cancelled) zip.end();
 }
 
 /** Zip bytes produced on demand: the writer waits whenever the download falls behind. */
-function archiveStream(source: { pool: Pool; plan: ExportPlan }): ReadableStream<Uint8Array> {
+function archiveStream(source: ArchiveSource): ReadableStream<Uint8Array> {
   let cancelled = false;
   let resume: (() => void) | undefined;
+  let writer: Promise<void>;
+  let zip: Zip;
   const wake = () => {
     resume?.();
     resume = undefined;
   };
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      const zip = new Zip((error, chunk, final) => {
+      zip = new Zip((error, chunk) => {
         if (cancelled) return;
-        if (error) return controller.error(error);
+        if (error) throw error;
         controller.enqueue(chunk);
-        if (final) controller.close();
       });
       const sink: Sink = {
         get cancelled() { return cancelled; },
@@ -172,25 +240,42 @@ function archiveStream(source: { pool: Pool; plan: ExportPlan }): ReadableStream
           while (!cancelled && (controller.desiredSize ?? 0) <= 0) await new Promise<void>((resolve) => { resume = resolve; });
         },
       };
-      void writeArchive(zip, sink, source).catch((error: unknown) => {
+      writer = (async () => {
+        try {
+          await writeArchive(zip, sink, source);
+        } finally {
+          await source.snapshot.close();
+        }
+      })().then(() => {
+        if (!cancelled) controller.close();
+      }, (error: unknown) => {
         zip.terminate();
         if (!cancelled) controller.error(error);
       });
     },
     pull: wake,
-    cancel() {
+    async cancel() {
       cancelled = true;
       wake();
+      zip.terminate();
+      await writer;
     },
   }, new ByteLengthQueuingStrategy({ highWaterMark: BUFFERED_BYTES }));
 }
 
 /** The whole export as a streamed zip download (notes/*.md plus attachments/*). */
-export async function exportResponse(now: Date = new Date()): Promise<Response> {
-  const pool = await db();
-  // Planning runs before the first byte, so its failures still become a JSON error response.
-  const plan = await planAttachments(pool);
-  return new Response(archiveStream({ pool, plan }), {
+export async function exportResponse(now: Date = new Date(), options: ExportOptions = {}): Promise<Response> {
+  const snapshot = databaseBackend() === "sqlite"
+    ? await (await import("./sqlite")).sqliteExportSnapshot()
+    : await postgresExportSnapshot();
+  let plan: ExportPlan;
+  try {
+    plan = await planExport(snapshot, options);
+  } catch (error) {
+    await snapshot.close();
+    throw error;
+  }
+  return new Response(archiveStream({ snapshot, plan, now, options }), {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename=${exportFileName(now)}`,
@@ -198,4 +283,33 @@ export async function exportResponse(now: Date = new Date()): Promise<Response> 
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+
+async function postgresExportSnapshot(): Promise<ExportSnapshot> {
+  const client = await (await db()).connect();
+  const close = async () => {
+    try {
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  };
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+  } catch (error) {
+    await close();
+    throw error;
+  }
+  return {
+    async metadata() {
+      const notes = (await client.query<{ id: string; title: string; aliases: string[] }>(
+        "SELECT id,title,aliases FROM notes WHERE deleted_at IS NULL ORDER BY created_at,id",
+      )).rows;
+      const attachments = (await client.query<AttachmentRow>(ATTACHMENTS_SQL)).rows;
+      const missing = (await client.query<{ id: string }>(MISSING_METADATA_SQL)).rows;
+      return { notes, attachments, missing };
+    },
+    notes: () => exportedNotes(client),
+    close,
+  };
 }

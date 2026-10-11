@@ -1,6 +1,7 @@
 import type { HomeData, NoteSummary } from "@/lib/types";
 import { excerpt } from "@/lib/wikilinks";
 import { query } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
 import { listInbox } from "@/server/inbox";
 import { listNotes, listTags } from "@/server/notes/service";
 
@@ -60,6 +61,7 @@ export function homeDate(now = new Date(), timeZone?: string): string {
 /** Build the authenticated dashboard snapshot. Resurfacing is stable for one local calendar day. */
 export async function getHomeData(options: HomeOptions = {}): Promise<HomeData> {
   const today = homeDate(options.now, options.timeZone);
+  if (databaseBackend() === "sqlite") return (await import("./sqlite")).homeSQLite(today);
   const [inbox, recent, pinned, dailyRows, resurfaceRows, statsRows, tags] = await Promise.all([
     listInbox(),
     listNotes({ limit: 8 }),

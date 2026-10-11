@@ -1,6 +1,26 @@
-# Irang architecture
+# Aro architecture
 
-Irang is a single-owner, self-hosted second brain built with **Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4, PostgreSQL 18 + pgvector + pg_trgm, and Bun**. Bun is the package manager, script runner, test runner and production runtime.
+The product was previously called Irang. Existing operational identifiers remain
+compatible; a product rename does not rename databases, volumes or cookies.
+
+## Product boundaries
+
+- One owner controls the notebook. Agent credentials delegate only explicitly
+  granted capabilities; they do not introduce additional human accounts.
+- Capture, links and ordinary search must work without AI. External model calls
+  require the owner's enabled configuration; disabling AI must remain effective.
+- Markdown note transfer and full-instance backup are different operations.
+  Transfer must report unsupported state and missing attachment bytes rather than
+  silently claiming a complete migration.
+- Desktop and server are separate primary environments, not a live sync pair.
+  Movement between them is an explicit export/import operation.
+- Diagnostics stay local by default. External analytics or webhook delivery
+  require a specific opt-in and a documented data payload.
+- SQLite desktop support uses native repositories and append-only migrations,
+  not a connection-string substitution. See `SQLITE.md` and `DESKTOP.md`.
+  The PostgreSQL contracts documented below describe the server backend.
+
+Aro is a single-owner, self-hosted second brain built with **Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4, PostgreSQL 18 + pgvector + pg_trgm, and Bun**. Bun is the package manager, script runner, test runner and production runtime.
 
 Flow: **capture → inbox triage → linked Markdown notes → search, graph and AI chat over your notes.**
 
@@ -124,8 +144,8 @@ The interface uses a warm parchment canvas, matte cards, charcoal rail and
 terracotta accent, with Korean and English copy. Pretendard Variable is
 self-hosted; code uses the system monospace stack.
 
-[DESIGN.md](https://github.com/madrobotnet/irang/blob/v2.3.2/DESIGN.md) defines the design guidance and interface contract.
-[src/app/globals.css](https://github.com/madrobotnet/irang/blob/v2.3.2/src/app/globals.css) is the executable source for
+[DESIGN.md](https://github.com/madrobotnet/aro/blob/v2.3.2/DESIGN.md) defines the design guidance and interface contract.
+[src/app/globals.css](https://github.com/madrobotnet/aro/blob/v2.3.2/src/app/globals.css) is the executable source for
 light/dark color, typography, spacing and focus token values, exposed to Tailwind 4
 through `@theme inline`. Use semantic utilities such as `bg-card`, `text-ink`
 and `border-line` rather than copying color values into components. Focus uses
@@ -137,7 +157,7 @@ collapsed below that width. Mobile has a top bar and bottom navigation:
 Home · Inbox · [capture] · Notes · More. Search stays in the top bar;
 the remaining destinations appear in More.
 
-[src/components/shell/nav.ts](https://github.com/madrobotnet/irang/blob/v2.3.2/src/components/shell/nav.ts) defines the shared
+[src/components/shell/nav.ts](https://github.com/madrobotnet/aro/blob/v2.3.2/src/components/shell/nav.ts) defines the shared
 route order: Home `/`, Inbox `/inbox`, Notes `/notes`, Tasks `/tasks`,
 Today `/daily`, Search `/search`, Graph `/graph`, Chat `/chat`, Settings
 `/settings`. Labels are localized, and Inbox shows the open-item count.

@@ -1,6 +1,7 @@
 import { setupCopy } from "@/server/i18n/setup-copy";
 import type { AiSettingsInput, AiSettingsView, StoredAiSettings } from "@/lib/ai-settings";
 import { tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { legacyChatConnection, legacyJevConnection } from "./ai-legacy";
 import {
@@ -8,6 +9,7 @@ import {
 } from "./ai-profile-store";
 import { resolvedJevConnection } from "./ai-profile-resolve";
 import { resolveAiSettings } from "./ai-settings-resolve";
+import { persistSQLiteAiSettings, resolveSQLiteAiSettings, sqliteSettingsDocument, sqliteSettingsOwner } from "./ai-sqlite";
 
 export { resolveAiSettings } from "./ai-settings-resolve";
 
@@ -57,6 +59,17 @@ export async function saveAiSettings(
   input: AiSettingsInput,
   options: { readonly browserHash?: string } = {},
 ): Promise<void> {
+  if (databaseBackend() === "sqlite") {
+    (await sqliteStore()).transaction(executor => {
+      const ownerId = sqliteSettingsOwner(executor);
+      const ai = resolveSQLiteAiSettings(executor, input, {
+        ownerId, previous: sqliteSettingsDocument(executor),
+        scope: { key: `owner:${ownerId}`, browserHash: options.browserHash },
+      });
+      persistSQLiteAiSettings(executor, ownerId, ai);
+    });
+    return;
+  }
   await tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [AI_SETTINGS_LOCK]);
     const ownerId = await settingsOwner(client);

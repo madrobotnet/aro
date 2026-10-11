@@ -2,6 +2,7 @@ import type { RelatedNote, SearchHit, SearchMatch, SearchResponse } from "@/lib/
 import { embedText, tokenize, vectorLiteral } from "@/lib/embed";
 import { excerpt, markdownToText, normalizeTag } from "@/lib/wikilinks";
 import { query } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { notesCopy, searchCopy } from "@/server/i18n/copy";
 import { indexStatus, relatedPassages, retrievePassages, type PassageCandidate } from "./passages";
@@ -139,6 +140,10 @@ export async function searchNotes(
   const limit = validatedLimit(options.limit);
   const tag = validatedTag(options.tag);
   if (!queryTextTrimmed) return { query: queryText, hits: [], tookMs: Math.max(0, performance.now() - startedAt) };
+  if (databaseBackend() === "sqlite") {
+    const { searchSQLite } = await import("./sqlite");
+    return searchSQLite(queryText, tag, limit);
+  }
 
   await backfillEmbeddings();
   const shortlistLimit = Math.min(MAX_LIMIT, Math.max(limit * 4, 20));
@@ -250,6 +255,10 @@ export async function searchNotes(
 
 export async function relatedNotes(noteId: string, limitValue?: number): Promise<RelatedNote[]> {
   const limit = validatedLimit(limitValue);
+  if (databaseBackend() === "sqlite") {
+    const { relatedSQLite } = await import("./sqlite");
+    return relatedSQLite(noteId, limit);
+  }
   const learned = await relatedPassages(noteId, limit);
   if (learned.length) return learned.map((row) => ({
     id: row.id, title: row.title, excerpt: excerpt(row.body), score: Number(row.rank_score),

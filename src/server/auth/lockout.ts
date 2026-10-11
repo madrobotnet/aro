@@ -1,5 +1,6 @@
 import argon2 from "argon2";
 import { tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { LOGIN_FAIL_LIMIT, LOGIN_FAIL_WINDOW_MIN } from "./config";
 
 export type LoginResult =
@@ -13,6 +14,15 @@ export async function verifyLogin(input: {
   readonly password: string;
   readonly hash: string;
 }): Promise<LoginResult> {
+  if (databaseBackend() === "sqlite") {
+    const { sqliteLoginLock, recordSQLiteLogin } = await import("./sqlite-lockout");
+    const store = await sqliteStore();
+    const locked = sqliteLoginLock(store, input.clientKey, Date.now());
+    if (locked) return locked;
+    // Argon2 releases the thread; recheck under the writer lock after it completes.
+    const matches = await argon2.verify(input.hash, input.password);
+    return store.transaction((executor) => recordSQLiteLogin(executor, input.clientKey, matches, Date.now()));
+  }
   return tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 7431002))", [input.clientKey]);
     const recent = await client.query<{ attempts: number; remaining: number }>(

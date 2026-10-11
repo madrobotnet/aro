@@ -7,6 +7,7 @@ import {
 import { StoredJevConnectionSchema, type ChatInput, type JevInput, type StoredJevConnection } from "@/lib/ai-connections";
 import { isCustomProvider } from "@/lib/ai-providers";
 import { consumeAuthAttempt, type AiAuthScope } from "@/server/ai-auth/attempt-store";
+import type { OAuthCredential } from "@/lib/ai-auth";
 import { ApiError } from "@/server/http";
 
 export type ProfileResolveContext = {
@@ -19,6 +20,15 @@ export async function resolveChatConnection(
   previous: ChatConnection | null,
   context: ProfileResolveContext,
 ): Promise<ChatConnection> {
+  const credential = input.mode === "auth" && input.authAttemptId
+    ? await consumeAuthAttempt(context.client, { id: input.authAttemptId, provider: input.provider, scope: context.scope })
+    : undefined;
+  return resolvedChatConnection(input, previous, credential);
+}
+
+export function resolvedChatConnection(
+  input: ChatInput, previous: ChatConnection | null, granted?: OAuthCredential,
+): ChatConnection {
   switch (input.mode) {
     case "api": {
       const unchanged = previous?.mode === "api"
@@ -45,7 +55,7 @@ export async function resolveChatConnection(
             && previous.provider === input.provider && previous.enterpriseDomain === input.enterpriseDomain
             ? previous.credential : undefined;
           const credential = authAttemptId
-            ? await consumeAuthAttempt(context.client, { id: authAttemptId, provider: input.provider, scope: context.scope })
+            ? granted
             : previousCredential;
           // Existing file-backed profiles remain editable without replacing their
           // legacy credential source. New profiles must complete browser auth.
@@ -77,10 +87,19 @@ export async function resolveJevConnection(
   previous: StoredJevConnection | null,
   context: ProfileResolveContext,
 ): Promise<StoredJevConnection> {
+  const credential = input.mode === "auth" && input.authAttemptId
+    ? await consumeAuthAttempt(context.client, { id: input.authAttemptId, provider: "openrouter", scope: context.scope })
+    : undefined;
+  return resolvedStoredJevConnection(input, previous, credential);
+}
+
+export function resolvedStoredJevConnection(
+  input: JevInput, previous: StoredJevConnection | null, granted?: OAuthCredential,
+): StoredJevConnection {
   if (input.mode === "auth") {
     const previousCredential = previous?.mode === "auth" ? previous.credential : undefined;
     const credential = input.authAttemptId
-      ? await consumeAuthAttempt(context.client, { id: input.authAttemptId, provider: "openrouter", scope: context.scope })
+      ? granted
       : previousCredential;
     if (!credential) throw new ApiError("validation", setupCopy.openRouterFirst);
     return StoredJevConnectionSchema.parse({

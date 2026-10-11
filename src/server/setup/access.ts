@@ -1,6 +1,7 @@
 import { setupCopy } from "@/server/i18n/setup-copy";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { queryOne } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 
 export type SetupState = "ready" | "disabled" | "complete";
@@ -14,6 +15,12 @@ export const OCCUPIED_SQL = `SELECT
 
 export async function setupState(): Promise<SetupState> {
   if (process.env.AUTH_PASSWORD_HASH?.trim()) return "complete";
+  if (databaseBackend() === "sqlite") {
+    const { sqliteOccupied } = await import("./sqlite");
+    if (sqliteOccupied(await sqliteStore())) return "complete";
+    const token = process.env.SETUP_TOKEN?.trim();
+    return token && token.length >= 32 && token.length <= 256 ? "ready" : "disabled";
+  }
   const existing = await queryOne<{ occupied: boolean }>(OCCUPIED_SQL);
   if (existing?.occupied) return "complete";
   const token = process.env.SETUP_TOKEN?.trim();

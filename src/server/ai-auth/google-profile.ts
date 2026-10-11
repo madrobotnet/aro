@@ -2,11 +2,14 @@ import { ConnectionProfileSchema } from "@/lib/ai-settings";
 import { createCliProvider, type CliProviderOptions } from "@/server/chat/cli-provider";
 import { ChatProviderError, type ChatProvider } from "@/server/chat/provider";
 import { tx } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
+import { createSQLiteGoogleProfileProvider } from "./sqlite-google-profile";
 
 /** The row lock serializes CLI refreshes across processes, with profile edits and
  * deletion. No global settings lock is held during generation; unrelated profiles
  * can run independently. A failed chat still commits any valid refreshed tokens. */
 export function createGoogleProfileProvider(id: string, options: Omit<CliProviderOptions, "session"> = {}): ChatProvider {
+  if (databaseBackend() === "sqlite") return createSQLiteGoogleProfileProvider(id, options);
   return {
     async stream(input, onDelta, signal) {
       const result = await tx(async (client) => {

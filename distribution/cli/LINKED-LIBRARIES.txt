@@ -5,7 +5,7 @@ gst-plugins-base 1.28.6 and gst-plugins-good 1.28.6 under LGPL-2.1,
 and proxy-libintl 0.5 under the GNU Library GPL version 2.
 Their complete upstream license notices are retained without alteration.
 
-Irang imposes no restriction on modification for personal use or reverse
+Aro imposes no restriction on modification for personal use or reverse
 engineering of the linked hosts for debugging modifications to these libraries.
 You may replace compatible dynamic libraries in codex-resources/voice/lib
 and compatible plugins in codex-resources/voice/lib/gstreamer-1.0.
@@ -15,7 +15,7 @@ matching Codex source archive identified by manifest.json.
 
 Gemini CLI 0.61.0 uses keytar 7.10.6, which loads libsecret and its
 GLib/GIO/GObject dependencies dynamically on supported Linux targets.
-Irang imposes no restriction on modification for personal use or reverse
+Aro imposes no restriction on modification for personal use or reverse
 engineering of Gemini, keytar or Node for debugging modifications to these
 libraries. You may supply ABI-compatible replacements through the dynamic
 loader's library search path, including LD_LIBRARY_PATH. Preserve the

@@ -1,14 +1,17 @@
-import { choice, noul } from "@typesafe-ai/sdk";
 import type { PoolClient, QueryResultRow } from "pg";
 import type { InboxItem, InboxSource, InboxSuggestions, Note } from "@/lib/types";
 import type { Locale } from "@/lib/i18n/locale";
 import { replacePendingInboxUrlStatus, stripInboxUrlStatus, URL_FAILED_MARKER, URL_PENDING_MARKER } from "@/lib/inbox-url-status";
 import { db, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
+import { sqliteUuid } from "@/server/db/sqlite";
 import { ApiError } from "@/server/http";
-import { CAPTURE_TITLE, inboxCopy, jevCaptureQuestions, notesCopy } from "@/server/i18n/copy";
-import { getJev } from "@/server/jev/client";
+import { CAPTURE_TITLE, inboxCopy, notesCopy } from "@/server/i18n/copy";
 import { createNote, getNote } from "@/server/notes/service";
 import { fetchUrlText, type UrlIntakeDependencies } from "./url";
+import { discardSQLiteInbox, listSQLiteInbox, promoteSQLiteInbox, sqliteInboxRow } from "./sqlite";
+import { buildSuggestions, probability } from "./suggestions";
+import { persistCaptureReplay, type CaptureReplay } from "./capture-replay";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -27,10 +30,6 @@ export type PromoteInboxInput = { title?: string; body?: string; tags?: string[]
 
 export function assertInboxId(id: string): void {
   if (!UUID_RE.test(id)) throw new ApiError("validation", notesCopy.badUuid);
-}
-
-function probability(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
 }
 
 function readSuggestions(value: unknown): InboxSuggestions | null {
@@ -79,11 +78,26 @@ function initialTitle(input: CaptureInboxInput, locale: Locale): string {
   return CAPTURE_TITLE.quick[locale];
 }
 
-export async function captureInbox(input: CaptureInboxInput, locale: Locale = "ko"): Promise<InboxItemDto> {
+export async function captureInbox(input: CaptureInboxInput, locale: Locale = "ko", replay?: CaptureReplay): Promise<InboxItemDto> {
   const text = input.text?.trim() ?? "";
   const url = input.url?.trim() || null;
   if (!text && !url) throw new ApiError("validation", inboxCopy.textOrUrl);
   const body = url ? [text, URL_PENDING_MARKER].filter(Boolean).join("\n\n") : text;
+  if (replay) {
+    // Offline intake does not schedule URL enrichment, so do not promise pending work.
+    return persistCaptureReplay(input, replay, initialTitle(input, locale), text, url);
+  }
+  if (databaseBackend() === "sqlite") {
+    const source = input.source ?? (url ? "url" : "web");
+    if (!["web", "url", "share", "api"].includes(source)) throw new ApiError("validation", "Invalid inbox source");
+    const store = await sqliteStore();
+    const row = store.get<InboxRow>(
+      "INSERT INTO inbox_items(title,body,source,url) VALUES (?,?,?,?) RETURNING *",
+      [initialTitle(input, locale), body, source, url],
+    );
+    if (!row) throw new ApiError("internal", "Inbox insert did not return a row");
+    return mapItem(row);
+  }
   const pool = await db();
   const result = await pool.query<InboxRow>(
     "INSERT INTO inbox_items (title,body,source,url) VALUES ($1,$2,$3,$4) RETURNING *",
@@ -100,6 +114,7 @@ const VIEW_SQL: Record<InboxView, string> = {
 };
 
 export async function listInbox(view: InboxView = "open"): Promise<InboxList> {
+  if (databaseBackend() === "sqlite") return listSQLiteInbox(await sqliteStore(), view);
   const pool = await db();
   const [result, snoozed] = await Promise.all([
     pool.query<InboxRow>(VIEW_SQL[view]),
@@ -118,6 +133,7 @@ export async function listInbox(view: InboxView = "open"): Promise<InboxList> {
 
 async function rowById(id: string, client?: PoolClient): Promise<InboxRow | null> {
   assertInboxId(id);
+  if (!client && databaseBackend() === "sqlite") return sqliteInboxRow(await sqliteStore(), id);
   const executor = client ?? await db();
   const result = await executor.query<InboxRow>("SELECT * FROM inbox_items WHERE id=$1", [id]);
   return result.rows[0] ?? null;
@@ -130,6 +146,7 @@ export async function getInboxItem(id: string): Promise<InboxItemDto | null> {
 
 export async function promoteInbox(id: string, input: PromoteInboxInput = {}, locale: Locale = "ko"): Promise<Note> {
   assertInboxId(id);
+  if (databaseBackend() === "sqlite") return promoteSQLiteInbox(await sqliteStore(), id, input, locale);
   const noteId = await tx(async (client) => {
     const locked = await client.query<InboxRow>("SELECT * FROM inbox_items WHERE id=$1 FOR UPDATE", [id]);
     const item = locked.rows[0];
@@ -153,6 +170,10 @@ export async function promoteInbox(id: string, input: PromoteInboxInput = {}, lo
 
 export async function discardInbox(id: string): Promise<void> {
   assertInboxId(id);
+  if (databaseBackend() === "sqlite") {
+    (await sqliteStore()).transaction((q) => discardSQLiteInbox(q, id));
+    return;
+  }
   await tx(async (client) => {
     const result = await client.query<InboxRow>("SELECT * FROM inbox_items WHERE id=$1 FOR UPDATE", [id]);
     const item = result.rows[0];
@@ -162,54 +183,23 @@ export async function discardInbox(id: string): Promise<void> {
   });
 }
 
-type Answer = { type?: unknown; noul?: unknown; choice?: unknown; confidence?: unknown; probabilities?: unknown };
-
-async function buildSuggestions(item: InboxRow, locale: Locale): Promise<InboxSuggestions> {
-  try {
-    const jev = await getJev();
-    if (!jev) return { status: "unavailable", tags: [], kind: null, duplicateOf: null };
-    const pool = await db();
-    const notes = await pool.query<{ id: string; title: string }>(
-      "SELECT id,title FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT 20",
-    );
-    const copy = jevCaptureQuestions(locale);
-    const duplicateChoices: Record<string, string | null> = { none: copy.noDuplicate };
-    for (const note of notes.rows) duplicateChoices[note.id] = note.title;
-    const response = await jev.systemOne({
-      state: { title: item.title, body: item.body.slice(0, 4000), existingNotes: notes.rows },
-      questions: {
-        kind: choice(copy.kindQuestion, copy.kindLabels),
-        tag_idea: noul(copy.tagIdea), tag_reference: noul(copy.tagReference), tag_task: noul(copy.tagTask),
-        ...(notes.rows.length ? { duplicate: choice(copy.duplicate, duplicateChoices) } : {}),
-      },
-    });
-    const answers = response.answers as Record<string, Answer>;
-    const tags = ["idea", "reference", "task"].flatMap((tag) => {
-      const score = probability(answers[`tag_${tag}`]?.noul);
-      return score !== null && score >= 0.5 ? [{ tag, probability: score }] : [];
-    }).sort((a, b) => b.probability - a.probability);
-    const kindAnswer = answers.kind;
-    const kindConfidence = probability(kindAnswer?.confidence);
-    const kind = typeof kindAnswer?.choice === "string" && kindConfidence !== null
-      ? { choice: kindAnswer.choice, confidence: kindConfidence } : null;
-    const duplicate = answers.duplicate;
-    const probabilities = duplicate?.probabilities && typeof duplicate.probabilities === "object"
-      ? duplicate.probabilities as Record<string, unknown> : null;
-    const selected = typeof duplicate?.choice === "string" ? duplicate.choice : null;
-    const matched = selected && selected !== "none" ? notes.rows.find((note) => note.id === selected) : null;
-    const duplicateProbability = selected && probabilities ? probability(probabilities[selected]) : null;
-    const duplicateOf = matched && duplicateProbability !== null
-      ? { noteId: matched.id, title: matched.title, probability: duplicateProbability } : null;
-    return { status: "ready", tags, kind, duplicateOf };
-  } catch {
-    return { status: "failed", tags: [], kind: null, duplicateOf: null };
-  }
-}
-
 export async function suggestInbox(id: string, locale: Locale = "ko"): Promise<InboxItemDto> {
   const item = await rowById(id);
   if (!item) throw new ApiError("not_found", inboxCopy.notFound);
+  if (databaseBackend() === "sqlite" && (item.discarded_at || item.promoted_note_id)) return mapItem(item);
   const suggestions = await buildSuggestions(item, locale);
+  if (databaseBackend() === "sqlite") {
+    const store = await sqliteStore();
+    return store.transaction((q) => {
+      // Provider work can race promotion, discard or enrichment. Never persist a stale proposal.
+      q.run(`UPDATE inbox_items SET suggestions=? WHERE id=? AND promoted_note_id IS NULL
+        AND discarded_at IS NULL AND title=? AND body=? AND url IS ?`,
+      [JSON.stringify(suggestions), sqliteUuid(id), item.title, item.body, item.url]);
+      const current = sqliteInboxRow(q, id);
+      if (!current) throw new ApiError("not_found", inboxCopy.notFound);
+      return mapItem(current);
+    });
+  }
   const pool = await db();
   const result = await pool.query<InboxRow>("UPDATE inbox_items SET suggestions=$2::jsonb WHERE id=$1 RETURNING *", [id, JSON.stringify(suggestions)]);
   return mapItem(result.rows[0]!);
@@ -223,11 +213,17 @@ export async function enrichInboxItem(id: string, dependencies: UrlIntakeDepende
     const fetched = await fetchUrlText(item.url, dependencies);
     const replacement = fetched.ok && fetched.text ? fetched.text : URL_FAILED_MARKER;
     const body = replacePendingInboxUrlStatus(item.body, replacement);
-    const pool = await db();
-    await pool.query(
-      "UPDATE inbox_items SET body=$2,url=CASE WHEN $3::text IS NULL THEN url ELSE $3 END WHERE id=$1 AND promoted_note_id IS NULL AND discarded_at IS NULL",
-      [id, body, fetched.ok ? fetched.url : null],
-    );
+    if (databaseBackend() === "sqlite") {
+      (await sqliteStore()).run(`UPDATE inbox_items SET body=?,url=coalesce(?,url)
+        WHERE id=? AND promoted_note_id IS NULL AND discarded_at IS NULL AND body=? AND url IS ?`,
+      [body, fetched.ok ? fetched.url : null, sqliteUuid(id), item.body, item.url]);
+    } else {
+      const pool = await db();
+      await pool.query(
+        "UPDATE inbox_items SET body=$2,url=CASE WHEN $3::text IS NULL THEN url ELSE $3 END WHERE id=$1 AND promoted_note_id IS NULL AND discarded_at IS NULL",
+        [id, body, fetched.ok ? fetched.url : null],
+      );
+    }
   }
   await suggestInbox(id, locale).catch(() => undefined);
 }

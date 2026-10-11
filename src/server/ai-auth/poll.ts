@@ -1,6 +1,9 @@
 import { OAuthCredentialSchema, type AuthProtocolOptions } from "@/lib/ai-auth";
 import type { AuthAttemptView } from "@/lib/ai-auth-flow";
 import { tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
+import { sqliteAuthAttempt } from "./sqlite-store";
+import { pollSQLiteAuthAttempt } from "./sqlite-exchange";
 import type { AiAuthScope } from "./attempt-store";
 import { authAttemptView, DevicePayloadSchema, lockedAuthAttempt, requireAttemptScope } from "./attempt-data";
 import { OAuthProtocolError, pollDeviceAuthorization } from "./protocol";
@@ -12,6 +15,7 @@ export async function pollAuthAttempt(
   scope: AiAuthScope,
   options: AuthProtocolOptions = {},
 ): Promise<AuthAttemptView> {
+  if (databaseBackend() === "sqlite") return pollSQLiteAuthAttempt(id, scope, options);
   const result = await tx<AuthAttemptView | CodeExchangeClaim>(async (client) => {
     const attempt = await lockedAuthAttempt(client, id);
     requireAttemptScope(attempt, scope);
@@ -71,6 +75,14 @@ export async function pollAuthAttempt(
 }
 
 export async function cancelAuthAttempt(id: string, scope: AiAuthScope): Promise<void> {
+  if (databaseBackend() === "sqlite") {
+    (await sqliteStore()).transaction(executor => {
+      const attempt = sqliteAuthAttempt(executor, id);
+      requireAttemptScope(attempt, scope);
+      executor.run("DELETE FROM ai_auth_attempts WHERE id=?", [attempt.id]);
+    });
+    return;
+  }
   await tx(async (client) => {
     const attempt = await lockedAuthAttempt(client, id);
     requireAttemptScope(attempt, scope);

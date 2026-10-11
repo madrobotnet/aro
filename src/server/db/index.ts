@@ -1,5 +1,9 @@
-import { Pool, type PoolClient, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type QueryResultRow } from "pg";
 import { MIGRATIONS } from "./migrations";
+
+// SQL DATE is a calendar key, not a local-midnight instant. Parsing it as Date
+// shifts daily-note keys when converting to UTC in non-UTC server time zones.
+types.setTypeParser(types.builtins.DATE, (value: string) => value);
 
 type DbGlobal = { pool: Pool | null; ready: Promise<Pool> | null };
 const g = globalThis as unknown as { __sbDb?: DbGlobal };

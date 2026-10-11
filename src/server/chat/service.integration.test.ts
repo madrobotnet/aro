@@ -1,22 +1,26 @@
-import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { query } from "@/server/db";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { query, tx } from "@/server/db";
 import { ApiError } from "@/server/http";
 import { closeDb, connectTestDatabase, resetData } from "@/server/test/db";
 import { type CodexSession } from "./auth";
 import { ChatProviderError, createCodexProvider, type ChatProvider, type ProviderInput } from "./provider";
 import { DEFAULT_THREAD_TITLES } from "@/features/chat/chat-model";
 import { chatCopy, EMPTY_ANSWER, NEW_THREAD_TITLE } from "@/server/i18n/copy";
+import { readChatStream } from "@/features/chat/sse";
+import { sendChatMessage } from "@/features/chat/api";
 import {
   createChatMessageStream,
   createChatThread,
   deleteChatThread,
   getChatThread,
+  getChatRequestOutcome,
   listChatThreads,
   updateChatThread,
 } from "./service";
 
 connectTestDatabase();
 beforeEach(resetData);
+afterEach(() => mock.restore());
 afterAll(async () => {
   await resetData();
   await closeDb();
@@ -102,6 +106,220 @@ describe("chat threads", () => {
 });
 
 describe("streamed chat", () => {
+  test("uses one identity for valid UUID casing variants", async () => {
+    await insertNote("case evidence", "UUID casing question evidence");
+    const thread = await createChatThread();
+    const threadId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await query("UPDATE chat_threads SET id = $1 WHERE id = $2", [threadId, thread.id]);
+    const requestId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    let calls = 0;
+    const first = await createChatMessageStream(threadId.toUpperCase(), "UUID casing question", {
+      requestId: requestId.toUpperCase(),
+      provider: { async stream() { calls++; return "case answer"; } },
+    });
+    await first.text();
+    const messages = (await getChatThread(threadId)).messages;
+    const assistant = messages[1];
+    expect(messages).toHaveLength(2);
+    if (!assistant) throw new Error("Missing persisted assistant");
+    const replay = await createChatMessageStream(threadId, "UUID casing question", {
+      requestId, auth: { kind: "absent" },
+    });
+    expect(events(await replay.text())).toEqual([{ event: "done", data: { message: assistant } }]);
+    expect(await getChatRequestOutcome(threadId.toUpperCase(), requestId.toUpperCase()))
+      .toEqual({ message: assistant, content: "UUID casing question" });
+    expect((await getChatThread(threadId)).messages).toEqual(messages);
+    expect(calls).toBe(1);
+  });
+
+  test("replays one persisted exchange when the committed stream loses its terminal event", async () => {
+    await insertNote("delivery evidence", "unmatched question delivery evidence");
+    const thread = await createChatThread();
+    let calls = 0;
+    const options = {
+      provider: { async stream() { calls++; return "persisted answer"; } },
+      requestId: crypto.randomUUID(),
+    };
+    const first = await createChatMessageStream(thread.id, "unmatched question", options);
+    // The transport loses only the terminal frame, after the real server COMMIT.
+    const body = (await first.text()).replace(/event: done[\s\S]*$/, "");
+    const lost = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close(); },
+    });
+    expect(await readChatStream(lost, {})).toEqual({ kind: "incomplete", reason: "eof" });
+    const committed = (await getChatThread(thread.id)).messages;
+    expect(committed).toHaveLength(2);
+    const assistant = committed[1];
+    if (!assistant) throw new Error("Missing persisted assistant");
+
+    const retry = await createChatMessageStream(thread.id, "unmatched question", options);
+    expect(events(await retry.text()).at(-1)?.data).toEqual({ message: assistant });
+    expect((await getChatThread(thread.id)).messages).toEqual(committed);
+    expect(calls).toBe(1);
+    expect(await getChatRequestOutcome(thread.id, options.requestId)).toEqual({ message: assistant, content: "unmatched question" });
+    const disconnected = await createChatMessageStream(thread.id, "unmatched question", {
+      requestId: options.requestId, auth: { kind: "absent" },
+    });
+    expect(events(await disconnected.text())).toEqual([{ event: "done", data: { message: assistant } }]);
+  });
+
+  test("reconciles a lost terminal event with the real persisted request before retrying", async () => {
+    await insertNote("reconciliation evidence", "reconciliation question evidence");
+    const thread = await createChatThread();
+    const requestId = crypto.randomUUID();
+    let calls = 0;
+    const provider: ChatProvider = { async stream() { calls++; return "persisted answer"; } };
+    const requests: string[] = [];
+    const transport = spyOn(globalThis, "fetch").mockImplementation(Object.assign(async (...[url, init]: Parameters<typeof fetch>) => {
+      if (init?.method === "POST") {
+        const input = JSON.parse(String(init.body)) as { content: string; requestId: string };
+        requests.push(input.requestId);
+        const response = await createChatMessageStream(thread.id, input.content, { requestId: input.requestId, provider });
+        const body = await response.text();
+        return new Response(requests.length === 1 ? body.replace(/event: done[\s\S]*$/, "") : body);
+      }
+      const id = new URL(String(url), "http://local.test").searchParams.get("requestId");
+      if (!id) throw new Error("Missing reconciliation ID");
+      return Response.json(await getChatRequestOutcome(thread.id, id));
+    }, { preconnect: fetch.preconnect }));
+
+    const input = { threadId: thread.id, requestId, content: "reconciliation question", signal: new AbortController().signal };
+    const recovered = await sendChatMessage(input);
+    expect(recovered.kind).toBe("done");
+    expect(transport.mock.calls.map(([, init]) => init?.method ?? "GET")).toEqual(["POST", "GET"]);
+    expect((await getChatThread(thread.id)).messages).toHaveLength(2);
+    expect(await sendChatMessage(input)).toEqual(recovered);
+    expect(requests).toEqual([requestId, requestId]);
+    expect(calls).toBe(1);
+    expect((await getChatThread(thread.id)).messages).toHaveLength(2);
+  });
+
+  test.each(["failed", "completed"])("rejects changed content and another thread after a %s request", async (state) => {
+    const thread = await createChatThread();
+    const other = await createChatThread();
+    const requestId = crypto.randomUUID();
+    const provider: ChatProvider = {
+      async stream() {
+        if (state === "failed") throw new ChatProviderError();
+        return "answer";
+      },
+    };
+    await insertNote("identity question", "identity question evidence");
+    await (await createChatMessageStream(thread.id, "identity question", { requestId, provider })).text();
+    expect((await getChatThread(thread.id)).messages).toHaveLength(state === "failed" ? 0 : 2);
+
+    await expect(createChatMessageStream(thread.id, "changed question", { requestId, provider }))
+      .rejects.toMatchObject({ code: "conflict" });
+    await expect(createChatMessageStream(other.id, "identity question", { requestId, provider }))
+      .rejects.toMatchObject({ code: "conflict" });
+    await expect(getChatRequestOutcome(other.id, requestId)).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  test("allows a failed provider request to retry without persisting partial output", async () => {
+    await insertNote("retry evidence", "retry question evidence");
+    const thread = await createChatThread();
+    const requestId = crypto.randomUUID();
+    let calls = 0;
+    const provider: ChatProvider = {
+      async stream(_input, onDelta) {
+        calls++;
+        onDelta("partial");
+        if (calls === 1) throw new ChatProviderError();
+        return "complete";
+      },
+    };
+    await (await createChatMessageStream(thread.id, "retry question", { requestId, provider })).text();
+    expect(await getChatRequestOutcome(thread.id, requestId)).toEqual({ message: null, content: "retry question" });
+    expect((await getChatThread(thread.id)).messages).toEqual([]);
+
+    await (await createChatMessageStream(thread.id, "retry question", { requestId, provider })).text();
+    const saved = (await getChatThread(thread.id)).messages;
+    expect(saved.map((message) => message.content)).toEqual(["retry question", "complete"]);
+    expect(calls).toBe(2);
+  });
+
+  test("does not replay or reconcile archived and deleted thread outcomes", async () => {
+    const thread = await createChatThread();
+    const options = { requestId: crypto.randomUUID(), provider: { async stream() { throw new Error("no evidence"); } } };
+    await (await createChatMessageStream(thread.id, "unmatched", options)).text();
+    await query("UPDATE chat_threads SET archived_at = now() WHERE id = $1", [thread.id]);
+
+    await expect(createChatMessageStream(thread.id, "unmatched", options)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getChatRequestOutcome(thread.id, options.requestId)).rejects.toMatchObject({ code: "not_found" });
+    await deleteChatThread(thread.id);
+    await expect(createChatMessageStream(thread.id, "unmatched", options)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getChatRequestOutcome(thread.id, options.requestId)).rejects.toMatchObject({ code: "not_found" });
+    expect(await query("SELECT id FROM chat_requests WHERE id = $1", [options.requestId])).toEqual([]);
+  });
+
+  test("retains the lock after abort until an uncooperative provider settles", async () => {
+    await insertNote("abort evidence", "abort question evidence");
+    const thread = await createChatThread();
+    const requestId = crypto.randomUUID();
+    const entered = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+    let calls = 0;
+    const provider: ChatProvider = {
+      async stream() {
+        calls++;
+        entered.resolve();
+        await released.promise; // Deliberately ignores the abort signal.
+        return "must not persist";
+      },
+    };
+    const abort = new AbortController();
+    const response = await createChatMessageStream(thread.id, "abort question", { requestId, provider, signal: abort.signal });
+    const finished = response.text();
+    await entered.promise;
+    abort.abort();
+    try {
+      expect(await getChatRequestOutcome(thread.id, requestId)).toEqual({ message: null, content: "abort question" });
+      await expect(createChatMessageStream(thread.id, "abort question", { requestId, provider }))
+        .rejects.toMatchObject({ code: "conflict" });
+      await expect(createChatMessageStream(thread.id, "other question", { requestId: crypto.randomUUID(), provider }))
+        .rejects.toMatchObject({ code: "conflict" });
+      expect(calls).toBe(1);
+    } finally {
+      released.resolve();
+      await finished;
+    }
+    expect((await getChatThread(thread.id)).messages).toEqual([]);
+    await (await createChatMessageStream(thread.id, "abort question", { requestId, provider })).text();
+    expect(calls).toBe(2);
+    expect((await getChatThread(thread.id)).messages).toHaveLength(2);
+  });
+
+  test("rolls back a cancelled response body before the same request can retry", async () => {
+    await insertNote("body cancellation", "body cancellation evidence");
+    const thread = await createChatThread();
+    const requestId = crypto.randomUUID();
+    const entered = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+    const provider: ChatProvider = {
+      async stream() { entered.resolve(); await released.promise; return "cancelled answer"; },
+    };
+    const response = await createChatMessageStream(thread.id, "body cancellation", { requestId, provider });
+    await entered.promise;
+    if (!response.body) throw new Error("Missing stream body");
+    await response.body.cancel();
+    // Subscribe to the exact transaction-lock release, not a delay or a poll.
+    const waiting = Promise.withResolvers<void>();
+    const unlocked = tx(async (client) => {
+      await client.query("SET LOCAL lock_timeout = '2s'");
+      const acquired = client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [thread.id]);
+      waiting.resolve();
+      await acquired;
+    });
+    await waiting.promise;
+    released.resolve();
+    await unlocked;
+
+    expect((await getChatThread(thread.id)).messages).toEqual([]);
+    expect(await getChatRequestOutcome(thread.id, requestId)).toEqual({ message: null, content: "body cancellation" });
+    await (await createChatMessageStream(thread.id, "body cancellation", { requestId, provider })).text();
+    expect((await getChatThread(thread.id)).messages).toHaveLength(2);
+  });
+
   test("parses fragmented provider frames and persists grounded citations and both messages", async () => {
     const noteId = await insertNote("제주 일정", "성산일출봉은 아침 일찍 방문한다.");
     const thread = await createChatThread();
@@ -277,8 +495,10 @@ describe("streamed chat", () => {
     let entered!: () => void;
     const enteredProvider = new Promise<void>((resolve) => { entered = resolve; });
     const providerReleased = new Promise<void>((resolve) => { release = resolve; });
+    let calls = 0;
     const provider: ChatProvider = {
       async stream(_input, onDelta) {
+        calls++;
         entered();
         await providerReleased;
         onDelta("완료");
@@ -286,13 +506,20 @@ describe("streamed chat", () => {
       },
     };
 
-    const first = await createChatMessageStream(thread.id, "동시성 질문", { provider, auth: AUTH });
+    const options = { provider, auth: AUTH, requestId: crypto.randomUUID() };
+    const first = await createChatMessageStream(thread.id, "동시성 질문", options);
     const firstBody = first.text();
     await enteredProvider;
-    await expect(createChatMessageStream(thread.id, "두 번째 질문", { provider, auth: AUTH }))
-      .rejects.toMatchObject({ code: "conflict" });
-    release();
-    await firstBody;
+    try {
+      await expect(createChatMessageStream(thread.id, "동시성 질문", options))
+        .rejects.toMatchObject({ code: "conflict" });
+      await expect(createChatMessageStream(thread.id, "두 번째 질문", { provider, auth: AUTH }))
+        .rejects.toMatchObject({ code: "conflict" });
+      expect(calls).toBe(1);
+    } finally {
+      release();
+      await firstBody;
+    }
     expect((await getChatThread(thread.id)).messages).toHaveLength(2);
   });
 });

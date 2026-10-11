@@ -29,6 +29,7 @@ export function useChatThread(threadId: string) {
   const [exchange, setExchange] = useState<Exchange | null>(null);
   const [draft, setDraft] = useState("");
   const controller = useRef<AbortController | null>(null);
+  const pendingRequest = useRef<{ requestId: string; content: string } | null>(null);
 
   useEffect(
     () => () => {
@@ -42,6 +43,10 @@ export function useChatThread(threadId: string) {
     async (raw: string): Promise<void> => {
       const content = raw.trim();
       if (!content || controller.current) return;
+      const requestId = pendingRequest.current?.content === content
+        ? pendingRequest.current.requestId
+        : crypto.randomUUID();
+      pendingRequest.current = { requestId, content };
       const ctrl = new AbortController();
       controller.current = ctrl;
       const previousMessages = detail.data?.messages.length ?? 0;
@@ -52,6 +57,7 @@ export function useChatThread(threadId: string) {
       const outcome = await sendChatMessage({
         threadId,
         content,
+        requestId,
         signal: ctrl.signal,
         onCitations: (citations) => setExchange((prev) => (prev ? { ...prev, citations } : prev)),
         onDelta: (text) => setExchange((prev) => (prev ? { ...prev, text: prev.text + text } : prev)),
@@ -74,14 +80,17 @@ export function useChatThread(threadId: string) {
                 ...current,
                 messages: [
                   ...current.messages,
-                  { id: `local-${outcome.message.id}`, role: "user", content, citations: [], createdAt: outcome.message.createdAt },
-                  outcome.message,
+                  ...(current.messages.some((message) => message.id === outcome.message.id) ? [] : [
+                    { id: `local-${outcome.message.id}`, role: "user" as const, content, citations: [], createdAt: outcome.message.createdAt },
+                    outcome.message,
+                  ]),
                 ],
               }
             : current,
         { revalidate: true },
       ).catch(() => undefined);
       setExchange(null);
+      pendingRequest.current = null;
 
       if (previousMessages === 0 && isDefaultThreadTitle(previousTitle)) {
         const title = content.replace(/\s+/g, " ").slice(0, MAX_AUTO_TITLE);

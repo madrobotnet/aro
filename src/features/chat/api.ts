@@ -18,20 +18,20 @@ export const renameThread = (id: string, title: string) =>
 export const deleteThread = (id: string) => api<{ ok: boolean }>(threadKey(id), { method: "DELETE" });
 export const getChatStatus = () => api<ChatStatus>(STATUS_KEY);
 
-export type SendMessageInput = StreamHandlers & { threadId: string; content: string; signal: AbortSignal };
+export type SendMessageInput = StreamHandlers & { threadId: string; content: string; requestId: string; signal: AbortSignal };
 
 /**
  * POST a question and consume the SSE answer. Never throws: HTTP failures
  * become `error` outcomes and transport problems become `incomplete`, so the
  * caller always gets one terminal outcome to act on.
  */
-export async function sendChatMessage({ threadId, content, signal, onCitations, onDelta }: SendMessageInput): Promise<StreamOutcome> {
+async function streamChatMessage({ threadId, content, requestId, signal, onCitations, onDelta }: SendMessageInput): Promise<StreamOutcome> {
   let response: Response;
   try {
     response = await fetch(`${threadKey(threadId)}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, requestId }),
       credentials: "same-origin",
       signal,
     });
@@ -49,4 +49,24 @@ export async function sendChatMessage({ threadId, content, signal, onCitations, 
   }
   if (!response.body) return { kind: "incomplete", reason: "network" };
   return readChatStream(response.body, { onCitations, onDelta }, signal);
+}
+
+/** Recover a committed result before offering a retry; never POST automatically. */
+export async function sendChatMessage(input: SendMessageInput): Promise<StreamOutcome> {
+  const outcome = await streamChatMessage(input);
+  if (outcome.kind === "done") return outcome;
+  // Access and input rejections must remain terminal, especially content conflicts.
+  // Gateway failures can still hide a committed result, just like a broken SSE.
+  if (outcome.kind === "error" && ["unauthorized", "forbidden", "validation", "conflict", "not_found"].includes(outcome.code)) return outcome;
+  try {
+    // Cancellation can race COMMIT. The aborted POST signal cannot be used here.
+    const saved = await api<{ message: ChatMessage | null; content: string | null }>(
+      `${threadKey(input.threadId)}/messages?requestId=${encodeURIComponent(input.requestId)}`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    if (saved.message && saved.content === input.content) return { kind: "done", message: saved.message };
+  } catch {
+    // Unknown is not failed: retain the ID and let an explicit retry resolve it.
+  }
+  return outcome;
 }

@@ -220,7 +220,7 @@ await download({
 const terms = await readFile(fileURLToPath(new URL("../distribution/cli/LINKED-LIBRARIES.txt", import.meta.url)));
 const termsDestination = "notices/LINKED-LIBRARIES.txt";
 await writeFile(resolve(output, termsDestination), terms, { flag: "wx" });
-manifest.notices.push({ component: "Irang linked-host terms", destination: termsDestination, bytes: terms.length, sha256: hash(terms) });
+manifest.notices.push({ component: "Aro linked-host terms", destination: termsDestination, bytes: terms.length, sha256: hash(terms) });
 // A source receipt never proves prebuild linkage or a linked-host replacement mechanism.
 manifest.blockers.push(
   { component: "native dependency closure", reason: "Exact original compiled closure remains unresolved. Recipe pins libcap 2.75 but permits libcap.a cache reuse and bwrap source override; Rust release builds without --locked. Source locks and successful jobs do not identify incorporated objects. Preserve original bwrap/Rust/V8/ICU linkage and relink obligations." },

@@ -5,6 +5,12 @@ import {
 } from "@/lib/ai-settings";
 import type { AiAuthScope } from "@/server/ai-auth/attempt-store";
 import { tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
+import { sqliteUuid } from "@/server/db/sqlite/values";
+import {
+  persistSQLiteAiSettings, sqliteConnectionProfiles, sqliteSettingsDocument,
+  sqliteSettingsOwner, writeSQLiteConnectionProfile,
+} from "./ai-sqlite";
 import { ApiError } from "@/server/http";
 import { AI_SETTINGS_LOCK, connectionProfiles, settingsDocument, settingsOwner } from "./ai-profile-store";
 import { resolveChatConnection, resolveJevConnection } from "./ai-profile-resolve";
@@ -52,6 +58,18 @@ export async function saveConnectionProfile(
   input: ConnectionProfileInput,
   options: { readonly id?: string; readonly browserHash?: string } = {},
 ): Promise<ConnectionProfile> {
+  if (databaseBackend() === "sqlite") {
+    return (await sqliteStore()).transaction(executor => {
+      const ownerId = sqliteSettingsOwner(executor);
+      const profiles = sqliteConnectionProfiles(executor, ownerId);
+      const id = options.id ? sqliteUuid(options.id) : undefined;
+      const previous = id ? profiles.find(profile => profile.id === id) : undefined;
+      if (options.id && !previous) throw new ApiError("not_found", setupCopy.notFound);
+      return writeSQLiteConnectionProfile(executor, input, {
+        ownerId, previous, scope: { key: `owner:${ownerId}`, browserHash: options.browserHash },
+      });
+    });
+  }
   return tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [AI_SETTINGS_LOCK]);
     const ownerId = await settingsOwner(client);
@@ -66,6 +84,23 @@ export async function saveConnectionProfile(
 }
 
 export async function deleteConnectionProfile(id: string): Promise<void> {
+  if (databaseBackend() === "sqlite") {
+    (await sqliteStore()).transaction(executor => {
+      const ownerId = sqliteSettingsOwner(executor);
+      const normalized = sqliteUuid(id);
+      const removed = executor.run("DELETE FROM ai_connections WHERE id=? AND owner_id=?", [normalized, ownerId]);
+      if (!removed.changes) throw new ApiError("not_found", setupCopy.notFound);
+      executor.run("DELETE FROM ai_auth_attempts WHERE scope_key=?", [`refresh:${normalized}`]);
+      const saved = sqliteSettingsDocument(executor);
+      if (saved && (saved.chatId === normalized || saved.jevId === normalized)) {
+        persistSQLiteAiSettings(executor, ownerId, {
+          ...saved, chatId: saved.chatId === normalized ? null : saved.chatId,
+          jevId: saved.jevId === normalized ? null : saved.jevId,
+        });
+      }
+    });
+    return;
+  }
   await tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock($1)", [AI_SETTINGS_LOCK]);
     const ownerId = await settingsOwner(client);

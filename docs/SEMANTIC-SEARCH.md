@@ -2,7 +2,7 @@
 
 ## English
 
-Irang works without a learned model. PostgreSQL exact-name, alias, metadata,
+Aro works without a learned model. PostgreSQL exact-name, alias, metadata,
 full-text and character matching remain available. To add learned passage
 retrieval, configure a separately managed private embedding service. The app
 image and installation archive do not contain model weights or llama.cpp.
@@ -34,7 +34,7 @@ git checkout 78651c410dd8d97e3e22e533e0e7117889e3863a
 docker build -f .devops/cpu.Dockerfile --target server \
   --build-arg APP_VERSION=b11460 \
   --build-arg APP_REVISION=78651c410dd8d97e3e22e533e0e7117889e3863a \
-  -t irang-embedding:eg2-b11460 .
+  -t aro-embedding:eg2-b11460 .
 ```
 
 The runtime was measured on ARM64 CPU with two threads, one slot and a 2-GiB
@@ -50,7 +50,7 @@ services:
       - default
       - embeddings
   embedding:
-    image: irang-embedding:eg2-b11460
+    image: aro-embedding:eg2-b11460
     restart: unless-stopped
     cpus: 2.0
     mem_limit: 2g

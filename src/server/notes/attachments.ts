@@ -4,6 +4,7 @@ import { mkdir, open, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { QueryResultRow } from "pg";
 import { db } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { attachmentCopy, notesCopy } from "@/server/i18n/copy";
 import { assertNoteId } from "./service";
@@ -18,7 +19,7 @@ type AttachmentRow = QueryResultRow & {
   note_id: string | null;
   filename: string;
   mime: string;
-  size_bytes: string | number;
+  size_bytes: string | number | bigint;
   storage_key: string;
 };
 export type Attachment = {
@@ -54,6 +55,36 @@ export async function saveAttachment(file: File, noteId?: string): Promise<Attac
   if (file.size > MAX_ATTACHMENT_BYTES) throw new ApiError("payload_too_large", attachmentCopy.tooLarge);
   if (file.size === 0) throw new ApiError("validation", attachmentCopy.empty);
   if (noteId) assertNoteId(noteId);
+  if (databaseBackend() === "sqlite") {
+    const store = await sqliteStore();
+    const owner = noteId?.toLowerCase() ?? null;
+    const assertOwner = (q: import("@/server/db/sqlite").SQLiteExecutor): void => {
+      if (owner && !q.get("SELECT id FROM notes WHERE id=? AND deleted_at IS NULL", [owner])) {
+        throw new ApiError("not_found", notesCopy.notFound);
+      }
+    };
+    assertOwner(store);
+    const key = randomUUID();
+    const filename = safeFilename(file.name);
+    const mime = safeMime(file.type);
+    await mkdir(attachmentsDir(), { recursive: true });
+    await writeFile(storagePath(key), new Uint8Array(await file.arrayBuffer()), { flag: "wx" });
+    try {
+      return store.transaction((q) => {
+        // Filesystem staging may have yielded to a trash/purge; revalidate under the writer.
+        assertOwner(q);
+        const row = q.get<AttachmentRow>(
+          "INSERT INTO attachments(note_id,filename,mime,size_bytes,storage_key) VALUES (?,?,?,?,?) RETURNING *",
+          [owner, filename, mime, file.size, key],
+        );
+        if (!row) throw new ApiError("internal", "Attachment insert did not return a row");
+        return mapAttachment(row);
+      });
+    } catch (error) {
+      await unlink(storagePath(key)).catch(() => undefined);
+      throw error;
+    }
+  }
   const pool = await db();
   if (noteId) {
     const note = await pool.query("SELECT id FROM notes WHERE id=$1 AND deleted_at IS NULL", [noteId]);
@@ -78,9 +109,9 @@ export async function saveAttachment(file: File, noteId?: string): Promise<Attac
 
 export async function loadAttachment(id: string): Promise<{ attachment: Attachment; bytes: Uint8Array }> {
   assertNoteId(id);
-  const pool = await db();
-  const result = await pool.query<AttachmentRow>("SELECT * FROM attachments WHERE id=$1", [id]);
-  const row = result.rows[0];
+  const row = databaseBackend() === "sqlite"
+    ? (await sqliteStore()).get<AttachmentRow>("SELECT * FROM attachments WHERE id=?", [id.toLowerCase()])
+    : (await (await db()).query<AttachmentRow>("SELECT * FROM attachments WHERE id=$1", [id])).rows[0];
   if (!row) throw new ApiError("not_found", attachmentCopy.notFound);
   try {
     const file = await open(storagePath(row.storage_key), constants.O_RDONLY | constants.O_NOFOLLOW);

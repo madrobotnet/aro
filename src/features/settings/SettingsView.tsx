@@ -12,6 +12,9 @@ import { Shortcut } from "@/components/ui/Kbd";
 import { INSTALL_NAME } from "@/lib/brand";
 import { AiConnections } from "./AiConnections";
 import { ExportSection } from "./ExportSection";
+import { ImportSection } from "./ImportSection";
+import { AgentsSection } from "./AgentsSection";
+import { DiagnosticsSection } from "./DiagnosticsSection";
 import { Section } from "./SettingsSection";
 import { SessionSection } from "./SettingsSession";
 import { SETTINGS_COPY } from "./settings-copy";
@@ -31,10 +34,13 @@ export function SettingsView() {
         <LanguageSection />
         <SessionSection />
         <AiConnections />
+          <AgentsSection />
         <TemplatesSection />
         <InstallSection />
         <DataSection />
         <ExportSection />
+        <ImportSection />
+          <DiagnosticsSection />
         <ShortcutSection />
       </div>
     </div>

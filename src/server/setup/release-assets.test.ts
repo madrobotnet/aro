@@ -12,6 +12,8 @@ const selected = [
   "README.md", "README.ko.md", "docs/SETUP.md", "docs/SETUP.ko.md", "LICENSE",
   "THIRD_PARTY_NOTICES.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md",
   "CHANGELOG.md", "docs/RELEASING.md", "docs/ARCHITECTURE.md",
+  "docs/BACKUP.md", "docs/BACKUP.ko.md", "scripts/backup.mjs",
+  "scripts/restore-check.mjs", "scripts/backup/common.mjs",
   "docs/SEMANTIC-SEARCH.md", "docs/images/irang-mark.svg",
   "docs/images/irang-workbench.png", "docs/images/irang-workbench.ko.png",
 ];
@@ -61,8 +63,8 @@ test("assembles only intentional installation members and changes only the image
       native: true, pull: "PASS", cleanup: "PASS",
       checks: [{ name: "synthetic parser fixture only", status: "PASS" }],
       labels: {
-        "org.opencontainers.image.title": "Irang",
-        "org.opencontainers.image.source": "https://github.com/madrobotnet/irang",
+        "org.opencontainers.image.title": "Aro",
+        "org.opencontainers.image.source": "https://github.com/madrobotnet/aro",
         "org.opencontainers.image.version": version,
         "org.opencontainers.image.revision": revision,
         "org.opencontainers.image.licenses": "NOASSERTION",

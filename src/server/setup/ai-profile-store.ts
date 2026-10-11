@@ -6,6 +6,7 @@ import {
 } from "@/lib/ai-settings";
 import type { ConnectionPurpose } from "@/lib/ai-providers";
 import { query, queryOne } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 
 export const AI_SETTINGS_LOCK = 7_431_003;
@@ -13,6 +14,9 @@ type ProfileRow = { id: string; name: string; purpose: string; connection: unkno
 
 export async function settingsOwner(client?: PoolClient): Promise<string | null> {
   const sql = "SELECT id FROM users ORDER BY created_at, id LIMIT 1";
+  if (!client && databaseBackend() === "sqlite") {
+    return (await sqliteStore()).get<{ id: string }>(sql)?.id ?? null;
+  }
   const row = client
     ? (await client.query<{ id: string }>(sql)).rows[0]
     : await queryOne<{ id: string }>(sql);
@@ -21,6 +25,10 @@ export async function settingsOwner(client?: PoolClient): Promise<string | null>
 
 export async function settingsDocument(client?: PoolClient): Promise<AiSettingsDocument | null> {
   const sql = "SELECT ai FROM installation_settings WHERE singleton";
+  if (!client && databaseBackend() === "sqlite") {
+    const row = (await sqliteStore()).get<{ ai: string }>(sql);
+    return row ? AiSettingsDocumentSchema.parse(JSON.parse(row.ai)) : null;
+  }
   const row = client
     ? (await client.query<{ ai: unknown }>(sql)).rows[0]
     : await queryOne<{ ai: unknown }>(sql);
@@ -28,6 +36,12 @@ export async function settingsDocument(client?: PoolClient): Promise<AiSettingsD
 }
 
 export async function connectionProfiles(ownerId: string, client?: PoolClient): Promise<ConnectionProfile[]> {
+  if (!client && databaseBackend() === "sqlite") {
+    const rows = (await sqliteStore()).all<{ id: string; name: string; purpose: string; connection: string }>(
+      "SELECT id,name,purpose,connection FROM ai_connections WHERE owner_id=? ORDER BY created_at,id", [ownerId.toLowerCase()],
+    );
+    return rows.map(row => ConnectionProfileSchema.parse({ ...row, connection: JSON.parse(row.connection) }));
+  }
   const sql = "SELECT id, name, purpose, connection FROM ai_connections WHERE owner_id = $1 ORDER BY created_at, id";
   const rows = client
     ? (await client.query<ProfileRow>(sql, [ownerId])).rows

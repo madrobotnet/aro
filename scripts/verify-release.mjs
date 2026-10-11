@@ -7,11 +7,13 @@ import { isDeepStrictEqual } from "node:util";
 import { verifySourceAssets } from "../distribution/release/restore.mjs";
 
 const registry = "ghcr.io/madrobotnet/irang";
-const source = "https://github.com/madrobotnet/irang";
+const source = "https://github.com/madrobotnet/aro";
 const required = ["compose.yml", "docker/postgres/production/01-app-role.sql",
   "README.md", "README.ko.md", "docs/SETUP.md", "docs/SETUP.ko.md", "LICENSE",
   "THIRD_PARTY_NOTICES.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md",
   "CHANGELOG.md", "docs/RELEASING.md", "docs/ARCHITECTURE.md",
+  "docs/BACKUP.md", "docs/BACKUP.ko.md", "scripts/backup.mjs",
+  "scripts/restore-check.mjs", "scripts/backup/common.mjs",
   "docs/SEMANTIC-SEARCH.md", "docs/images/irang-mark.svg",
   "docs/images/irang-workbench.png", "docs/images/irang-workbench.ko.png"];
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -29,7 +31,7 @@ function identity(version, ref, revision) {
 
 function labels(actual, version, revision) {
   for (const [key, expected] of Object.entries({
-    title: "Irang", source, version, revision, licenses: "NOASSERTION",
+    title: "Aro", source, version, revision, licenses: "NOASSERTION",
   })) requireValue(actual?.[`org.opencontainers.image.${key}`] === expected, `OCI ${key} mismatch`);
 }
 

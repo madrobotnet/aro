@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   attachmentHref, createNameAllocator, frontMatter, noteMarkdown, rewriteAttachmentLinks, safeAttachmentName,
-  safeFileName, type ExportNote,
+  safeFileName, createPortableLinkResolver, rewritePortableWikiLinks, type ExportNote,
 } from "./export-format";
 
 const note: ExportNote = {
@@ -41,6 +41,81 @@ describe("safeFileName", () => {
     expect(name).toBe("가".repeat(50));
     const emoji = safeFileName(`${"a".repeat(145)}👩‍👩‍👧`, "untitled");
     expect(emoji).toBe("a".repeat(145));
+  });
+});
+
+describe("portable wiki links", () => {
+  const resolve = createPortableLinkResolver([
+    { id: "old", title: "A/B", aliases: ["Alias", "exact"], path: "notes/A-B.md" },
+    { id: "duplicate", title: "a/b", aliases: ["Alias"], path: "notes/a-b-2.md" },
+    { id: "exact", title: "exact", aliases: [], path: "notes/exact.md" },
+    { id: "long", title: "가".repeat(80), aliases: [], path: `notes/${"가".repeat(50)}.md` },
+    { id: "extension", title: "a.md", aliases: [], path: "notes/a.md.md" },
+  ]);
+
+  test("uses title precedence, whitespace normalization and first non-self duplicate", () => {
+    expect(resolve("  ALIAS  ", "source")).toBe("A-B.md");
+    expect(resolve("EXACT", "source")).toBe("exact.md");
+    expect(resolve("a/b", "old")).toBe("a-b-2.md");
+    expect(resolve("exact", "exact")).toBe("A-B.md");
+    expect(resolve("missing", "source")).toBeUndefined();
+  });
+
+  test("keeps headings, original display spelling, explicit labels and unresolved tokens", () => {
+    expect(rewritePortableWikiLinks(
+      "[[ALIAS#Part One|shown]] [[A/B]] [[missing#h|x]]", "source", resolve,
+    )).toBe("[[A-B.md#Part One|shown]] [[A-B.md|A/B]] [[missing#h|x]]");
+    expect(rewritePortableWikiLinks(`[[${"가".repeat(80)}]]`, "source", resolve))
+      .toBe(`[[${"가".repeat(50)}.md|${"가".repeat(80)}]]`);
+  });
+
+  test("excludes inline, variable backtick, fenced, tilde, indented and escaped code", () => {
+    const body = [
+      "`[[Alias]]`", "``a ` [[Alias]]``", "```md", "[[Alias]]", "```",
+      "~~~md", "[[Alias]]", "~~~", "    [[Alias]]", "\\[[Alias]]", "[[Alias]]",
+    ].join("\n");
+    expect(rewritePortableWikiLinks(body, "source", resolve)).toBe(
+      body.slice(0, body.lastIndexOf("[[Alias]]")) + "[[A-B.md|Alias]]",
+    );
+  });
+
+  test("default note Markdown retains wiki links even when allocated names differ", () => {
+    const body = "[[Alias#heading|label]] [[A/B]]";
+    expect(noteMarkdown({ ...note, body }, new Map()).slice(frontMatter(note).length)).toBe(body);
+  });
+
+  test("distinguishes code and live links inside Markdown containers", () => {
+    for (const body of [
+      "> ~~~md\n> [[Alias]]\n> ~~~",
+      ">     [[Alias]]",
+      "- ~~~md\n  [[Alias]]\n  ~~~",
+      "> - ~~~md\n>   [[Alias]]\n>   ~~~",
+      "- item\n\n      [[Alias]]",
+      "[[Alias`example`]]",
+    ]) expect(rewritePortableWikiLinks(body, "source", resolve)).toBe(body);
+    for (const body of [
+      "- item\n\n    [[Alias]]",
+      "> [[Alias]]",
+      "- [[Alias]]",
+      "\\` [[Alias]] \\`",
+      "\\\\[[Alias]]",
+    ]) expect(rewritePortableWikiLinks(body, "source", resolve))
+      .toBe(body.replace("[[Alias]]", "[[A-B.md|Alias]]"));
+  });
+
+  test("handles longer closing fences, embedded fences and multiline code spans", () => {
+    const body = [
+      "````md", "```", "[[Alias]]", "`````", "~~~", "[[Alias]]", "~~~~",
+      "``inline", "[[Alias]]", "end``", "[[Alias]]",
+    ].join("\n");
+    expect(rewritePortableWikiLinks(body, "source", resolve)).toBe(
+      body.slice(0, body.lastIndexOf("[[Alias]]")) + "[[A-B.md|Alias]]",
+    );
+  });
+
+  test("uses the full filename when the original title already ends in .md", () => {
+    expect(rewritePortableWikiLinks("[[a.md#heading]]", "source", resolve))
+      .toBe("[[a.md.md#heading|a.md]]");
   });
 });
 

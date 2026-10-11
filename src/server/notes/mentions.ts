@@ -1,6 +1,7 @@
 import type { QueryResultRow } from "pg";
 import { linkFirstMention } from "@/lib/link-mention";
 import { tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { notesCopy } from "@/server/i18n/copy";
 import { assertNoteId, updateNote, type NoteDetail } from "./service";
@@ -13,6 +14,10 @@ export type LinkMentionInput = { targetId: string; sourceId: string; expectedUpd
 
 /** Turn the first unlinked mention of the target inside the source note into a wikilink. */
 export async function linkMention(input: LinkMentionInput): Promise<NoteDetail> {
+  if (databaseBackend() === "sqlite") {
+    const { linkSQLiteMention } = await import("./sqlite");
+    return (await sqliteStore()).transaction((q) => linkSQLiteMention(q, input));
+  }
   const { targetId, sourceId } = input;
   assertNoteId(targetId);
   assertNoteId(sourceId);

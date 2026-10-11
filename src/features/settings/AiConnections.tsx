@@ -162,6 +162,9 @@ export function AiConnections() {
           </div>
         ) : data && selection ? (
           <div className="flex flex-col gap-6">
+            <p className="text-sm leading-relaxed text-mute">{locale === "ko"
+              ? "AI 없이도 노트·캡처·검색을 쓸 수 있어요. 연결을 만든 뒤 사용할 기능을 고르고, 전송되는 정보를 확인한 다음 저장하세요. '끔'은 연결 정보를 보관하면서 호출을 중단해요."
+              : "Notes, capture and search work without AI. Create a connection, choose its purpose, then review what is shared before saving. Off retains the connection but stops calls."}</p>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-md font-medium">{copy.chatStatus}</h3>
               <ChatStatusBadge />

@@ -41,7 +41,7 @@ jobs:
           PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REPOSITORY" = madrobotnet/irang
+          test "$GITHUB_REPOSITORY" = madrobotnet/aro
           test "$PRIVATE" = false
           [[ "$REF" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           revision="$(git rev-parse "$REF^{commit}")"
@@ -116,8 +116,8 @@ jobs:
             VERSION=${{ env.VERSION }}
             REVISION=${{ env.REVISION }}
           labels: |
-            org.opencontainers.image.title=Irang
-            org.opencontainers.image.source=https://github.com/madrobotnet/irang
+            org.opencontainers.image.title=Aro
+            org.opencontainers.image.source=https://github.com/madrobotnet/aro
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.revision=${{ env.REVISION }}
             org.opencontainers.image.licenses=NOASSERTION
@@ -286,7 +286,7 @@ jobs:
           a="$(jq -r .buildDigest tested/tested-amd64/native-receipt.json)"
           b="$(jq -r .buildDigest tested/tested-arm64/native-receipt.json)"
           candidate="candidate-$REVISION-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker buildx imagetools create --tag "$IMAGE:$candidate" --annotation "index:org.opencontainers.image.description=Irang private native installation image" "$IMAGE@$a" "$IMAGE@$b"
+          docker buildx imagetools create --tag "$IMAGE:$candidate" --annotation "index:org.opencontainers.image.description=Aro private native installation image" "$IMAGE@$a" "$IMAGE@$b"
           mkdir merged
           export CANDIDATE="$candidate"
           # Registry credentials and bearer tokens stay in process memory.
@@ -463,7 +463,7 @@ jobs:
       - name: Create draft, verify uploaded bytes, then publish stable release
         run: |
           set -euo pipefail
-          test "$GITHUB_REPOSITORY" = madrobotnet/irang
+          test "$GITHUB_REPOSITORY" = madrobotnet/aro
           test "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" = false
           tag="v$VERSION"
           # A rerun may resume its draft, but never overwrite a published release.
@@ -472,7 +472,7 @@ jobs:
           if test -n "$existing"; then
             test "$(gh api "repos/$GITHUB_REPOSITORY/releases/$existing" --jq .draft)" = true
           else
-            gh release create "$tag" --verify-tag --draft --title "Irang $VERSION" --notes "Native Linux amd64/arm64 installation release. Optional local learned passage retrieval preserves lexical search and links results to supporting source passages. Model weights and the embedding runtime are configured separately. The GHCR package remains private and requires authorized registry access. See CHANGELOG.md and the installation guides for details."
+            gh release create "$tag" --verify-tag --draft --title "Aro $VERSION" --notes "Native Linux amd64/arm64 installation release. Optional local learned passage retrieval preserves lexical search and links results to supporting source passages. Model weights and the embedding runtime are configured separately. The GHCR package remains private and requires authorized registry access. See CHANGELOG.md and the installation guides for details."
           fi
           gh release upload "$tag" assets/* --clobber
           mkdir downloaded

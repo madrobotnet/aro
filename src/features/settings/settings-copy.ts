@@ -145,7 +145,9 @@ export const SETTINGS_COPY = defineCopy({
       title: "내보내기",
       description: "노트를 Markdown 파일로 내려받아요.",
       action: "Markdown으로 내보내기",
-      contents: "보관한 노트를 포함한 모든 노트가 YAML 머리말(front matter)이 붙은 .md 파일로, 첨부파일과 함께 zip 하나에 담겨요. 휴지통, 인박스, 채팅, 설정은 들어가지 않아요.",
+      contents: "내보내기를 시작할 때 저장된 노트(보관 포함)와 첨부파일 정보를 기준으로 .md 파일과 읽을 수 있는 첨부파일을 zip에 담아요. 파일명과 ID 대응표, 누락된 첨부파일 목록은 export-manifest.json에 들어가요. 저장하지 않은 편집, 휴지통, 인박스, 채팅, 설정은 들어가지 않아요. 전체 서버 백업은 아니에요.",
+      portable: "위키 링크를 내보낸 파일명에 맞추기",
+      portableHint: "기본값은 본문의 [[위키 링크]]를 그대로 유지해요. 이 옵션을 켜면 찾을 수 있는 제목과 별칭을 실제 파일명으로 바꿔요. 표시 이름, 제목 위치 링크와 코드 안의 링크는 유지해요. 위키 링크를 지원하는 Markdown 앱에서 사용하세요.",
     },
     shortcuts: {
       title: "키보드 단축키",
@@ -303,7 +305,9 @@ export const SETTINGS_COPY = defineCopy({
       title: "Export",
       description: "Download your notes as Markdown files.",
       action: "Export as Markdown",
-      contents: "One zip with every note, archived ones included, as .md files with YAML front matter, plus their attachments. Trash, inbox, chat and settings aren't included.",
+      contents: "One zip of saved notes (including archived notes) and attachment metadata from the start of export, with .md files and readable attachments. export-manifest.json lists IDs, filenames and omitted attachments. Unsaved edits, trash, inbox, chat and settings aren't included. This isn't a full server backup.",
+      portable: "Match wiki links to exported filenames",
+      portableHint: "By default, body [[wiki links]] stay unchanged. Enable this to map resolved titles and aliases to actual filenames, keeping display labels and headings and excluding code. Use a Markdown app that supports wiki links.",
     },
     shortcuts: {
       title: "Keyboard shortcuts",

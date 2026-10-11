@@ -1,6 +1,7 @@
 import { DatabaseError, type PoolClient, type QueryResultRow } from "pg";
 import type { NoteTemplate } from "@/lib/templates";
 import { db, tx } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
 import { ApiError } from "@/server/http";
 import { assertNoteId } from "@/server/notes/service";
 import { templatesCopy } from "./copy";
@@ -44,12 +45,14 @@ function nameConflict(error: unknown): never {
 }
 
 export async function listTemplates(): Promise<NoteTemplate[]> {
+  if (databaseBackend() === "sqlite") return (await import("./sqlite")).listTemplatesSQLite();
   const pool = await db();
   const result = await pool.query<TemplateRow>("SELECT * FROM note_templates ORDER BY lower(name) COLLATE \"C\",name COLLATE \"C\"");
   return result.rows.map(mapTemplate);
 }
 
 export async function createTemplate(input: CreateTemplateInput): Promise<NoteTemplate> {
+  if (databaseBackend() === "sqlite") return (await import("./sqlite")).createTemplateSQLite(input);
   return tx(async (client) => {
     if (input.isDailyDefault) await clearOtherDefaults(client, null);
     const result = await client.query<TemplateRow>(
@@ -62,6 +65,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<NoteTe
 
 export async function updateTemplate(id: string, input: UpdateTemplateInput): Promise<NoteTemplate> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") return (await import("./sqlite")).updateTemplateSQLite(id, input);
   return tx(async (client) => {
     if (input.isDailyDefault) await clearOtherDefaults(client, id);
     const result = await client.query<TemplateRow>(
@@ -77,6 +81,7 @@ export async function updateTemplate(id: string, input: UpdateTemplateInput): Pr
 
 export async function deleteTemplate(id: string): Promise<void> {
   assertNoteId(id);
+  if (databaseBackend() === "sqlite") return (await import("./sqlite")).deleteTemplateSQLite(id);
   const pool = await db();
   const result = await pool.query("DELETE FROM note_templates WHERE id=$1", [id]);
   if (result.rowCount === 0) throw new ApiError("not_found", templatesCopy.notFound);

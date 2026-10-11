@@ -114,10 +114,10 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 USER 1001:1001
 ARG VERSION=2.3.2
 ARG REVISION=local
-LABEL org.opencontainers.image.title="Irang" \
-      org.opencontainers.image.description="Irang application image. Third-party notices are in /app/licenses and /usr/share/irang/licenses." \
-      org.opencontainers.image.source="https://github.com/madrobotnet/irang" \
-      org.opencontainers.image.url="https://github.com/madrobotnet/irang" \
+LABEL org.opencontainers.image.title="Aro" \
+      org.opencontainers.image.description="Aro application image. Third-party notices are in /app/licenses and /usr/share/irang/licenses." \
+      org.opencontainers.image.source="https://github.com/madrobotnet/aro" \
+      org.opencontainers.image.url="https://github.com/madrobotnet/aro" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.licenses="NOASSERTION"

@@ -1,4 +1,5 @@
 import { query, tx } from "@/server/db";
+import { databaseBackend } from "@/server/db/backend";
 import { chunkMarkdown } from "./chunks";
 import { documentInput, learnedEmbeddings, semanticConfigured, SEMANTIC_MODEL_ID } from "./learned";
 
@@ -8,6 +9,7 @@ const BATCH_SIZE = 1;
 /** One passage per invocation leaves gaps for queries; progress survives restarts. */
 export async function runSemanticIndexBatch(): Promise<number> {
   if (!semanticConfigured()) return 0;
+  if (databaseBackend() === "sqlite") return (await import("./sqlite-indexer")).runSQLiteSemanticBatch();
   const rows = await query<{ id: string; title: string; body: string; source_hash: string }>(
     `SELECT n.id::text, n.title, n.body, ${SOURCE_HASH} AS source_hash
        FROM notes n LEFT JOIN note_semantic_index i ON i.note_id=n.id AND i.model_id=$1

@@ -1,4 +1,9 @@
-# Releasing Irang
+# Published Irang 2.3.2 release contract
+
+The unshipped source is now Aro. This guide preserves the published Irang
+2.3.2 packaging contract, not a release procedure for the renamed development
+checkout. GitHub commands use the renamed `madrobotnet/aro` repository; image
+names, archive paths and the historical tag message stay unchanged.
 
 This guide describes the native-image release for **2.3.2** from the public source
 repository, with the existing GHCR package kept private. The tag is
@@ -52,7 +57,7 @@ The Dockerfile pins both native base indexes. Each build also exports its
 `/usr/share/irang/licenses/materials.json` and verify that architecture's source
 index against the seal, version, revision and platform. The native receipt
 records the index hash and material seal alongside the runnable digest.
-See the tagged [source reconstruction contract](https://github.com/madrobotnet/irang/blob/v2.3.2/distribution/release/README.md).
+See the tagged [source reconstruction contract](https://github.com/madrobotnet/aro/blob/v2.3.2/distribution/release/README.md).
 Publish both architecture-qualified indexes, all numbered source pieces,
 checksum sidecars and reconstruction helpers with the installation assets.
 `verify-release.mjs sources` checks their native bindings; `checksums` streams
@@ -151,8 +156,8 @@ git fetch origin main --tags
 git status --short
 git tag --list v2.3.2
 git ls-remote --tags origin refs/tags/v2.3.2
-gh release list --repo madrobotnet/irang
-gh repo view madrobotnet/irang --json isPrivate
+gh release list --repo madrobotnet/aro
+gh repo view madrobotnet/aro --json isPrivate
 
 VERSION=2.3.2
 SOURCE_SHA=$(git rev-parse HEAD)
@@ -180,7 +185,7 @@ The tag push triggers `.github/workflows/release.yml`, named
 dispatch on that tag, not on `main`:
 
 ```sh
-gh workflow run release.yml --repo madrobotnet/irang --ref v2.3.2
+gh workflow run release.yml --repo madrobotnet/aro --ref v2.3.2
 ```
 
 Don't dispatch a second run while a healthy tag-triggered run is active.
@@ -309,10 +314,10 @@ List runs for the exact tagged commit. Set `RUN_ID` to the matching release run
 ID from this output, not to an ordinary CI run:
 
 ```sh
-gh run list --repo madrobotnet/irang --workflow release.yml \
+gh run list --repo madrobotnet/aro --workflow release.yml \
   --commit "$SOURCE_SHA" --json databaseId,headSha,status,conclusion,url
-gh run watch "$RUN_ID" --repo madrobotnet/irang --exit-status
-gh run view "$RUN_ID" --repo madrobotnet/irang \
+gh run watch "$RUN_ID" --repo madrobotnet/aro --exit-status
+gh run view "$RUN_ID" --repo madrobotnet/aro \
   --json headSha,status,conclusion,jobs,url
 ```
 
@@ -322,7 +327,7 @@ For a failed run, fix the cause and rerun failed jobs when their successful
 upstream artifacts remain valid:
 
 ```sh
-gh run rerun "$RUN_ID" --repo madrobotnet/irang --failed
+gh run rerun "$RUN_ID" --repo madrobotnet/aro --failed
 ```
 
 Don't replace an immutable version with a rebuilt digest. A conflict needs
@@ -335,12 +340,12 @@ Download evidence and release assets into new private directories:
 
 ```sh
 umask 077
-gh run download "$RUN_ID" --repo madrobotnet/irang --dir release-actions
+gh run download "$RUN_ID" --repo madrobotnet/aro --dir release-actions
 mkdir release-download
-gh release download v2.3.2 --repo madrobotnet/irang --dir release-download
-gh release view v2.3.2 --repo madrobotnet/irang \
+gh release download v2.3.2 --repo madrobotnet/aro --dir release-download
+gh release view v2.3.2 --repo madrobotnet/aro \
   --json tagName,targetCommitish,isDraft,isPrerelease,assets,url
-gh repo view madrobotnet/irang --json isPrivate
+gh repo view madrobotnet/aro --json isPrivate
 bun --no-env-file scripts/verify-release.mjs checksums --root release-download
 (
   cd release-download
@@ -388,7 +393,7 @@ and execution on each architecture.
 
 ## 7. Preserve the source and package access boundaries
 
-The `madrobotnet/irang` source repository is public. Its release assets and
+The `madrobotnet/aro` source repository is public. Its release assets and
 source can be downloaded without private-package permission. The existing
 `ghcr.io/madrobotnet/irang` package remains private; repository visibility and
 access inheritance do not make private image pulls anonymous.

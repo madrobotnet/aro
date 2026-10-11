@@ -1,4 +1,5 @@
 import { db, query, tx } from "@/server/db";
+import { databaseBackend, sqliteStore } from "@/server/db/backend";
 import { retryAttachmentCleanup } from "./attachment-cleanup";
 import { pruneAgedRevisions } from "./revision-store";
 import { purgeInTransaction, type PurgeScope } from "./service";
@@ -14,7 +15,10 @@ async function purgeEach(ids: readonly string[], scope: PurgeScope): Promise<Pur
   try {
     for (const id of ids) {
       try {
-        if (await tx((client) => purgeInTransaction(client, id, scope))) outcome.purged += 1;
+        if (databaseBackend() === "sqlite") {
+          const { purgeSQLiteNote } = await import("./sqlite");
+          if ((await sqliteStore()).transaction((q) => purgeSQLiteNote(q, id, scope))) outcome.purged += 1;
+        } else if (await tx((client) => purgeInTransaction(client, id, scope))) outcome.purged += 1;
       } catch (error) {
         outcome.errors.push(error);
       }
@@ -31,7 +35,12 @@ const errorCode = (error: unknown): string =>
 /** Best-effort retention sweep: purges up to `limit` notes whose 30-day trash period ended; never throws. */
 export async function purgeExpired(limit: number): Promise<number> {
   try {
-    const rows = await query<{ id: string }>(
+    const rows = databaseBackend() === "sqlite"
+      ? (await sqliteStore()).all<{ id: string }>(
+        "SELECT id FROM notes WHERE deleted_at IS NOT NULL AND purge_at<=? ORDER BY purge_at,id LIMIT ?",
+        [new Date().toISOString().replace("Z", "000Z"), limit],
+      )
+      : await query<{ id: string }>(
       `SELECT id FROM notes WHERE deleted_at IS NOT NULL AND purge_at <= now()
         ORDER BY purge_at,id LIMIT $1`,
       [limit],
@@ -46,7 +55,9 @@ export async function purgeExpired(limit: number): Promise<number> {
 }
 
 export async function emptyTrash(): Promise<{ purged: number }> {
-  const rows = await query<{ id: string }>("SELECT id FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at,id");
+  const rows = databaseBackend() === "sqlite"
+    ? (await sqliteStore()).all<{ id: string }>("SELECT id FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at,id")
+    : await query<{ id: string }>("SELECT id FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at,id");
   const { purged, errors } = await purgeEach(rows.map((row) => row.id), "trashed");
   if (errors[0] !== undefined) throw errors[0];
   return { purged };
@@ -56,7 +67,10 @@ export async function runNoteMaintenance(): Promise<void> {
   await retryAttachmentCleanup();
   await purgeExpired(STARTUP_PURGE_BATCH);
   try {
-    await pruneAgedRevisions(await db());
+    if (databaseBackend() === "sqlite") {
+      const { pruneSQLiteRevisions } = await import("./sqlite");
+      (await sqliteStore()).transaction(pruneSQLiteRevisions);
+    } else await pruneAgedRevisions(await db());
   } catch (error) {
     console.warn("[revisions] pruning deferred", { code: errorCode(error) });
   }

@@ -24,7 +24,26 @@ function pageResponse(request: NextRequest): NextResponse {
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (/^\/share\/[0-9a-f]{64}$/.test(pathname) && ["GET", "HEAD"].includes(request.method)) {
+    const response = pageResponse(request);
+    response.headers.set("cache-control", "private, no-store, max-age=0");
+    response.headers.set("referrer-policy", "no-referrer");
+    response.headers.set("x-robots-tag", "noindex, nofollow, noarchive");
+    return response;
+  }
+  if (pathname === "/share" || pathname.startsWith("/share/")) {
+    return new NextResponse("Not found.", {
+      status: 404,
+      headers: {
+        "cache-control": "private, no-store, max-age=0",
+        "referrer-policy": "no-referrer",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+      },
+    });
+  }
   if (pathname === "/setup" || pathname === "/api/setup" || pathname === "/connect/complete"
+    || pathname === "/api/mcp" // This exact route performs independent scoped bearer authentication.
+    || pathname === "/api/webhooks/capture" // Shares scoped agent authorization; never browser-cookie auth.
     || pathname === "/api/ai/auth" || pathname.startsWith("/api/ai/auth/")
     || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) {
     return pageResponse(request);
