@@ -1,19 +1,21 @@
 <p align="center">
-  <img src="docs/images/irang-mark.svg" width="88" alt="이랑 로고: 이음매로 맞물린 두 도형">
+  <img src="docs/images/irang-mark.svg" width="88" alt="아로 로고: 이음매로 맞물린 두 도형">
 </p>
 
-<h1 align="center">이랑 · Irang</h1>
+<h1 align="center">아로 · Aro</h1>
 
 <p align="center">
   Markdown 노트를 서로 이어 쓰는 1인용 자체 호스팅 노트장.<br>
   <a href="README.md">English</a> · <a href="docs/SETUP.ko.md">한국어 설치 안내</a> · <a href="docs/SETUP.md">English setup</a> · <a href="LICENSE">MIT</a>
 </p>
 
-**발음:** /i.ɾaŋ/, 한국어로 "이랑"입니다. 영어로는 *EE-rahng*이며 "eye-rang"이 아닙니다.
+이랑(Irang)의 새 제품 이름은 아로(Aro)입니다. 이 개발 체크아웃은 아직
+발행되지 않았으며, 저장소 이름은 `madrobotnet/aro`로 변경되었습니다.
+발행된 2.3.2 이미지와 릴리스 아카이브는 기존
+이름을 유지하며, 설정 키, 데이터베이스, 쿠키와 볼륨 식별자도 보존합니다.
+아래 릴리스 설치 명령은 새 아로 개발판이 아닌 이랑 2.3.2를 설치합니다.
 
-![오늘 노트, 인박스, 최근 수정한 노트와 고정한 노트를 보여주는 이랑 홈](docs/images/irang-workbench.ko.png)
-
-이랑은 직접 운영하는 서버에서 소유자 한 명이 쓰는 노트 도구입니다. 링크와 짧은
+아로는 직접 운영하는 서버에서 소유자 한 명이 쓰는 노트 도구입니다. 링크와 짧은
 생각을 인박스에 먼저 담고 Markdown 노트로 옮겨 적으면서, 노트를 서로 연결해
 나갈 수 있습니다. 기본 기능에는 AI 계정이 필요하지 않습니다.
 
@@ -50,8 +52,22 @@
 - **Jev(선택)**: 채팅과 따로 연결하며, 인박스 항목의 분류·태그·중복 후보를
   제안합니다. 제안은 항목에 저장되고, 노트로 옮길 때 붙일 태그는 직접 고릅니다.
 
-이랑은 한 사람이 쓰는 웹 앱이라 팀 협업 기능이 없습니다. 네이티브 앱, 오프라인
-편집과 동기화, 종단 간 암호화, 내장 가져오기, 자동 백업도 없습니다.
+아로는 한 사람이 쓰는 웹 앱이라 팀 협업 기능이 없습니다. 네이티브 앱, 오프라인
+편집과 동기화, 종단 간 암호화, 자동 백업도 없습니다.
+
+개발 체크아웃에는 미리보기·명시적 확인·충돌 차단·로컬 첨부 보존을 제공하는
+[Markdown/ZIP 가져오기](docs/IMPORT.md)가 추가되었습니다.
+실험 단계의 [로컬 SQLite 실행](docs/DESKTOP.md)과
+[데스크톱 백업 검증](docs/BACKUP-DESKTOP.md)도 개발 중입니다.
+이미 발행된 2.3.2 이미지의 기능은 아닙니다. 데스크톱과 서버 사이의 이동은
+명시적 노트 내보내기/가져오기이며 동시 동기화나 전체 계정 이전이 아닙니다.
+개발 버전은 별도 토큰·즉시 회수·인박스 캡처·수정 제안 승인을 제공하는
+[소유자 제어 MCP 접근](docs/AGENT-ACCESS.md)도 포함합니다.
+
+개발 체크아웃에는 운영자가 직접 실행하는 [백업과 격리 복원 검증](docs/BACKUP.ko.md)
+명령이 있습니다. 파일 체크섬과 버전을 확인하며, 운영자 호스트에 Node.js 22 이상이
+추가로 필요합니다. 예약 백업이나 기존 설치에 덮어쓰는 복원은 제공하지 않습니다.
+이미 발행된 2.3.2 설치 아카이브에는 이 명령이 포함되어 있지 않습니다.
 
 ## 빠른 시작
 
@@ -79,7 +95,7 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 ```sh
 mkdir irang-release-2.3.2
 cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/irang
+gh release download v2.3.2 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
 tar -xzf irang-2.3.2-install.tar.gz
 cd irang
@@ -100,15 +116,15 @@ GitHub CLI의 저장소 인증만으로 Docker 레지스트리 자격 증명이 
 공개 릴리스 파일을 받는 것만으로 비공개 이미지 접근 권한이 생기지는 않습니다.
 레지스트리 접근 권한이 없다면 소스에서 빌드하세요.
 
-### 소스에서 빌드
+### 발행된 2.3.2 소스에서 빌드
 
 소스 저장소는 공개되어 있으며 이 경로에는 GHCR 접근 권한이 필요하지 않습니다.
 Compose에 빌드 설정이 없으므로 이미지를
 직접 빌드합니다.
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/irang.git
-cd irang
+git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+cd aro
 docker build --build-arg VERSION=2.3.2 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
 IRANG_IMAGE=irang:local
@@ -195,7 +211,7 @@ ssh -L 3000:127.0.0.1:3000 you@your-server
 같은 DB에 있습니다. 첨부파일은 `app-data` 볼륨에 저장됩니다. 서버와 볼륨,
 `.env`, 백업을 보호하는 책임은 운영자에게 있습니다.
 
-이랑은 스스로 노트를 외부로 보내지 않습니다. 데이터는 사용자가 직접 설정하거나
+아로는 스스로 노트를 외부로 보내지 않습니다. 데이터는 사용자가 직접 설정하거나
 실행한 경우에만 서버 밖으로 나갑니다.
 
 - **채팅**: 제공자를 연결하고 데이터 전송에 동의한 뒤, 질문, 최근 대화 12개,
@@ -208,7 +224,7 @@ ssh -L 3000:127.0.0.1:3000 you@your-server
 - 리버스 프록시, 패키지 설치와 컨테이너 빌드에도 외부 통신이 발생할 수 있습니다.
 
 두 AI 기능은 기본적으로 꺼져 있습니다. API 키와 계정 인증 정보는 서버에만
-보관되고 브라우저로 다시 전달되지 않습니다. 다만 이랑이 네트워크를 전혀 쓰지
+보관되고 브라우저로 다시 전달되지 않습니다. 다만 아로가 네트워크를 전혀 쓰지
 않는 오프라인 앱은 아닙니다. AI 전송 동의는 채팅과 Jev에만 적용되고, 그 밖의
 네트워크 요청까지 막지는 않습니다.
 
@@ -221,8 +237,8 @@ OpenAI·Anthropic 호환 엔드포인트를 지원합니다. API 키를 쓰거�
 [AI 설정](docs/SETUP.ko.md#8-ai-configuration-optional-per-provider)에 정리되어
 있습니다.
 
-**Gemini 계정 로그인 안내.** 이랑은 공식 Gemini CLI의 공개 OAuth 클라이언트로
-Google 인증 코드를 직접 교환하고, 추론은 그 CLI로 실행합니다. Google이 이랑을
+**Gemini 계정 로그인 안내.** 아로는 공식 Gemini CLI의 공개 OAuth 클라이언트로
+Google 인증 코드를 직접 교환하고, 추론은 그 CLI로 실행합니다. Google이 아로를
 검토하거나 승인한 것은 아닙니다. Google의
 [Gemini CLI 약관 및 개인정보 안내](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)는
 CLI가 사용하는 서비스에 제3자가 직접 접근하는 것을 제한합니다. 이 안내를 읽고
@@ -262,13 +278,13 @@ bun run dev    # http://localhost:3000
 
 ## 프로젝트 후원
 
-이랑이 도움이 된다면 Ko-fi에서 개발을 후원할 수 있습니다.
+아로가 도움이 된다면 Ko-fi에서 개발을 후원할 수 있습니다.
 
 [![Ko-fi에서 후원하기](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/madrobot)
 
 ## 라이선스
 
-이랑의 앱 코드는 [MIT](LICENSE) 라이선스입니다. 의존성, 런타임, 공식 계정
+아로의 앱 코드는 [MIT](LICENSE) 라이선스입니다. 의존성, 런타임, 공식 계정
 로그인 CLI, 폰트, 컨테이너 운영체제에는 각각의 라이선스와 서비스 약관이
 적용됩니다. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
 이미지는 `/app/licenses`와 `/usr/share/irang/licenses`에 고지와 목록을

@@ -1,4 +1,4 @@
-# Contributing to Irang
+# Contributing to Aro
 
 Start with a reproducible bug or a concrete feature proposal. Search existing
 issues before opening a new one. Before building a large patch, discuss changes
@@ -28,8 +28,8 @@ bun --version
 node --version
 docker version
 docker compose version
-git clone https://github.com/madrobotnet/irang.git
-cd irang
+git clone https://github.com/madrobotnet/aro.git
+cd aro
 bun install --frozen-lockfile
 ```
 
@@ -128,7 +128,7 @@ bun run lint -- --max-warnings=0
 TEST_DATABASE_URL=postgres://second_brain:second_brain@127.0.0.1:55432/second_brain_test \
   bun test
 docker build --build-arg VERSION=2.3.0 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 git diff --check
 ```
 
@@ -151,7 +151,7 @@ release or a successful GHCR pull.
 
 The production `compose.yml` is image-only. It doesn't build the app. To try
 the local image as an installation, follow the full [setup guide](docs/SETUP.md)
-in a separate disposable directory and project, with `IRANG_IMAGE=irang:local`
+in a separate disposable directory and project, with `IRANG_IMAGE=aro:local`
 explicitly saved in its env file. Don't run it over an existing installation.
 
 Stop the dev server before removing fixtures. Only if you created the
@@ -184,7 +184,7 @@ results. Explain which checks you couldn't run and why. For UI changes, include
 desktop and mobile evidence using synthetic data, with no secrets or private notes.
 Don't attach full logs, env files, auth files, or database exports.
 
-The [MIT license](LICENSE) covers contributions to Irang; preserve relevant
+The [MIT license](LICENSE) covers contributions to Aro; preserve relevant
 upstream notices. Review and merging are separate from release publication,
 production deployment, and repository or package visibility changes, which
 remain owner-controlled.

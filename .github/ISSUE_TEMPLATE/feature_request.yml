@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Search existing requests before submitting. Explain how the change fits a self-hosted notebook for one owner.
-        Deployment questions belong in [Support](https://github.com/madrobotnet/irang/blob/main/SUPPORT.md). Report vulnerabilities privately using [Security](https://github.com/madrobotnet/irang/blob/main/SECURITY.md), not this form.
+        Deployment questions belong in [Support](https://github.com/madrobotnet/aro/blob/main/SUPPORT.md). Report vulnerabilities privately using [Security](https://github.com/madrobotnet/aro/blob/main/SECURITY.md), not this form.
 
         Reports may become public. Use invented examples, not private notes. Never include passwords or hashes, installation codes, full env files or logs, rendered Compose config, cookies, authorization headers, provider auth files, AI keys or tokens, or database backups.
   - type: checkboxes

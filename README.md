@@ -1,19 +1,21 @@
 <p align="center">
-  <img src="docs/images/irang-mark.svg" width="88" alt="Irang logo: two interlocking shapes joined at a seam">
+  <img src="docs/images/irang-mark.svg" width="88" alt="Aro logo: two interlocking shapes joined at a seam">
 </p>
 
-<h1 align="center">Irang · 이랑</h1>
+<h1 align="center">Aro · 아로</h1>
 
 <p align="center">
   A self-hosted notebook for linked Markdown notes, built for one owner.<br>
   <a href="README.ko.md">한국어</a> · <a href="docs/SETUP.md">Setup guide</a> · <a href="LICENSE">MIT</a>
 </p>
 
-**Pronunciation:** /i.ɾaŋ/, said *EE-rahng*. It's not "eye-rang."
+Previously Irang (이랑). This unshipped development checkout is now Aro; the
+repository has been renamed to `madrobotnet/aro`. Published 2.3.2 images and release archives keep their Irang
+identifiers, as do existing configuration keys, databases, cookies and volumes.
+The release installation commands below install Irang 2.3.2, not the new Aro
+development checkout.
 
-![Irang home with today's note, the inbox, recently edited notes and pinned notes](docs/images/irang-workbench.png)
-
-Irang runs on your own server for one owner. Save links and quick thoughts in
+Aro runs on your own server for one owner. Save links and quick thoughts in
 the inbox, turn them into Markdown notes, and build connections between notes
 over time. None of these features needs an AI account.
 
@@ -54,9 +56,24 @@ over time. None of these features needs an AI account.
   stay with the item, and you pick which tags to apply when you turn it into a
   note.
 
-Irang is a web app for one owner, so it has no team features. It also has no
-native apps, offline editing, sync, end-to-end encryption, built-in import or
+Aro is a web app for one owner, so it has no team features. It also has no
+native apps, offline editing, sync, end-to-end encryption or
 automatic backups.
+
+The development checkout adds [Markdown/ZIP import](docs/IMPORT.md) with preview,
+explicit confirmation, conflict blocking and local attachment preservation.
+It also includes an experimental [local SQLite runtime](docs/DESKTOP.md) and
+[desktop backup verification](docs/BACKUP-DESKTOP.md). These are not features of
+the already published 2.3.2 image. Desktop/server movement is explicit note
+export/import, not simultaneous synchronization or a full-account migration.
+The development version also adds [owner-controlled MCP access](docs/AGENT-ACCESS.md):
+separate revocable tokens, inbox-only captures, and reviewed note-change proposals.
+
+The development checkout also includes operator-triggered, manifest-checked
+[backup and disposable restore verification](docs/BACKUP.md). These management
+commands additionally require Node.js 22+ on the operator host. They do not add
+scheduled backups or restore into an existing installation. They are not part of
+the already published 2.3.2 installation archive.
 
 ## Quick start
 
@@ -84,7 +101,7 @@ Use the GitHub CLI to download its assets and `jq` to read the image reference:
 ```sh
 mkdir irang-release-2.3.2
 cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/irang
+gh release download v2.3.2 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
 tar -xzf irang-2.3.2-install.tar.gz
 cd irang
@@ -105,15 +122,15 @@ authentication alone isn't a Docker registry credential. Public release asset
 downloads do not grant private image access. If you don't have registry access, build from
 source instead.
 
-### Build from source
+### Build the published 2.3.2 source
 
 The source repository is public; this path doesn't require GHCR access.
 Compose has no build configuration, so
 build the image explicitly:
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/irang.git
-cd irang
+git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+cd aro
 docker build --build-arg VERSION=2.3.2 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
 IRANG_IMAGE=irang:local
@@ -139,7 +156,8 @@ What happens during setup:
 1. `setup-env` runs inside the selected application image. It creates a private
    `.env` (mode 0600) with three random secrets: the app database password, the
    database admin password, and the installation code (`SETUP_TOKEN`). It
-   prints the code once. If a `.env` already exists, it stops without changing
+   prints the code once in the published 2.3.2 image; the development version
+   keeps it only in the private `.env` for local retrieval. If a `.env` already exists, it stops without changing
    anything. Running `bun install` on your machine won't create this file or
    the code.
 2. Compose starts the selected image after the database passes its health check.
@@ -199,7 +217,7 @@ database. The search index lives in the same database, and attachments sit in
 the `app-data` volume. Protecting the server, the volumes, `.env` and your
 backups is up to you.
 
-Irang doesn't send your notes out on its own. Data leaves the server only
+Aro doesn't send your notes out on its own. Data leaves the server only
 through something you set up or do:
 
 - **Chat**, after you connect a provider and tick its data-transfer consent,
@@ -215,7 +233,7 @@ through something you set up or do:
   involve outside traffic.
 
 Both AI features are off by default. API keys and account credentials stay
-on the server and are never sent back to the browser. Irang still makes the
+on the server and are never sent back to the browser. Aro still makes the
 network requests described above, so it isn't fully offline. AI consent
 controls chat and Jev, not every network request.
 
@@ -227,9 +245,9 @@ or sign in with an account where the provider allows it. Jev runs through
 TypeSafe or OpenRouter. Models, login flows and endpoints are listed in
 [AI configuration](docs/SETUP.md#8-ai-configuration-optional-per-provider).
 
-**About Gemini account login.** Irang exchanges the Google authorization code
+**About Gemini account login.** Aro exchanges the Google authorization code
 directly using the official Gemini CLI's public OAuth client, then runs
-inference through that CLI. Google hasn't reviewed or endorsed Irang. Google's
+inference through that CLI. Google hasn't reviewed or endorsed Aro. Google's
 [Gemini CLI terms and privacy notice](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)
 restricts direct third-party access to the services the CLI uses. Read it and
 decide whether this mode fits your use. API-key mode is always available
@@ -269,13 +287,13 @@ operations are in
 
 ## Support the project
 
-If Irang is useful to you, you can support its development on Ko-fi.
+If Aro is useful to you, you can support its development on Ko-fi.
 
 [![Support on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/madrobot)
 
 ## License
 
-Irang's application code is [MIT](LICENSE). Dependencies, runtimes, official
+Aro's application code is [MIT](LICENSE). Dependencies, runtimes, official
 account-login CLIs, fonts, and the container's operating system keep their own
 licenses and service terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md);
 the image retains notices and inventories under `/app/licenses` and

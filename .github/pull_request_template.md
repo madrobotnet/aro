@@ -1,6 +1,6 @@
 <!--
 Don't submit vulnerabilities through a public pull request. Follow
-https://github.com/madrobotnet/irang/blob/main/SECURITY.md and email hello@madrobot.net privately.
+https://github.com/madrobotnet/aro/blob/main/SECURITY.md and email hello@madrobot.net privately.
 
 Never include passwords or hashes, installation codes, full env files or logs,
 rendered Compose config, cookies, authorization headers, provider auth files,
@@ -17,7 +17,7 @@ issue if there is one. Explain any effects on data, auth, providers, or deployme
 
 List the commands you actually ran and their results. Explain which checks you
 couldn't run and why. Don't present checks from another commit as evidence for this patch.
-See [Contributing](https://github.com/madrobotnet/irang/blob/main/CONTRIBUTING.md)
+See [Contributing](https://github.com/madrobotnet/aro/blob/main/CONTRIBUTING.md)
 for the isolated database and exact toolchain.
 
 | Check | Result or reason not run |

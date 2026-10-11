@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — recovery and portable data
+
+- Give chat sends a retained request ID, persist the committed response atomically,
+  and reconcile interrupted streams before offering a retry. Reusing an ID for
+  different content or another thread is rejected.
+- Export metadata and note bodies from one repeatable-read snapshot. Include
+  `export-manifest.json` with note/attachment paths and explicit attachment
+  omissions; retain original API URLs for omitted attachment files.
+- Offer opt-in portable wiki links resolved to the actual exported filenames,
+  while preserving wiki links by default and leaving code examples untouched.
+- Add private, checksum-bound installer backups and restore verification in a
+  newly owned disposable sandbox. The management tools require Node.js 22+;
+  they do not schedule backups or overwrite an existing installation.
+
 ## 2.3.2 - 2026-10-10
 
 ### Fixed

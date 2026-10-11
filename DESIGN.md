@@ -1,4 +1,4 @@
-# Irang interface contract
+# Aro interface contract
 
 ## 1. Purpose
 
@@ -95,8 +95,10 @@ Skeleton and the shared shell rather than adding parallel implementations.
 
 `BrandMark` uses the approved Interlock geometry with the existing accent token
 and a 20px default; caller size/color utilities override it. Pair the decorative
-mark with the localized product name: 이랑 / Irang. Installed-app names stay
-`Irang`; repository, database, cookie and storage identifiers do not change.
+mark with the localized product name: 아로 / Aro. Installed-app names use
+`Aro`, and the source repository is `madrobotnet/aro`. Preserve existing database,
+cookie, environment and storage identifiers. Published 2.3.2 images and archives
+keep their Irang identifiers.
 
 Controls need resting, focus, busy, disabled and failure states. Dialogs use
 native modal focus trapping and restore focus to the opener. Destructive actions

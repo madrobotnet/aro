@@ -1,6 +1,6 @@
 # Third-party notices
 
-Irang's application code is licensed under the root `LICENSE`. That license
+Aro's application code is licensed under the root `LICENSE`. That license
 doesn't relicense dependencies, fonts, official account-login tools, or the
 operating-system image. Retain the application copyright and license.
 
@@ -50,7 +50,7 @@ and an index separately from the installation archive. The freshly pulled image'
 `/usr/share/irang/licenses/materials.json` seals their selected-file associations.
 The native release receipt binds the source index hash and material seal to the
 tested runnable image digest. See the public tagged
-[reconstruction instructions](https://github.com/madrobotnet/irang/blob/v2.3.0/distribution/release/README.md).
+[reconstruction instructions](https://github.com/madrobotnet/aro/blob/v2.3.0/distribution/release/README.md).
 Full source acquisition, recipient access and applicable replacement rights
 must be verified before publication; a generated manifest alone is not proof.
 
@@ -74,4 +74,4 @@ Retain that file with redistributed font copies. The copyright identifies
 Kil Hyung-jin and the Reserved Font Name Pretendard. Consult the included
 license for bundling, modification, reserved-name and redistribution conditions,
 and [Pretendard's upstream source](https://github.com/orioncactus/pretendard)
-for the corresponding font sources. Don't apply Irang's MIT license to the font.
+for the corresponding font sources. Don't apply Aro's MIT license to the font.

@@ -52,4 +52,4 @@ claimed. Executable distribution must provide the source access described there.
 Credits alone do not satisfy the notice or source-access conditions.
 
 Node's full bundled LICENSE is preserved unchanged, including its component
-notices. Irang's application license does not relicense any runtime component.
+notices. Aro's application license does not relicense any runtime component.

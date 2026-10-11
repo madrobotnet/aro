@@ -1,12 +1,12 @@
 name: Bug report
-description: Report a reproducible Irang bug with non-sensitive examples.
+description: Report a reproducible Aro bug with non-sensitive examples.
 title: "[Bug]: "
 body:
   - type: markdown
     attributes:
       value: |
-        Use this form for software bugs. For deployment questions, read [Support](https://github.com/madrobotnet/irang/blob/main/SUPPORT.md).
-        For a suspected vulnerability, don't submit this form. Follow [Security](https://github.com/madrobotnet/irang/blob/main/SECURITY.md) and email hello@madrobot.net privately.
+        Use this form for software bugs. For deployment questions, read [Support](https://github.com/madrobotnet/aro/blob/main/SUPPORT.md).
+        For a suspected vulnerability, don't submit this form. Follow [Security](https://github.com/madrobotnet/aro/blob/main/SECURITY.md) and email hello@madrobot.net privately.
 
         Reports may become public. Never include passwords or hashes, installation codes, full env files or logs, rendered Compose config, cookies, authorization headers, provider auth files, AI keys or tokens, database backups, or private notes.
         Use invented notes and attachments. Review screenshots and browser URLs for account details and authorization codes.
@@ -24,7 +24,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Irang version or source commit
+      label: Aro version or source commit
       description: Give the version, commit, or image digest if known. Don't attach a complete image inspection.
       placeholder: "2.2.0 or a source commit"
     validations:

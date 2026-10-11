@@ -1,6 +1,6 @@
 # Support
 
-Irang is a self-hosted notebook for one owner. Start with the full
+Aro is a self-hosted notebook for one owner. Start with the full
 [setup guide](docs/SETUP.md) for installation, proxy configuration, backups,
 upgrades, and recovery. For development and patches, see
 [Contributing](CONTRIBUTING.md).
@@ -9,8 +9,8 @@ upgrades, and recovery. For development and patches, see
 
 | What you need | Where to go |
 | --- | --- |
-| A reproducible software bug | Search [existing issues](https://github.com/madrobotnet/irang/issues), then use the [bug report form](https://github.com/madrobotnet/irang/issues/new?template=bug_report.yml) |
-| A concrete feature request | Use the [feature request form](https://github.com/madrobotnet/irang/issues/new?template=feature_request.yml) |
+| A reproducible software bug | Search [existing issues](https://github.com/madrobotnet/aro/issues), then use the [bug report form](https://github.com/madrobotnet/aro/issues/new?template=bug_report.yml) |
+| A concrete feature request | Use the [feature request form](https://github.com/madrobotnet/aro/issues/new?template=feature_request.yml) |
 | Help with installation, a reverse proxy, backups, or recovery | Read the setup guide, then email [hello@madrobot.net](mailto:hello@madrobot.net) with a sanitized question |
 | A suspected vulnerability or private-data exposure | Follow [Security](SECURITY.md) and email the private report; don't open a public issue |
 | Provider billing, subscription, quota, model policy, or account access | Contact the provider or your organization's administrator |
@@ -21,7 +21,7 @@ Keep secrets out of email as well as public reports.
 
 ## Before asking about a deployment
 
-- Record the Irang version or source commit, host OS and architecture, and
+- Record the Aro version or source commit, host OS and architecture, and
   whether you're using a prebuilt image, a local image, or Bun development.
 - Check `docker compose version`. Installation requires Compose 5.1.0 or newer;
   CI and contribution instructions use 5.5.1.
@@ -83,11 +83,11 @@ reconnecting. Check provider account and administrator policies if a login
 works but a model request is denied.
 
 Gemini Auth uses the official Gemini CLI for inference and its public OAuth
-client for authorization. Google hasn't reviewed or endorsed Irang. Read the
+client for authorization. Google hasn't reviewed or endorsed Aro. Read the
 [Gemini CLI terms and privacy notice](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)
 and the [setup guide](docs/SETUP.md) before choosing it.
 
-For an Irang integration defect, report the provider name, API or Auth mode,
+For an Aro integration defect, report the provider name, API or Auth mode,
 model ID, selected protocol where relevant, and a sanitized status or error
 code. Reproduce with invented content if possible. Don't log in to extra
 provider accounts or make paid requests solely to prepare a report.

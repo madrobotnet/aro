@@ -1,6 +1,6 @@
 # Security policy
 
-Irang is a self-hosted notebook for one owner. If you think you've found a
+Aro is a self-hosted notebook for one owner. If you think you've found a
 vulnerability, report it privately by email, not in an issue or pull request.
 For ordinary bugs and installation questions, see [Support](SUPPORT.md).
 
@@ -18,12 +18,12 @@ upgrade. This support policy doesn't mean a container release has been published
 ## Report a vulnerability
 
 Email [hello@madrobot.net](mailto:hello@madrobot.net) with the subject
-`Irang security report`. This is the private reporting contact. Don't post
+`Aro security report`. This is the private reporting contact. Don't post
 vulnerabilities in public issues, discussions, pull requests, or comments.
 
 Include only what's needed to understand the problem:
 
-- The Irang version or source commit, installation method, and affected component.
+- The Aro version or source commit, installation method, and affected component.
 - The access an attacker needs, such as no login, owner login, or server access.
 - Expected behavior, observed behavior, and the possible impact.
 - Reproduction steps using a disposable local instance and invented notes.
@@ -63,7 +63,7 @@ a credential.
   Use `INSECURE_COOKIES=0` for HTTPS. Preserve the original `Host` header and
   configure `TRUSTED_PROXY_HOPS` for the actual proxy chain.
 - Protect the server, database, attachment volume, backups, env files, and
-  provider credential directories. Irang isn't end-to-end encrypted.
+  provider credential directories. Aro isn't end-to-end encrypted.
 - Keep installation secrets private and use a distinct owner password.
   Don't put secrets in image build arguments, repository files, or support reports.
 - Leave optional AI disabled unless you want to send data to the selected
