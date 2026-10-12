@@ -3,7 +3,7 @@
 This module implements the four public `eastasianwidth` 0.2.0 APIs from
 Unicode property data and observed API behavior. It does not copy the old
 implementation or grant rights to its original source. It is an integration
-candidate, not a published npm package or a completed Aro release.
+candidate, not a published npm package or a completed Irang release.
 
 ## Sources and notices
 
