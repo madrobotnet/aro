@@ -1,9 +1,7 @@
 # Aro: Installation & Configuration
 
-The unshipped source is now Aro. The release commands in this guide still install
-published Irang 2.3.2 from `madrobotnet/aro`, not the Aro development checkout.
-Keep published image/archive names and existing database, cookie, environment
-and volume identifiers unchanged.
+This guide describes Aro 2.4.0. Release commands require a verified release and
+tag; they do not establish that 2.4.0 is published.
 
 This guide covers a self-hosted Aro instance for one owner. The deployment
 has two Docker Compose services (the Next.js app and a Postgres database) and
@@ -19,25 +17,25 @@ process and publication status: [RELEASING.md](RELEASING.md).
 
 | Service | Image | Notes |
 | --- | --- | --- |
-| `app` | `${IRANG_IMAGE:-ghcr.io/madrobotnet/irang:2.3.2}` | Image-only Compose service, running the Bun standalone Next.js server as `nextjs` (UID/GID 1001). Publishes `127.0.0.1:${APP_PORT:-3000}:3000`, loopback only. Docker healthcheck uses `/api/health`. |
-| `db` | `pgvector/pgvector:0.8.6-pg18` | Internal only (no host port). Healthcheck `pg_isready -U postgres -d second_brain`; the app waits for it. On a **fresh** data volume the Postgres entrypoint runs `docker/postgres/production/01-app-role.sql`. It precreates the `pgcrypto`, `vector`, and `pg_trgm` extensions and the restricted application role (section 4). |
+| `app` | `ARO_IMAGE` (default `ghcr.io/madrobotnet/aro:2.4.0`) | Image-only Compose service, running the Bun standalone Next.js server as `nextjs` (UID/GID 1001). Publishes `127.0.0.1:${APP_PORT:-3000}:3000`, loopback only. Docker healthcheck uses `/api/health`. |
+| `db` | `pgvector/pgvector:0.8.6-pg18` | Internal only (no host port). Healthcheck `pg_isready -U postgres -d "$POSTGRES_DB"`; the app waits for it. On a **fresh** data volume the Postgres entrypoint runs `docker/postgres/production/01-app-role.sql`. It precreates the `pgcrypto`, `vector`, and `pg_trgm` extensions and the restricted application role (section 4). |
 
 Compose prefixes named volumes with the project name, which defaults to the
-directory name. A fresh `aro` clone uses `aro_app-data`; an existing installation
-may use `irang_app-data` or `second-brain_app-data`. Keep the original project
-name and physical volumes when upgrading:
+directory name unless configured explicitly. Generated `.env` sets
+`COMPOSE_PROJECT_NAME=aro`, so a fresh install uses `aro_app-data`. Keep the
+original project name and physical volumes when upgrading:
 
 | Volume | Mounted at | Contents |
 | --- | --- | --- |
 | `app-data` | `/app/.data` (app container) | Attachments (`.data/attachments`) and the account-login CLI credential stores (`auth/codex`, `auth/google`), owned by UID 1001, `auth` mode 0700 |
 | `postgres-data` | `/var/lib/postgresql` (db container) | All application data: notes, inbox, chat threads, attachment metadata, sessions, and saved AI settings |
 
-Compose also declares the legacy key `second_brain_pg18`; only the selected
-database volume is mounted. These are project-scoped logical keys, not fixed
+Compose selects the database volume through `POSTGRES_DATA_VOLUME`; only that
+volume is mounted. These are project-scoped logical keys, not fixed
 global volume names. Section 10 explains how to keep an existing physical volume.
 
 The release archive pins `app.image` to
-`ghcr.io/madrobotnet/irang:2.3.2@sha256:...`, recorded in `release.json`.
+`ghcr.io/madrobotnet/aro:2.4.0@sha256:...`, recorded in `release.json`.
 Its other parsed Compose fields match source. Keep the relative
 `docker/postgres/production` directory beside Compose; downloading only
 `compose.yml` omits the required database initialization script.
@@ -71,27 +69,27 @@ by regenerating existing passwords or selecting a different data volume.
 
 ### Installation archive
 
-These archive commands require a completed `v2.3.2` release with the checks
+These archive commands require a completed `v2.4.0` release with the checks
 described in [RELEASING.md](RELEASING.md). Source and release assets are public;
 the GHCR package remains private and image pulls require authorization. Download
 all release assets into an empty directory, verify their checksums, then extract:
 
 ```sh
-mkdir irang-release-2.3.2
-cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/aro
+mkdir aro-release-2.4.0
+cd aro-release-2.4.0
+gh release download v2.4.0 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf irang-2.3.2-install.tar.gz
-cd irang
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-docker pull "$IRANG_IMAGE"
+tar -xzf aro-2.4.0-install.tar.gz
+cd aro
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+docker pull "$ARO_IMAGE"
 ```
 
 Use this same digest reference for bootstrap and the app. Archived Compose
-already uses it by default; remove or update any old `IRANG_IMAGE` override in
+already uses it by default; remove or update any old `ARO_IMAGE` override in
 `.env`. Source Compose uses the readable version tag
-`ghcr.io/madrobotnet/irang:2.3.2`, which release policy treats as immutable.
+`ghcr.io/madrobotnet/aro:2.4.0`, which release policy treats as immutable.
 
 Private pulls need a Docker registry credential with package read access.
 GitHub CLI access to the repository doesn't itself provide that
@@ -105,40 +103,40 @@ If GHCR access isn't available, build the public source locally. Select the
 verified release tag before building; Compose has no build configuration:
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
 ```
 
 ### Generate the installation file
 
-From the extracted `irang/` directory or source checkout, run the selected image.
+From the extracted `aro/` directory or source checkout, run the selected image.
 The script creates the file Compose reads (`./.env`) with fresh random secrets
-and mode `0600`. The published 2.3.2 image prints the installation code once:
+and mode `0600`. The installation code is kept only in that private file:
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 ```
 
 Output:
 
 ```
 Created /install/.env
-Installation code: <64 hex chars>
-Keep this code private. Enter it on /setup after starting the server.
+Installation code is stored only in the private environment file.
+Read SETUP_TOKEN locally in a private terminal and enter it on /setup.
 ```
 
-The development version no longer prints secrets. Open the generated private
+Open the generated private
 `.env` locally and copy its `SETUP_TOKEN` value into `/setup`; do not share the
-file or terminal recording. The development [server installer](INSTALL-SERVER.md)
+file or terminal recording. The [server installer](INSTALL-SERVER.md)
 also offers terminal-only `--token` retrieval. Do not generate a replacement
 token merely because the existing token was not printed.
 
-For a source build, add `IRANG_IMAGE=irang:local` to the generated `.env`;
+For a source build, add `ARO_IMAGE=aro:local` to the generated `.env`;
 the shell export above won't survive a new session. For loopback HTTP, change
 the existing `INSECURE_COOKIES=0` line to `INSECURE_COOKIES=1` in `.env`.
 For HTTPS, keep `0`. Set these before starting the app, not just for one command.
@@ -152,6 +150,9 @@ The generated file contains:
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` | 64 random hex chars, distinct | Application DB role password; Compose interpolates it into `DATABASE_URL`, and the db init script uses it to create the role |
 | `POSTGRES_ADMIN_PASSWORD` | 64 random hex chars, distinct | Password of the db container's `postgres` superuser account; operator maintenance only, never given to the app |
+| `POSTGRES_APP_DB` | `aro` | Application database name |
+| `POSTGRES_APP_USER` | `aro` | Restricted application role name |
+| `COMPOSE_PROJECT_NAME` | `aro` | Fresh installation project name |
 | `SETUP_TOKEN` | 64 random hex chars, distinct | The "installation code" that guards the first-run wizard |
 | `APP_PORT` | `3000` | Loopback port published by the app service |
 | `INSECURE_COOKIES` | `0` | Session cookie `Secure` flag (see section 6) |
@@ -163,12 +164,12 @@ without changing the file.
 If you maintain your own env file instead, generate only the code and paste it in:
 
 ```sh
-docker run --rm "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs
+docker run --rm "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs
 # prints: SETUP_TOKEN=<64 hex chars>
 ```
 
-New installations require `POSTGRES_PASSWORD`, `POSTGRES_ADMIN_PASSWORD`, and
-`SETUP_TOKEN`. Existing 1.x credential names are supported without changing the
+New installations require `POSTGRES_PASSWORD`, `POSTGRES_ADMIN_PASSWORD`,
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER` and `SETUP_TOKEN`. Existing 1.x credential names are supported without changing the
 stored passwords, but require an explicit data-volume choice (section 10).
 Do not run `setup-env` over an existing installation or generate replacement
 database passwords during an upgrade.
@@ -177,9 +178,9 @@ database passwords during an upgrade.
 bootstrap commands translate to PowerShell as follows:
 
 ```powershell
-$env:IRANG_IMAGE = (Get-Content ./release.json -Raw | ConvertFrom-Json).image
-docker pull $env:IRANG_IMAGE
-docker run --rm -v "${PWD}:/install" $env:IRANG_IMAGE bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+$env:ARO_IMAGE = (Get-Content ./release.json -Raw | ConvertFrom-Json).image
+docker pull $env:ARO_IMAGE
+docker run --rm -v "${PWD}:/install" $env:ARO_IMAGE bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 ```
 
 The POSIX `--user "$(id -u):$(id -g)"` mapping has no direct PowerShell
@@ -195,8 +196,8 @@ For the pulled release image:
 docker compose up -d --wait --wait-timeout 180
 ```
 
-For the source-built `irang:local` image, generate `.env` in section 3 and add
-`IRANG_IMAGE=irang:local` before running:
+For the source-built `aro:local` image, generate `.env` in section 3 and add
+`ARO_IMAGE=aro:local` before running:
 
 ```sh
 docker compose pull db
@@ -214,7 +215,8 @@ curl -i http://127.0.0.1:3000/api/health     # expect 200 {"ok":true}
 On the **first** start with an empty `postgres-data` volume, the db entrypoint runs
 `docker/postgres/production/01-app-role.sql` before accepting connections: it
 precreates the `pgcrypto`, `vector`, and `pg_trgm` extensions and creates the
-application role `second_brain`, login authorized with `POSTGRES_PASSWORD`,
+application role named by `POSTGRES_APP_USER` (`aro` on new installs),
+login authorized with `POSTGRES_APP_PASSWORD` or the generated `POSTGRES_PASSWORD`,
 `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`, allowed to use and create in
 the `public` schema but nothing beyond. Entrypoint init scripts run only when the
 data volume is empty; they never re-run on an existing volume.
@@ -224,8 +226,8 @@ An explicit `DATABASE_URL` takes precedence; use a percent-encoded URL for
 passwords with URL-special characters. Without one, Compose constructs the URL
 from `POSTGRES_APP_PASSWORD` when present, otherwise `POSTGRES_PASSWORD`.
 
-Credential boundary: the default application connection uses the `second_brain`
-role. An operator-supplied `DATABASE_URL` must also use an application role, not
+Credential boundary: the application connection uses the `POSTGRES_APP_USER`
+role (`aro` on new installs). An operator-supplied `DATABASE_URL` must also use an application role, not
 the database administrator. The `postgres`
 superuser account and `POSTGRES_ADMIN_PASSWORD` exist for operator maintenance
 inside the db container (for example an interactive `psql` session). Never put
@@ -261,7 +263,7 @@ Server behavior worth knowing:
 
 ## 6. Cookies, HTTP vs HTTPS, and reverse-proxy trust
 
-The session cookie (`sb_session`) and provider-login browser cookie (`sb_ai_auth`)
+The session cookie (`aro_session`) and provider-login browser cookie (`sb_ai_auth`)
 are `HttpOnly` and `SameSite=Lax`. Their `Secure`
 flag is enabled in production builds unless `INSECURE_COOKIES=1`:
 
@@ -324,7 +326,7 @@ unset DATABASE_URL AUTH_PASSWORD_HASH
 ```
 
 This changes only the invoking shell; it doesn't delete or edit `.env`.
-Keep the selected `IRANG_IMAGE` and the generated database credentials.
+Keep the selected `ARO_IMAGE` and the generated database credentials.
 For an existing or legacy installation, preserve its intentional
 `DATABASE_URL`, `AUTH_PASSWORD_HASH`, original database passwords, and volume
 selection. Don't clear credentials or regenerate the operator file to solve
@@ -364,14 +366,17 @@ Local development and legacy upgrade env reference:
 image and let Bun read the operator file:
 
 ```sh
-docker run --rm -v "$PWD/.env":/install/.env:ro "$IRANG_IMAGE" \
-  bun --env-file=/install/.env /app/scripts/build-database-url.mjs
+docker run --rm -v "$PWD/.env":/install/.env:ro "$ARO_IMAGE" \
+  bun --env-file=/install/.env -e \
+  'process.env.POSTGRES_APP_PASSWORD ??= process.env.POSTGRES_PASSWORD; await import("/app/scripts/build-database-url.mjs");'
 ```
 
-Both commands read `POSTGRES_APP_PASSWORD`, percent-encode it, and print the URL.
-They require that variable, use `second_brain`, `db`, `5432`, and `second_brain`
-as the default user, host, port, and database, and accept optional host/port/database
-arguments. `POSTGRES_APP_USER` can override the user. The output contains a
+Both commands require `POSTGRES_APP_USER`, `POSTGRES_APP_DB` and
+`POSTGRES_APP_PASSWORD`, percent-encode the credentials and database name, and
+print the URL. Host and port default to `db` and `5432`; optional host/port/database
+arguments override those targets. The image command supplies the generated
+`POSTGRES_PASSWORD` to the helper only when `POSTGRES_APP_PASSWORD` is absent;
+it doesn't change `.env` or Compose's credential mode. The output contains a
 password; keep it out of shared logs. `bun run seed` adds demo notes to the dev database.
 
 ### Runtime environment reference
@@ -386,7 +391,10 @@ password; keep it out of shared logs. `bun run seed` adds demo notes to the dev 
 | `SESSION_TTL_DAYS` | sessions | `30` | Session lifetime in days |
 | `ATTACHMENTS_DIR` | attachment storage | `.data/attachments` (relative to the app's working directory) | Attachment file location; in Docker this is inside the `app-data` volume |
 | `APP_PORT` | `compose.yml` | `3000` | Loopback host port |
-| `IRANG_IMAGE` | `compose.yml` only | `ghcr.io/madrobotnet/irang:2.3.2` in source; verified digest in archive | Explicit app image selection; set `irang:local` for source builds; not forwarded to the app |
+| `ARO_IMAGE` | `compose.yml` only | `ghcr.io/madrobotnet/aro:2.4.0` in source; verified digest in archive | Explicit app image selection; set `aro:local` for source builds; not forwarded to the app |
+| `POSTGRES_APP_DB` | Compose / URL helper | Required | App database name; generated fresh value `aro`; preserve existing value on upgrade |
+| `POSTGRES_APP_USER` | Compose / URL helper | Required | App role name; generated fresh value `aro`; preserve existing value on upgrade |
+| `COMPOSE_PROJECT_NAME` | Compose | Generated value `aro` | Project name; preserve the original value on upgrade |
 | `POSTGRES_PASSWORD` | `compose.yml` | Required | Current installs: application role password. Legacy installs with `POSTGRES_APP_PASSWORD`: original administrator password |
 | `POSTGRES_ADMIN_PASSWORD` | `compose.yml` db service | Required for current installs | Explicit administrator password; legacy installs fall back to their original `POSTGRES_PASSWORD` |
 | `POSTGRES_APP_PASSWORD` | `compose.yml` db service | `POSTGRES_PASSWORD` | Legacy application password; requires an explicit volume choice and is never forwarded as a separate app environment variable |
@@ -568,9 +576,9 @@ without changing the active chat connection.
 
 ## 9. Data, backup, and upgrades
 
-The development checkout provides [manifest-checked backup and disposable restore
-verification commands](BACKUP.md), requiring host Node.js 22+. The published
-2.3.2 archive predates these tools; the manual procedure below remains available.
+Aro provides [manifest-checked backup and disposable restore
+verification commands](BACKUP.md), requiring host Node.js 22+.
+The manual procedure below remains available.
 
 Permanent note deletion records attachment cleanup in the same database
 transaction. Physical files are removed only after that transaction commits.
@@ -590,8 +598,8 @@ credentials).
 (
   set -eu
   umask 077
-  mkdir -p "$HOME/second-brain-backups"
-  BACKUP_DIR=$(mktemp -d "$HOME/second-brain-backups/backup.XXXXXX")
+  mkdir -p "$HOME/aro-backups"
+  BACKUP_DIR=$(mktemp -d "$HOME/aro-backups/backup.XXXXXX")
   cp .env "$BACKUP_DIR/operator.env"
   chmod 600 "$BACKUP_DIR/operator.env"
   APP_DATA_VOLUME=$(docker inspect --format \
@@ -599,8 +607,8 @@ credentials).
     "$(docker compose ps -aq app)")
   trap 'docker compose start app' EXIT
   docker compose stop app
-  docker compose exec -T db pg_dump --clean --if-exists \
-    -U postgres second_brain > "$BACKUP_DIR/database.sql"
+  docker compose exec -T db sh -ec \
+    'exec pg_dump --clean --if-exists -U postgres "$POSTGRES_DB"' > "$BACKUP_DIR/database.sql"
   docker run --rm -v "$APP_DATA_VOLUME:/data:ro" -v "$BACKUP_DIR:/backup" \
     alpine:3.23 sh -ec \
     'umask 077; tar czf /backup/app-data.tar.gz -C /data .; chown "$1:$2" /backup/app-data.tar.gz' \
@@ -623,7 +631,9 @@ Restore into a **separate, empty installation**, not a running server with data
 you want to keep. Prepare its pulled image or explicit source build and generate
 its `.env` as in section 3, without starting the app. Set a different
 `APP_PORT`/Compose project name if the original is still running, and set
-`BACKUP_DIR` to the printed backup directory. Keep the appropriate cookie mode
+`BACKUP_DIR` to the printed backup directory. Before starting the database, set
+`POSTGRES_APP_DB` and `POSTGRES_APP_USER` to the database and role names recorded
+in the backup. Keep the appropriate cookie mode
 in its `.env`. The SQL contains cleanup statements and replaces matching
 objects. Pull the database image and start only the database until restoration
 is complete:
@@ -631,8 +641,8 @@ is complete:
 ```sh
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180 db
-docker compose exec -T db psql -v ON_ERROR_STOP=1 --single-transaction \
-  -U postgres second_brain < "$BACKUP_DIR/database.sql"
+docker compose exec -T db sh -ec \
+  'exec psql -v ON_ERROR_STOP=1 --single-transaction -U postgres "$POSTGRES_DB"' < "$BACKUP_DIR/database.sql"
 docker compose create --no-build --pull never app
 APP_DATA_VOLUME=$(docker inspect --format \
   '{{range .Mounts}}{{if eq .Destination "/app/.data"}}{{.Name}}{{end}}{{end}}' \
@@ -643,7 +653,8 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
 
 Restore as the database administrator, because extension metadata belongs to
-`postgres`. The dump restores application-table ownership to `second_brain`;
+`postgres`. Restore with the database and role names recorded in the backup,
+not new names. The dump restores the original application-table ownership;
 the archive preserves UID/GID 1001. Verify a note and attachment before using the
 new installation. The dump also contains sessions; use Settings to revoke them
 if they should not remain valid after recovery.
@@ -657,29 +668,33 @@ physical volumes. If you used `-p`, `COMPOSE_PROJECT_NAME`, or
 archive install, verify the next archive's checksums in a separate download
 directory. Copy its distribution files into the existing installation directory,
 including the SQL directory and `release.json`, without replacing `.env`.
-Don't start a new nested `irang/` directory as a different Compose project.
+Don't start a new nested `aro/` directory as a different Compose project.
 
+Before replacing Compose or starting it, follow the
+[pre-2.4.0 compatibility requirements](UPDATE.md#upgrading-an-install-created-before-240).
+Record `POSTGRES_APP_DB` and `POSTGRES_APP_USER` in the existing `.env`;
+keep its original project name and volume selection.
 Then, from the existing installation directory:
 
 ```sh
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-# Remove or update any old IRANG_IMAGE override in .env to this same reference.
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+# Remove or update any old ARO_IMAGE override in .env to this same reference.
 # Keep INSECURE_COOKIES=1 for loopback HTTP, or 0 for HTTPS.
-docker pull "$IRANG_IMAGE"
+docker pull "$ARO_IMAGE"
 docker compose up -d --wait --wait-timeout 180
 ```
 
 For a source installation, update the existing checkout to the intended version
 without replacing `.env` or changing its project. Use that checkout's package
-version for `VERSION`; this release is 2.3.2:
+version for `VERSION`; this release is 2.4.0:
 
 ```sh
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
-# Keep IRANG_IMAGE=irang:local and the correct cookie mode in .env.
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
+# Keep ARO_IMAGE=aro:local and the correct cookie mode in .env.
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
@@ -693,9 +708,13 @@ verify the upgrade on a restored copy first.
 
 ## 10. Existing deployments
 
+For installs created before 2.4.0, follow the
+[upgrade compatibility section](UPDATE.md#upgrading-an-install-created-before-240)
+before replacing Compose or starting the selected image.
+
 ### Upgrading from 1.x
 
-The old `docker-compose.yml` used the `second_brain_pg18` volume key and a
+The old `docker-compose.yml` used an earlier volume key and a
 different password naming scheme. Previously, switching to `compose.yml` alone
 could select a new empty `postgres-data` volume. The old volume wasn't erased, but
 the application could appear empty. The compatibility path now requires an
@@ -705,7 +724,7 @@ creating resources if that choice is missing.
 1. **Before pulling the new version**, back up the database and attachment
    directory. Record the existing Compose project name and DB mount:
    `docker inspect --format '{{json .Mounts}}' "$(docker compose ps -q db)"`.
-   The actual volume is normally `<project>_second_brain_pg18`. Preserve the
+   Preserve the recorded physical volume and the
    project name, including any `-p` argument or `COMPOSE_PROJECT_NAME` value.
 2. Keep the original `DATABASE_URL`, `POSTGRES_APP_PASSWORD`, `POSTGRES_PASSWORD`
    and `AUTH_PASSWORD_HASH`. `DATABASE_URL` is used verbatim, including its
@@ -714,9 +733,9 @@ creating resources if that choice is missing.
    actually a 2.1+ installation that also defines the legacy app-password name,
    explicitly choose `postgres-data` instead. Confirm the chosen physical
    volume already exists with `docker volume inspect <recorded-volume-name>`.
-4. Select and pull the target release image, or build `irang:local` as in section 3.
+4. Select and pull the target release image, or build `aro:local` as in section 3.
    If `SETUP_TOKEN` is absent, run
-   `docker run --rm "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs`
+   `docker run --rm "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs`
    and copy the printed line into the existing `.env`. It remains unused when the
    existing login hash or owner is present.
    A new `POSTGRES_ADMIN_PASSWORD` is not required for a legacy installation:
@@ -733,7 +752,7 @@ creating resources if that choice is missing.
    the backup. Never run `down -v` as part of the upgrade.
 
 Compose keeps current installs on `postgres-data` by default; changing that
-default back to `second_brain_pg18` would detach already-created 2.1+ databases.
+default to the earlier volume key would detach already-created 2.1+ databases.
 Entrypoint password settings do not change passwords in an initialized volume.
 The compatibility path preserves both names and role semantics; it does not
 reset credentials or copy data into a different cluster.
@@ -818,7 +837,7 @@ is simply skipped.
 
 Use Bun 1.4.2 and Docker. Node 22 is required only for upstream account-login CLI
 subprocess fixtures; the application runs with Bun. The development database
-is a separate `second-brain-dev` Compose project on `127.0.0.1:55432`.
+is a separate `aro-dev` Compose project on `127.0.0.1:55432`.
 Copy `.env.example` to `.env.local`, then copy the double-quoted output of
 `bun run hash-password` for `AUTH_PASSWORD_HASH` exactly as printed.
 
@@ -833,9 +852,9 @@ Copy `.env.example` to `.env.local`, then copy the double-quoted output of
 | `bun run database-url` | Percent-encode a database password into a connection URL |
 | `bun run typecheck` / `bun run lint` / `bun test` / `bun run build` | Check types, lint, test and build |
 
-The development initializer creates a separate `second_brain_test` database.
+The development initializer creates a separate `aro_test` database.
 Tests delete data only there, not in your development notebook.
-`TEST_DATABASE_URL` may select a loopback database named `second_brain_test`
+`TEST_DATABASE_URL` may select a loopback database named `aro_test`
 or `sb_test_<lane>`; connection-override query parameters are rejected.
 The test helper checks initialization, the cached connection and the actual
 database name before clearing data. Never point tests at production.
@@ -851,6 +870,6 @@ relicense dependencies, fonts, runtimes, official account-login CLIs, the
 operating-system image, or provider services.
 See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Images retain full
 collected license texts and inventories under `/app/licenses` and
-`/usr/share/irang/licenses`, plus upstream runtime and operating-system notices.
+`/usr/share/aro/licenses`, plus upstream runtime and operating-system notices.
 A successful inventory or SBOM check doesn't replace review of redistribution
 obligations.

@@ -1,6 +1,6 @@
 # Server installer increment verification
 
-Verified in `/home/ubuntu/.dori/work/irang-v2.4.0` on Linux arm64, Bun 1.4.2.
+Verified in this development checkout on Linux arm64, Bun 1.4.2.
 No commit, push, deploy, live registry login/pull, Docker resource creation, or
 production service operation was performed.
 

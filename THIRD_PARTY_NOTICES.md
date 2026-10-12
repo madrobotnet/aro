@@ -47,7 +47,7 @@ require source or an offer, provide the matching source or compliant offer.
 
 Versioned releases provide architecture-qualified corresponding-source pieces
 and an index separately from the installation archive. The freshly pulled image's
-`/usr/share/irang/licenses/materials.json` seals their selected-file associations.
+`/usr/share/aro/licenses/materials.json` seals their selected-file associations.
 The native release receipt binds the source index hash and material seal to the
 tested runnable image digest. See the public tagged
 [reconstruction instructions](https://github.com/madrobotnet/aro/blob/v2.3.0/distribution/release/README.md).

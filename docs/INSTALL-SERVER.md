@@ -13,8 +13,8 @@ are supported. Other hosts and remote Docker contexts are rejected.
 Choose a stable published version and obtain the archive SHA-256 from that
 release's trusted `SHA256SUMS`. A checksum supplied by an untrusted party does
 not authenticate a release. Do not substitute a version from the checkout's
-directory name. GitHub source and release assets are now at `madrobotnet/aro`; published
-2.3.2 archives and GHCR images keep their original identifiers.
+directory name. GitHub source and release assets use `madrobotnet/aro`. From 2.4.0,
+installation archives and GHCR images use the `aro` prefix.
 
 ```sh
 # Set VERSION and ARCHIVE_SHA256 to the reviewed release and its real checksum.
@@ -27,7 +27,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 bun --no-env-file scripts/install-server.mjs
 Dry-run downloads and validates the archive in memory but does not write files,
 invoke Docker, pull images, or start services. The environment variable above
 also disables Bun's own runtime transpiler cache writes. To also avoid network reads, add
-`--archive /path/to/irang-VERSION-install.tar.gz` to either command.
+`--archive /path/to/aro-VERSION-install.tar.gz` to either command.
 
 The GitHub source/assets are public; the GHCR package is private. Separately run
 `docker login ghcr.io` using an account authorized for the package, preferably

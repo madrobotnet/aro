@@ -96,9 +96,8 @@ Skeleton and the shared shell rather than adding parallel implementations.
 `BrandMark` uses the approved Interlock geometry with the existing accent token
 and a 20px default; caller size/color utilities override it. Pair the decorative
 mark with the localized product name: 아로 / Aro. Installed-app names use
-`Aro`, and the source repository is `madrobotnet/aro`. Preserve existing database,
-cookie, environment and storage identifiers. Published 2.3.2 images and archives
-keep their Irang identifiers.
+`Aro`, and the source repository is `madrobotnet/aro`. New installations from 2.4.0 use `aro` identifiers;
+upgrade compatibility is documented in `docs/UPDATE.md`.
 
 Controls need resting, focus, busy, disabled and failure states. Dialogs use
 native modal focus trapping and restore focus to the opener. Destructive actions

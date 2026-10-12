@@ -13,9 +13,9 @@ From the installer directory:
 
 ```sh
 node scripts/backup.mjs \
-  --install-dir /srv/irang \
-  --project irang \
-  --output /private/backups/irang-20261011
+  --install-dir /srv/aro \
+  --project aro \
+  --output /private/backups/aro-20261011
 ```
 
 All three options are required. The output parent must already exist; the
@@ -69,7 +69,7 @@ output is never overwritten. Choose a different path for a retry.
 
 ```sh
 node scripts/restore-check.mjs \
-  --backup /private/backups/irang-20261011 \
+  --backup /private/backups/aro-20261011 \
   --expected-version 2.4.0
 ```
 
@@ -79,11 +79,11 @@ expected version, release revision, image identity, and streamed checksums.
 No Docker resource is created until these checks pass. The exact DB image ID
 must still exist locally; nothing is pulled.
 
-The command owns a new random `irang-backup-qa-<UUID>` namespace. It rejects
+The command owns a new random `aro-backup-qa-<UUID>` namespace. It rejects
 resource-name collisions and creates two fresh empty volumes and a DB
-container with an owner label. There are no published ports, Docker networks,
+container with an owner label and a random loopback-only port. There is no
 app process, production credentials, or provider calls. It creates the
-`second_brain` role, restores SQL as `postgres` with `ON_ERROR_STOP` in one
+recorded application role, restores SQL as `postgres` with `ON_ERROR_STOP` in one
 transaction, then re-dumps and compares complete schema/data (excluding only
 PostgreSQL's randomized restrict tokens). It rejects unsafe archive paths and
 links/devices before extracting into the new empty app-data volume, then
@@ -106,10 +106,9 @@ Scheduling, remote storage and imports are outside this command's scope.
 
 ```sh
 bun --no-env-file test scripts/backup.test.mjs
-IRANG_BACKUP_CONTAINER_QA=1 bun --no-env-file test scripts/backup.test.mjs
 ```
 
-The second command additionally requires local
+The optional disposable-container tests additionally require local
 `pgvector/pgvector:0.8.6-pg18`, Docker and Compose. It builds a uniquely tagged
 synthetic fixture image locally, exercises real DB rows/extensions, binary
 attachment/auth files, permissions, previous stopped/running state, failure

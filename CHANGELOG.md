@@ -2,6 +2,12 @@
 
 ## Unreleased — recovery and portable data
 
+- Rename the product and new-install identifiers to Aro / 아로. Releases from
+  2.4.0 use the `ghcr.io/madrobotnet/aro` image, `aro-<version>-*` archives,
+  `ARO_IMAGE`, the `aro_session` cookie and `aro` database names. Installations
+  created earlier keep their database, role and volume names, which must be set
+  as `POSTGRES_APP_DB` and `POSTGRES_APP_USER`; `IRANG_IMAGE` and the previous
+  session cookie are still accepted. See `docs/UPDATE.md`.
 - Give chat sends a retained request ID, persist the committed response atomically,
   and reconcile interrupted streams before offering a retry. Reusing an ID for
   different content or another thread is rejected.

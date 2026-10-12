@@ -26,7 +26,7 @@ Keep secrets out of email as well as public reports.
 - Check `docker compose version`. Installation requires Compose 5.1.0 or newer;
   CI and contribution instructions use 5.5.1.
 - For a source installation, run ordinary `docker build` and explicitly set
-  `IRANG_IMAGE=irang:local` in the installation env file. The production
+  `ARO_IMAGE=aro:local` in the installation env file. The production
   `compose.yml` selects an image and has no `build` entry.
 - For loopback HTTP, keep `INSECURE_COOKIES=1` in the env file, not only in one
   shell invocation. HTTPS needs `INSECURE_COOKIES=0`. With a reverse proxy,

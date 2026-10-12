@@ -11,9 +11,9 @@ Bun은 테스트 실행에만 필요합니다.
 
 ```sh
 node scripts/backup.mjs \
-  --install-dir /srv/irang \
-  --project irang \
-  --output /private/backups/irang-20261011
+  --install-dir /srv/aro \
+  --project aro \
+  --output /private/backups/aro-20261011
 ```
 
 세 옵션은 필수입니다. 출력의 부모 디렉터리는 미리 만들어야 하며 출력
@@ -64,7 +64,7 @@ SIGKILL, 호스트 장애, Docker 데몬 장애에서는 보장할 수 없으므
 
 ```sh
 node scripts/restore-check.mjs \
-  --backup /private/backups/irang-20261011 \
+  --backup /private/backups/aro-20261011 \
   --expected-version 2.4.0
 ```
 
@@ -73,10 +73,10 @@ node scripts/restore-check.mjs \
 예상 버전, release 리비전, 이미지 ID, 전체 체크섬을 검증합니다. 기록된 정확한
 DB 이미지 ID가 로컬에 있어야 하며 이미지를 내려받지 않습니다.
 
-무작위 `irang-backup-qa-<UUID>` 이름 공간에서 충돌을 거부하고 소유자 라벨이
-있는 새 빈 볼륨 두 개와 DB 컨테이너를 만듭니다. 포트 공개, Docker 네트워크,
-앱 프로세스, 운영 인증정보, 제공자 호출은 없습니다. `second_brain` 역할을
-만들고 `postgres`로 `ON_ERROR_STOP` 및 단일 트랜잭션 복원을 수행합니다.
+무작위 `aro-backup-qa-<UUID>` 이름 공간에서 충돌을 거부하고 소유자 라벨이
+있는 새 빈 볼륨 두 개와 DB 컨테이너를 만듭니다. 무작위 포트는 루프백에만
+바인딩됩니다. 앱 프로세스, 운영 인증정보, 제공자 호출은 없습니다. 백업에
+기록된 앱 역할을 만들고 `postgres`로 `ON_ERROR_STOP` 및 단일 트랜잭션 복원을 수행합니다.
 재덤프로 전체 스키마/데이터를 비교하며 PostgreSQL 무작위 restrict 토큰만
 제외합니다. 아카이브 경로 탈출, 링크/장치를 거부한 뒤 빈 app-data 볼륨에
 풀고 다시 압축해 바이트, 모드, 소유권, 시간을 비교합니다.
@@ -95,10 +95,9 @@ DB 이미지 ID가 로컬에 있어야 하며 이미지를 내려받지 않습�
 
 ```sh
 bun --no-env-file test scripts/backup.test.mjs
-IRANG_BACKUP_CONTAINER_QA=1 bun --no-env-file test scripts/backup.test.mjs
 ```
 
-두 번째 명령은 로컬 `pgvector/pgvector:0.8.6-pg18`, Docker/Compose도 필요합니다.
+선택형 격리 컨테이너 테스트에는 로컬 `pgvector/pgvector:0.8.6-pg18`, Docker/Compose도 필요합니다.
 고유한 로컬 fixture 이미지를 빌드해 실제 DB 행/확장, 바이너리 첨부/인증 파일,
 권한, 이전 실행/중지 상태, 실패 시 재시작, 덮어쓰기 금지, 검증 자원 정리를
 확인합니다. 자체 fixture 컨테이너/볼륨/이미지만 제거하며 실제 인증정보나

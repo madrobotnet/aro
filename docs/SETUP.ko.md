@@ -1,9 +1,7 @@
 # 아로: 설치와 설정
 
-아직 발행되지 않은 개발 소스의 이름은 아로입니다. 이 안내의 릴리스 명령은
-`madrobotnet/aro`에서 새 아로 개발판이 아닌 발행된 이랑 2.3.2를 설치합니다.
-발행된 이미지와 아카이브 이름, 기존 데이터베이스, 쿠키, 환경변수와 볼륨
-식별자는 그대로 유지하세요.
+이 안내는 아로 2.4.0을 설명합니다. 릴리스 명령에는 검증된 릴리스와 태그가
+필요하며, 이 안내 자체가 2.4.0 발행을 뜻하지는 않습니다.
 
 [English](SETUP.md) · [한국어](SETUP.ko.md) · [한국어 README](../README.ko.md)
 
@@ -23,12 +21,12 @@ Docker Compose 서비스 두 개(Next.js 앱과 Postgres 데이터베이스)와 
 
 | 서비스 | 이미지 | 설명 |
 | --- | --- | --- |
-| `app` | `${IRANG_IMAGE:-ghcr.io/madrobotnet/irang:2.3.2}` | 이미지만 선택하는 Compose 서비스입니다. Bun 기반 독립 실행형 Next.js 서버를 `nextjs`(UID/GID 1001)로 실행합니다. `127.0.0.1:${APP_PORT:-3000}:3000`을 통해 루프백에만 포트를 엽니다. Docker 상태 검사는 `/api/health`를 확인합니다. |
-| `db` | `pgvector/pgvector:0.8.6-pg18` | 내부 전용이며 호스트 포트를 열지 않습니다. 상태 검사 명령은 `pg_isready -U postgres -d second_brain`이고, 앱은 통과할 때까지 기다립니다. **새** 데이터 볼륨에서는 Postgres 진입점이 `docker/postgres/production/01-app-role.sql`을 실행해 `pgcrypto`, `vector`, `pg_trgm` 확장과 권한이 제한된 앱 역할을 미리 만듭니다(4절). |
+| `app` | `ARO_IMAGE`(기본값 `ghcr.io/madrobotnet/aro:2.4.0`) | 이미지만 선택하는 Compose 서비스입니다. Bun 기반 독립 실행형 Next.js 서버를 `nextjs`(UID/GID 1001)로 실행합니다. `127.0.0.1:${APP_PORT:-3000}:3000`을 통해 루프백에만 포트를 엽니다. Docker 상태 검사는 `/api/health`를 확인합니다. |
+| `db` | `pgvector/pgvector:0.8.6-pg18` | 내부 전용이며 호스트 포트를 열지 않습니다. 상태 검사 명령은 `pg_isready -U postgres -d "$POSTGRES_DB"`이고, 앱은 통과할 때까지 기다립니다. **새** 데이터 볼륨에서는 Postgres 진입점이 `docker/postgres/production/01-app-role.sql`을 실행해 `pgcrypto`, `vector`, `pg_trgm` 확장과 권한이 제한된 앱 역할을 미리 만듭니다(4절). |
 
 Compose는 이름이 지정된 볼륨에 프로젝트 이름을 접두사로 붙입니다. 기본 프로젝트
-이름은 디렉터리 이름이므로, 새 `aro` 체크아웃에서는 `aro_app-data`가 됩니다.
-기존 설치는 `irang_app-data` 또는 `second-brain_app-data`일 수 있습니다.
+이름은 별도로 지정하지 않으면 디렉터리 이름입니다. 생성된 `.env`는
+`COMPOSE_PROJECT_NAME=aro`를 설정하므로 새 설치에서는 `aro_app-data`가 됩니다.
 업그레이드할 때 원래 프로젝트 이름과 물리 볼륨을 유지하세요.
 
 | 볼륨 | 마운트 위치 | 내용 |
@@ -36,13 +34,13 @@ Compose는 이름이 지정된 볼륨에 프로젝트 이름을 접두사로 붙
 | `app-data` | `/app/.data`(앱 컨테이너) | 첨부파일(`.data/attachments`)과 계정 로그인 CLI의 자격 증명 저장소(`auth/codex`, `auth/google`). 소유 UID는 1001이며 `auth` 디렉터리 권한은 0700입니다. |
 | `postgres-data` | `/var/lib/postgresql`(DB 컨테이너) | 노트, 인박스, 대화 스레드, 첨부파일 메타데이터, 세션, 저장된 AI 설정 등 모든 앱 데이터 |
 
-Compose에는 이전 버전의 키 `second_brain_pg18`도 선언되어 있지만, 선택한 DB
-볼륨 하나만 마운트됩니다. 이 이름들은 각 프로젝트에서 쓰는 논리 키이며,
+Compose는 `POSTGRES_DATA_VOLUME`으로 DB 볼륨을 선택하며, 선택한 볼륨
+하나만 마운트합니다. 이 이름들은 각 프로젝트에서 쓰는 논리 키이며,
 프로젝트와 무관하게 고정된 전역 볼륨 이름이 아닙니다. 기존 물리 볼륨을 유지하는
 방법은 10절에 있습니다.
 
 릴리스 아카이브의 `app.image`는 `release.json`에 기록된
-`ghcr.io/madrobotnet/irang:2.3.2@sha256:...`로 고정됩니다. 그 밖의 Compose
+`ghcr.io/madrobotnet/aro:2.4.0@sha256:...`로 고정됩니다. 그 밖의 Compose
 설정은 파싱한 값 기준으로 소스와 같습니다. Compose 옆에 상대 경로
 `docker/postgres/production` 디렉터리를 함께 두세요. `compose.yml`만 내려받으면
 필수 DB 초기화 스크립트가 빠집니다.
@@ -79,27 +77,27 @@ Compose에는 이전 버전의 키 `second_brain_pg18`도 선언되어 있지만
 
 ### 설치 아카이브
 
-아래 아카이브 명령은 [RELEASING.md](RELEASING.md)의 검증을 마친 `v2.3.2`
+아래 아카이브 명령은 [RELEASING.md](RELEASING.md)의 검증을 마친 `v2.4.0`
 릴리스가 있어야 사용할 수 있습니다. 소스와 릴리스 파일은 공개되어 있지만 GHCR
 패키지는 비공개이며 이미지를 받으려면 접근 권한이 필요합니다. 빈 디렉터리에
 모든 릴리스 파일을 내려받고, 체크섬을 확인한 다음 압축을 풉니다.
 
 ```sh
-mkdir irang-release-2.3.2
-cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/aro
+mkdir aro-release-2.4.0
+cd aro-release-2.4.0
+gh release download v2.4.0 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf irang-2.3.2-install.tar.gz
-cd irang
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-docker pull "$IRANG_IMAGE"
+tar -xzf aro-2.4.0-install.tar.gz
+cd aro
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+docker pull "$ARO_IMAGE"
 ```
 
 초기 설정 스크립트와 앱에는 이 다이제스트 참조를 똑같이 사용하세요. 아카이브의
-Compose는 이미 이를 기본값으로 사용합니다. `.env`에 이전 `IRANG_IMAGE`
+Compose는 이미 이를 기본값으로 사용합니다. `.env`에 이전 `ARO_IMAGE`
 재정의가 있으면 지우거나 갱신하세요. 소스의 Compose는 읽기 쉬운 버전 태그
-`ghcr.io/madrobotnet/irang:2.3.2`를 사용하며, 릴리스 정책상 이 태그의 내용은
+`ghcr.io/madrobotnet/aro:2.4.0`를 사용하며, 릴리스 정책상 이 태그의 내용은
 바뀌지 않습니다.
 
 비공개 이미지를 받으려면 패키지 읽기 권한이 있는 Docker 레지스트리 자격 증명이
@@ -114,40 +112,40 @@ GHCR에 접근할 수 없다면 공개 소스를 로컬에서 빌드하세요. �
 태그를 선택하세요. Compose에는 빌드 설정이 없습니다.
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
 ```
 
 ### 설치 환경 파일 생성
 
-압축을 푼 `irang/` 디렉터리 또는 소스 체크아웃에서 선택한 이미지를 실행합니다.
-Compose가 읽을 `./.env`를 새 무작위 비밀 값과 권한 `0600`으로 만들고, 설치
-확인 코드를 발행된 2.3.2 이미지에서는 한 번 출력합니다.
+압축을 푼 `aro/` 디렉터리 또는 소스 체크아웃에서 선택한 이미지를 실행합니다.
+Compose가 읽을 `./.env`를 새 무작위 비밀 값과 권한 `0600`으로 만듭니다.
+설치 확인 코드는 그 비공개 파일에만 보관합니다.
 
 ```sh
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 ```
 
 출력:
 
 ```
 Created /install/.env
-Installation code: <64 hex chars>
-Keep this code private. Enter it on /setup after starting the server.
+Installation code is stored only in the private environment file.
+Read SETUP_TOKEN locally in a private terminal and enter it on /setup.
 ```
 
-개발 버전은 비밀 값을 출력하지 않습니다. 생성된 비공개 `.env`를 로컬에서
+생성된 비공개 `.env`를 로컬에서
 열어 `SETUP_TOKEN` 값을 `/setup`에 입력하세요. 파일이나 터미널 녹화는
-공유하지 마세요. 개발판 [서버 설치 도구](INSTALL-SERVER.md)는 비공개
+공유하지 마세요. [서버 설치 도구](INSTALL-SERVER.md)는 비공개
 터미널에서만 `--token` 조회도 지원합니다. 출력이 없다는 이유로 새 토큰을
 생성해 기존 값을 교체하지 마세요.
 
-소스에서 빌드했다면 생성된 `.env`에 `IRANG_IMAGE=irang:local`을 추가하세요.
+소스에서 빌드했다면 생성된 `.env`에 `ARO_IMAGE=aro:local`을 추가하세요.
 앞서 셸에서 설정한 환경변수는 새 세션에 유지되지 않습니다. 루프백 HTTP에서는
 `.env`의 기존 `INSECURE_COOKIES=0` 줄을 `INSECURE_COOKIES=1`로 바꾸세요.
 HTTPS에서는 `0`을 유지합니다. 한 명령에만 적용하지 말고 앱 시작 전에 파일에
@@ -162,6 +160,9 @@ HTTPS에서는 `0`을 유지합니다. 한 명령에만 적용하지 말고 앱 
 | --- | --- | --- |
 | `POSTGRES_PASSWORD` | 다른 비밀 값과 겹치지 않는 무작위 16진수 64자 | 앱 DB 역할의 비밀번호. Compose가 `DATABASE_URL`에 넣고, DB 초기화 스크립트가 역할을 만들 때 사용합니다. |
 | `POSTGRES_ADMIN_PASSWORD` | 다른 비밀 값과 겹치지 않는 무작위 16진수 64자 | DB 컨테이너의 `postgres` 슈퍼유저 비밀번호. 운영자 유지보수 전용이며 앱에는 전달하지 않습니다. |
+| `POSTGRES_APP_DB` | `aro` | 앱 DB 이름 |
+| `POSTGRES_APP_USER` | `aro` | 권한이 제한된 앱 역할 이름 |
+| `COMPOSE_PROJECT_NAME` | `aro` | 새 설치 프로젝트 이름 |
 | `SETUP_TOKEN` | 다른 비밀 값과 겹치지 않는 무작위 16진수 64자 | 최초 설정 마법사를 보호하는 설치 확인 코드 |
 | `APP_PORT` | `3000` | 앱 서비스가 루프백에 여는 포트 |
 | `INSECURE_COOKIES` | `0` | 세션 쿠키의 `Secure` 속성(6절) |
@@ -173,12 +174,12 @@ HTTPS에서는 `0`을 유지합니다. 한 명령에만 적용하지 말고 앱 
 직접 관리하는 환경 파일을 쓴다면 코드만 생성해 붙여 넣을 수 있습니다.
 
 ```sh
-docker run --rm "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs
+docker run --rm "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs
 # prints: SETUP_TOKEN=<64 hex chars>
 ```
 
-새 설치에는 `POSTGRES_PASSWORD`, `POSTGRES_ADMIN_PASSWORD`, `SETUP_TOKEN`이
-필요합니다. 기존 1.x 자격 증명 이름도 저장된 비밀번호를 바꾸지 않고 사용할 수
+새 설치에는 `POSTGRES_PASSWORD`, `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_APP_DB`,
+`POSTGRES_APP_USER`, `SETUP_TOKEN`이 필요합니다. 기존 1.x 자격 증명 이름도 저장된 비밀번호를 바꾸지 않고 사용할 수
 있지만, 데이터 볼륨을 명시적으로 선택해야 합니다(10절). 기존 설치에 `setup-env`를
 실행하거나 업그레이드 중에 DB 비밀번호를 다시 생성하지 마세요.
 
@@ -186,9 +187,9 @@ docker run --rm "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs
 생성하는 명령을 PowerShell로 옮기면 다음과 같습니다.
 
 ```powershell
-$env:IRANG_IMAGE = (Get-Content ./release.json -Raw | ConvertFrom-Json).image
-docker pull $env:IRANG_IMAGE
-docker run --rm -v "${PWD}:/install" $env:IRANG_IMAGE bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+$env:ARO_IMAGE = (Get-Content ./release.json -Raw | ConvertFrom-Json).image
+docker pull $env:ARO_IMAGE
+docker run --rm -v "${PWD}:/install" $env:ARO_IMAGE bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 ```
 
 POSIX의 `--user "$(id -u):$(id -g)"` 매핑에 직접 대응하는 PowerShell 표현이
@@ -205,8 +206,8 @@ Windows에서 실행해 본 명령은 아닙니다. 명령을 번역한 예시�
 docker compose up -d --wait --wait-timeout 180
 ```
 
-소스에서 빌드한 `irang:local` 이미지라면 3절에 따라 `.env`를 만들고
-`IRANG_IMAGE=irang:local`을 추가한 뒤 실행합니다.
+소스에서 빌드한 `aro:local` 이미지라면 3절에 따라 `.env`를 만들고
+`ARO_IMAGE=aro:local`을 추가한 뒤 실행합니다.
 
 ```sh
 docker compose pull db
@@ -224,7 +225,8 @@ curl -i http://127.0.0.1:3000/api/health     # expect 200 {"ok":true}
 비어 있는 `postgres-data` 볼륨으로 **처음** 시작할 때 DB 진입점은 연결을
 받기 전에 `docker/postgres/production/01-app-role.sql`을 실행합니다.
 `pgcrypto`, `vector`, `pg_trgm` 확장을 미리 만들고, `POSTGRES_PASSWORD`로
-로그인하는 앱 역할 `second_brain`을 생성합니다. 이 역할에는
+로그인하는 앱 역할을 `POSTGRES_APP_USER` 이름으로 만듭니다(새 설치는 `aro`).
+`POSTGRES_APP_PASSWORD`가 있으면 그 비밀번호를 사용합니다. 이 역할에는
 `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`이 적용되며, `public`
 스키마 안에서 사용하고 객체를 생성할 수 있지만 그 밖의 권한은 없습니다.
 진입점 초기화 스크립트는 데이터 볼륨이 비었을 때만 실행되며, 기존 볼륨에서는
@@ -236,8 +238,8 @@ curl -i http://127.0.0.1:3000/api/health     # expect 200 {"ok":true}
 `POSTGRES_APP_PASSWORD`가 있을 때 그 값을, 없을 때 `POSTGRES_PASSWORD`를
 사용해 URL을 만듭니다.
 
-앱과 DB 관리자의 자격 증명은 분리해야 합니다. 기본 앱 연결은 `second_brain`
-역할을 사용합니다. 운영자가 지정하는 `DATABASE_URL`도 DB 관리자가 아닌 앱 역할을
+앱과 DB 관리자의 자격 증명은 분리해야 합니다. 앱 연결은 `POSTGRES_APP_USER`
+역할을 사용합니다(새 설치는 `aro`). 운영자가 지정하는 `DATABASE_URL`도 DB 관리자가 아닌 앱 역할을
 사용해야 합니다. `postgres` 슈퍼유저와 `POSTGRES_ADMIN_PASSWORD`는 DB
 컨테이너 안에서 운영자가 유지보수할 때만 사용합니다(예: 대화형 `psql` 세션).
 `POSTGRES_ADMIN_PASSWORD`를 `DATABASE_URL`, 앱 환경변수 또는 앱 설정에
@@ -274,7 +276,7 @@ curl -i http://127.0.0.1:3000/api/health     # expect 200 {"ok":true}
 <a id="6-cookies-http-vs-https-and-reverse-proxy-trust"></a>
 ## 6. 쿠키, HTTP·HTTPS, 리버스 프록시 신뢰
 
-세션 쿠키(`sb_session`)와 제공자 로그인용 브라우저 쿠키(`sb_ai_auth`)에는
+세션 쿠키(`aro_session`)와 제공자 로그인용 브라우저 쿠키(`sb_ai_auth`)에는
 `HttpOnly`, `SameSite=Lax`가 적용됩니다. 프로덕션 빌드에서는
 `INSECURE_COOKIES=1`이 아닌 한 `Secure` 속성도 켜집니다.
 
@@ -337,7 +339,7 @@ unset DATABASE_URL AUTH_PASSWORD_HASH
 ```
 
 이 명령은 실행한 셸만 바꾸며 `.env`를 삭제하거나 편집하지 않습니다.
-선택한 `IRANG_IMAGE`와 생성된 데이터베이스 자격 증명은 유지하세요.
+선택한 `ARO_IMAGE`와 생성된 데이터베이스 자격 증명은 유지하세요.
 기존 또는 레거시 설치에서는 의도한 `DATABASE_URL`, `AUTH_PASSWORD_HASH`,
 원래 데이터베이스 비밀번호와 볼륨 선택을 보존해야 합니다. 셸 우선순위 문제를
 해결하려고 자격 증명을 지우거나 운영자 파일을 다시 만들지 마세요.
@@ -377,14 +379,16 @@ unset DATABASE_URL AUTH_PASSWORD_HASH
 설치 환경에서는 선택한 이미지 안의 Bun이 운영자 파일을 읽도록 실행하세요.
 
 ```sh
-docker run --rm -v "$PWD/.env":/install/.env:ro "$IRANG_IMAGE" \
-  bun --env-file=/install/.env /app/scripts/build-database-url.mjs
+docker run --rm -v "$PWD/.env":/install/.env:ro "$ARO_IMAGE" \
+  bun --env-file=/install/.env -e \
+  'process.env.POSTGRES_APP_PASSWORD ??= process.env.POSTGRES_PASSWORD; await import("/app/scripts/build-database-url.mjs");'
 ```
 
-두 명령 모두 `POSTGRES_APP_PASSWORD`를 읽어 퍼센트 인코딩하고 URL을
-출력합니다. 이 변수는 필수입니다. 기본 사용자, 호스트, 포트, 데이터베이스는
-각각 `second_brain`, `db`, `5432`, `second_brain`이며, 호스트·포트·데이터베이스를
-선택 인수로 지정할 수 있습니다. `POSTGRES_APP_USER`로 사용자를 바꿀 수 있습니다.
+두 명령 모두 `POSTGRES_APP_USER`, `POSTGRES_APP_DB`, `POSTGRES_APP_PASSWORD`가
+필요하며, 자격 증명과 DB 이름을 퍼센트 인코딩해 URL을 출력합니다. 호스트와
+포트 기본값은 `db`, `5432`이며 호스트·포트·DB를 선택 인수로 바꿀 수 있습니다.
+이미지 명령은 `POSTGRES_APP_PASSWORD`가 없을 때 생성된 `POSTGRES_PASSWORD`를
+도구에만 전달합니다. `.env`나 Compose의 자격 증명 방식은 바꾸지 않습니다.
 출력에는 비밀번호가 들어 있으므로 공유 로그에 남기지 마세요.
 `bun run seed`는 개발 DB에 예제 노트를 추가합니다.
 
@@ -400,7 +404,10 @@ docker run --rm -v "$PWD/.env":/install/.env:ro "$IRANG_IMAGE" \
 | `SESSION_TTL_DAYS` | 세션 | `30` | 세션 유지 기간(일) |
 | `ATTACHMENTS_DIR` | 첨부파일 저장 | `.data/attachments`(앱 작업 디렉터리 기준 상대 경로) | 첨부파일 위치. Docker에서는 `app-data` 볼륨 안에 있습니다. |
 | `APP_PORT` | `compose.yml` | `3000` | 루프백 호스트 포트 |
-| `IRANG_IMAGE` | `compose.yml`만 사용 | 소스는 `ghcr.io/madrobotnet/irang:2.3.2`, 아카이브는 검증된 다이제스트 | 앱 이미지의 명시적 선택. 소스 빌드는 `irang:local`로 설정합니다. 앱에는 전달하지 않습니다. |
+| `ARO_IMAGE` | `compose.yml`만 사용 | 소스는 `ghcr.io/madrobotnet/aro:2.4.0`, 아카이브는 검증된 다이제스트 | 앱 이미지의 명시적 선택. 소스 빌드는 `aro:local`로 설정합니다. 앱에는 전달하지 않습니다. |
+| `POSTGRES_APP_DB` | Compose / URL 도구 | 필수 | 앱 DB 이름. 새 생성 값은 `aro`, 업그레이드는 기존 값을 유지합니다. |
+| `POSTGRES_APP_USER` | Compose / URL 도구 | 필수 | 앱 역할 이름. 새 생성 값은 `aro`, 업그레이드는 기존 값을 유지합니다. |
+| `COMPOSE_PROJECT_NAME` | Compose | 생성 값 `aro` | 프로젝트 이름. 업그레이드는 원래 값을 유지합니다. |
 | `POSTGRES_PASSWORD` | `compose.yml` | 필수 | 현재 설치에서는 앱 역할 비밀번호. `POSTGRES_APP_PASSWORD`가 있는 이전 설치에서는 원래 관리자 비밀번호입니다. |
 | `POSTGRES_ADMIN_PASSWORD` | `compose.yml`의 DB 서비스 | 현재 설치에서 필수 | 명시적 관리자 비밀번호. 이전 설치에서는 원래 `POSTGRES_PASSWORD`를 대신 사용합니다. |
 | `POSTGRES_APP_PASSWORD` | `compose.yml`의 DB 서비스 | `POSTGRES_PASSWORD` | 이전 설치의 앱 비밀번호. 볼륨을 명시적으로 선택해야 하며 별도 앱 환경변수로 전달하지 않습니다. |
@@ -583,9 +590,8 @@ TypeSafe는 API 키를 사용합니다. OpenRouter는 API 키 또는 앞서 설�
 <a id="9-data-backup-and-upgrades"></a>
 ## 9. 데이터, 백업, 업그레이드
 
-개발 체크아웃의 [백업·격리 복원 검증 명령](BACKUP.ko.md)은 버전과 파일 체크섬을
-확인하며 호스트 Node.js 22 이상이 필요합니다. 이미 발행된 2.3.2 아카이브에는
-이 도구가 없습니다. 아래 수동 절차도 계속 사용할 수 있습니다.
+아로의 [백업·격리 복원 검증 명령](BACKUP.ko.md)은 버전과 파일 체크섬을
+확인하며 호스트 Node.js 22 이상이 필요합니다. 아래 수동 절차도 사용할 수 있습니다.
 
 노트를 영구 삭제하면 같은 DB 트랜잭션에 첨부파일 정리 작업을 기록합니다.
 실제 파일은 트랜잭션 커밋 뒤에만 지웁니다. 저장소에 일시적으로 접근할 수
@@ -605,8 +611,8 @@ TypeSafe는 API 키를 사용합니다. OpenRouter는 API 키 또는 앞서 설�
 (
   set -eu
   umask 077
-  mkdir -p "$HOME/second-brain-backups"
-  BACKUP_DIR=$(mktemp -d "$HOME/second-brain-backups/backup.XXXXXX")
+  mkdir -p "$HOME/aro-backups"
+  BACKUP_DIR=$(mktemp -d "$HOME/aro-backups/backup.XXXXXX")
   cp .env "$BACKUP_DIR/operator.env"
   chmod 600 "$BACKUP_DIR/operator.env"
   APP_DATA_VOLUME=$(docker inspect --format \
@@ -614,8 +620,8 @@ TypeSafe는 API 키를 사용합니다. OpenRouter는 API 키 또는 앞서 설�
     "$(docker compose ps -aq app)")
   trap 'docker compose start app' EXIT
   docker compose stop app
-  docker compose exec -T db pg_dump --clean --if-exists \
-    -U postgres second_brain > "$BACKUP_DIR/database.sql"
+  docker compose exec -T db sh -ec \
+    'exec pg_dump --clean --if-exists -U postgres "$POSTGRES_DB"' > "$BACKUP_DIR/database.sql"
   docker run --rm -v "$APP_DATA_VOLUME:/data:ro" -v "$BACKUP_DIR:/backup" \
     alpine:3.23 sh -ec \
     'umask 077; tar czf /backup/app-data.tar.gz -C /data .; chown "$1:$2" /backup/app-data.tar.gz' \
@@ -638,15 +644,17 @@ TypeSafe는 API 키를 사용합니다. OpenRouter는 API 키 또는 앞서 설�
 중인 서버에 복원하면 안 됩니다. 3절에 따라 이미지를 내려받거나 소스에서
 직접 빌드하고 `.env`를 생성하되, 앱은 아직 시작하지 마세요. 원래 설치가
 실행 중이면 다른 `APP_PORT`와 Compose 프로젝트 이름을 지정합니다.
-`BACKUP_DIR`을 출력된 백업 디렉터리로 설정하고 `.env`에 적절한 쿠키 모드를
-유지하세요. SQL에는 정리 구문이 포함되어 있어 일치하는 객체를 대체합니다.
+`BACKUP_DIR`을 출력된 백업 디렉터리로 설정합니다. DB를 시작하기 전에
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER`를 백업에 기록된 DB와 역할 이름으로
+설정하고 `.env`에 적절한 쿠키 모드를 유지하세요. SQL에는 정리 구문이
+포함되어 있어 일치하는 객체를 대체합니다.
 복원이 끝날 때까지 DB 이미지를 내려받고 DB만 시작합니다.
 
 ```sh
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180 db
-docker compose exec -T db psql -v ON_ERROR_STOP=1 --single-transaction \
-  -U postgres second_brain < "$BACKUP_DIR/database.sql"
+docker compose exec -T db sh -ec \
+  'exec psql -v ON_ERROR_STOP=1 --single-transaction -U postgres "$POSTGRES_DB"' < "$BACKUP_DIR/database.sql"
 docker compose create --no-build --pull never app
 APP_DATA_VOLUME=$(docker inspect --format \
   '{{range .Mounts}}{{if eq .Destination "/app/.data"}}{{.Name}}{{end}}{{end}}' \
@@ -657,7 +665,8 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
 
 확장 메타데이터의 소유자가 `postgres`이므로 DB 관리자로 복원하세요.
-덤프는 앱 테이블의 소유권을 `second_brain`으로 복원하고, 아카이브는 UID/GID
+백업에 기록된 DB와 역할 이름으로 복원하세요. 새 이름을 쓰지 마세요.
+덤프는 원래 앱 테이블 소유권을 복원하고, 아카이브는 UID/GID
 1001을 유지합니다. 새 설치를 사용하기 전에 노트와 첨부파일을 확인하세요.
 덤프에는 세션도 들어 있습니다. 복구 뒤에 기존 세션을 유효하게 두고 싶지 않으면
 설정에서 취소하세요.
@@ -670,30 +679,33 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
 업그레이드 명령에 같은 값을 사용합니다. 아카이브 설치는 별도의 다운로드
 디렉터리에서 다음 아카이브의 체크섬을 검증합니다. `.env`는 바꾸지 않고,
 SQL 디렉터리와 `release.json`을 포함한 배포 파일을 기존 설치 디렉터리에
-복사하세요. 새 하위 `irang/` 디렉터리를 다른 Compose 프로젝트로 시작하면
+복사하세요. 새 하위 `aro/` 디렉터리를 다른 Compose 프로젝트로 시작하면
 안 됩니다.
 
-그다음 기존 설치 디렉터리에서 실행합니다.
+Compose를 교체하거나 시작하기 전에 10절의 2.4.0 이전 설치 호환 규칙을
+따르세요. 기존 `.env`에 `POSTGRES_APP_DB`, `POSTGRES_APP_USER`를 기록하고
+원래 프로젝트 이름과 볼륨 선택을 유지합니다. 그다음 기존 설치 디렉터리에서
+실행합니다.
 
 ```sh
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-# .env의 이전 IRANG_IMAGE 재정의를 지우거나 같은 참조로 갱신합니다.
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+# .env의 이전 ARO_IMAGE 재정의를 지우거나 같은 참조로 갱신합니다.
 # 루프백 HTTP는 INSECURE_COOKIES=1, HTTPS는 0을 유지합니다.
-docker pull "$IRANG_IMAGE"
+docker pull "$ARO_IMAGE"
 docker compose up -d --wait --wait-timeout 180
 ```
 
 소스 설치에서는 `.env`를 바꾸거나 프로젝트를 변경하지 않고 기존 체크아웃을
 목표 버전으로 업데이트합니다. `VERSION`에는 그 체크아웃의 패키지 버전을
-사용하세요. 이번 릴리스는 2.3.2입니다.
+사용하세요. 이번 릴리스는 2.4.0입니다.
 
 ```sh
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
-# .env에 IRANG_IMAGE=irang:local과 올바른 쿠키 모드를 유지합니다.
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
+# .env에 ARO_IMAGE=aro:local과 올바른 쿠키 모드를 유지합니다.
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
@@ -708,9 +720,22 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
 <a id="10-existing-deployments"></a>
 ## 10. 기존 배포
 
+### 2.4.0 이전 설치에서 업그레이드
+
+기존 DB, 역할, 물리 볼륨 이름을 유지하세요. 업데이트 도구는 기존 배포에서
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER`, 원래 Compose 프로젝트 이름을
+읽어 준비한 설치의 `.env`에 기록하고 볼륨 선택을 보존합니다. Compose는
+`ARO_IMAGE`가 없으면 `IRANG_IMAGE`를 읽고, 인증은 `aro_session`이 없으면
+`sb_session`을 읽습니다. 업데이트 도구는 이전 이미지 키를 `ARO_IMAGE`로
+바꿉니다. 수동 업그레이드는 Compose를 시작하기 전에 기존 `.env`의
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER`를 실제 DB와 역할 이름으로 설정해야
+합니다. 없으면 Compose가 시작을 거부합니다. 기존 이름을 `aro`로 바꾸거나
+비밀번호를 다시 만들지 마세요. 준비와 활성화는 [UPDATE.md](UPDATE.md)를
+참고하세요.
+
 ### 1.x에서 업그레이드
 
-이전 `docker-compose.yml`은 `second_brain_pg18` 볼륨 키와 다른 비밀번호
+이전 `docker-compose.yml`은 이전 볼륨 키와 다른 비밀번호
 이름을 사용했습니다. 예전에는 `compose.yml`로만 바꾸면 비어 있는 새
 `postgres-data` 볼륨이 선택됐습니다. 원래 볼륨은 지워지지 않았지만 앱이
 비어 있는 것처럼 보일 수 있었습니다. 현재 호환 경로는
@@ -720,7 +745,7 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
 1. **새 버전을 내려받기 전에** DB와 첨부파일 디렉터리를 백업하세요.
    기존 Compose 프로젝트 이름과 DB 마운트를 기록합니다.
    `docker inspect --format '{{json .Mounts}}' "$(docker compose ps -q db)"`.
-   실제 볼륨은 보통 `<project>_second_brain_pg18`입니다.
+   기록한 물리 볼륨을 그대로 유지하세요.
    `-p` 인수와 `COMPOSE_PROJECT_NAME` 값을 포함해 프로젝트 이름을 유지하세요.
 2. 원래의 `DATABASE_URL`, `POSTGRES_APP_PASSWORD`, `POSTGRES_PASSWORD`,
    `AUTH_PASSWORD_HASH`를 유지하세요. `DATABASE_URL`은 퍼센트 인코딩한
@@ -731,9 +756,9 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
    `postgres-data`를 명시적으로 선택합니다.
    `docker volume inspect <recorded-volume-name>`으로 선택한 물리 볼륨이
    이미 있는지 확인하세요.
-4. 목표 릴리스 이미지를 선택해 내려받거나 3절에 따라 `irang:local`을
+4. 목표 릴리스 이미지를 선택해 내려받거나 3절에 따라 `aro:local`을
    빌드하세요. `SETUP_TOKEN`이 없다면
-   `docker run --rm "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs`를
+   `docker run --rm "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-token.mjs`를
    실행해 출력한 줄을 기존 `.env`에 복사합니다. 기존 로그인 해시나
    소유자가 있으면 이 토큰은 사용하지 않습니다. 이전 설치에는 새
    `POSTGRES_ADMIN_PASSWORD`가 필요하지 않습니다. 원래
@@ -749,7 +774,7 @@ docker compose up -d --no-build --pull never --wait --wait-timeout 180
    기존 첨부파일을 확인합니다. 업그레이드 과정에서 `down -v`를 실행하지 마세요.
 
 Compose는 현재 설치의 기본 볼륨을 `postgres-data`로 유지합니다. 기본값을
-`second_brain_pg18`로 되돌리면 이미 생성된 2.1 이상 DB가 연결에서 빠집니다.
+이전 볼륨 키로 되돌리면 이미 생성된 2.1 이상 DB가 연결에서 빠집니다.
 진입점의 비밀번호 설정은 초기화된 볼륨의 비밀번호를 바꾸지 않습니다.
 호환 경로는 두 비밀번호 변수의 이름과 각 역할을 유지하며, 자격 증명을 초기화하거나
 다른 클러스터로 데이터를 복사하지 않습니다.
@@ -833,7 +858,7 @@ DB 볼륨도 없는 설치라면 3절의 이미지 내부 `/app/scripts/setup-en
 
 Bun 1.4.2와 Docker를 사용합니다. Node 22는 상위 프로젝트 계정 로그인 CLI의
 하위 프로세스 테스트 픽스처에만 필요하며, 앱은 Bun으로 실행됩니다. 개발 DB는
-`127.0.0.1:55432`의 별도 `second-brain-dev` Compose 프로젝트입니다.
+`127.0.0.1:55432`의 별도 `aro-dev` Compose 프로젝트입니다.
 `.env.example`을 `.env.local`로 복사한 뒤, `bun run hash-password`가 출력한
 큰따옴표와 `\$`를 포함한 `AUTH_PASSWORD_HASH` 줄을 그대로 복사하세요.
 
@@ -848,9 +873,9 @@ Bun 1.4.2와 Docker를 사용합니다. Node 22는 상위 프로젝트 계정 �
 | `bun run database-url` | DB 비밀번호를 퍼센트 인코딩해 연결 URL 생성 |
 | `bun run typecheck` / `bun run lint` / `bun test` / `bun run build` | 타입 검사, 린트, 테스트, 빌드 |
 
-개발 초기화는 별도 `second_brain_test` DB를 만듭니다. 테스트는 그 DB에서만
+개발 초기화는 별도 `aro_test` DB를 만듭니다. 테스트는 그 DB에서만
 데이터를 지우며 개발 노트장은 건드리지 않습니다. `TEST_DATABASE_URL`은
-루프백의 `second_brain_test` 또는 `sb_test_<lane>` DB를 선택할 수 있습니다.
+루프백의 `aro_test` 또는 `sb_test_<lane>` DB를 선택할 수 있습니다.
 연결을 재정의하는 쿼리 매개변수는 거부합니다. 테스트 도우미는 데이터를
 지우기 전에 초기화 상태, 캐시된 연결, 실제 DB 이름을 확인합니다.
 테스트를 프로덕션에 연결하지 마세요.
@@ -867,6 +892,6 @@ Bun 1.4.2와 Docker를 사용합니다. Node 22는 상위 프로젝트 계정 �
 라이선스나 약관까지 바꾸지는 않습니다.
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)를 참고하세요.
 이미지에는 수집한 라이선스 전문과 목록이 `/app/licenses`,
-`/usr/share/irang/licenses`에 보관되며, 런타임과 운영체제가 제공한 고지도
+`/usr/share/aro/licenses`에 보관되며, 런타임과 운영체제가 제공한 고지도
 유지됩니다. 목록이나 SBOM 검사를 통과해도 재배포 의무 검토를 대신할 수는
 없습니다.

@@ -17,6 +17,18 @@ Input roots and output parents must be owned and private (0700).
 Only strictly newer stable versions are supported; downgrade selections fail.
 Do not run competing installers, launchers, initializers or independent writers.
 
+## Upgrading an install created before 2.4.0
+
+Keep its existing database, role and physical volume names. The updater records
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER` and the original Compose project in the
+staged install's `.env`, preserving its volume selection. Compose still reads
+`IRANG_IMAGE` when `ARO_IMAGE` is absent, and authentication still reads
+`sb_session` when `aro_session` is absent. The updater replaces the old image
+key with `ARO_IMAGE`. For a hand upgrade, set `POSTGRES_APP_DB` and
+`POSTGRES_APP_USER` in the existing `.env` to the actual database and role
+values before starting Compose, or Compose refuses to start. Never substitute
+`aro` for existing names or generate replacement passwords.
+
 ## Desktop
 
 Stop the launcher before running:
@@ -56,11 +68,14 @@ bun --no-env-file scripts/update.mjs server \
 
 Unset `DOCKER_HOST`/`DOCKER_CONTEXT`; remote daemons are refused. Release,
 checksum, digest and pulled OCI version/revision are checked. The new archive is
-staged with a copy of `.env` that changes only `IRANG_IMAGE` to the target image.
-Every other setting and secret is preserved; the old directory remains untouched.
+staged with a copy of `.env` that pins `ARO_IMAGE` to the target image and records
+`POSTGRES_APP_DB`, `POSTGRES_APP_USER` and `COMPOSE_PROJECT_NAME` from the
+existing deployment. Secrets and other settings are preserved; the old
+directory remains untouched.
 No separate image overlay is needed for future backup/update commands.
-Resolved old/new configurations must be identical apart from that image:
-project, named volumes, DB image, ports, mounts and settings cannot change.
+Resolved old/new configurations must preserve project, named volumes, DB image,
+ports, mounts and settings. The image and equivalent database-name declarations,
+healthcheck spelling and upgrade checks may differ.
 Relative bind mounts resolve against the **old installation directory**, which
 must remain available. Changed Compose contracts are refused, not guessed at.
 

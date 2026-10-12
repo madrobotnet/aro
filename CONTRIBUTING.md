@@ -45,18 +45,18 @@ Never develop or run tests against a deployed notebook: integration tests
 truncate data. A test database name alone doesn't make its data safe to erase.
 
 The development Compose file starts pgvector PostgreSQL 18 on
-`127.0.0.1:55432`. Its initializer creates both `second_brain` for invented
-development notes and the separate `second_brain_test` database for tests.
-The `second_brain` username and password in the commands below are public
+`127.0.0.1:55432`. Its initializer creates both `aro` for invented
+development notes and the separate `aro_test` database for tests.
+The `aro` username and password in the commands below are public
 fixture values, not deployment credentials.
 
 Use a fresh checkout and an unused Compose project. Before starting, check
 for existing resources and a listener on the fixed port:
 
 ```sh
-docker ps -a --filter label=com.docker.compose.project=irang-contrib
-docker network ls --filter label=com.docker.compose.project=irang-contrib
-docker volume ls --filter label=com.docker.compose.project=irang-contrib
+docker ps -a --filter label=com.docker.compose.project=aro-contrib
+docker network ls --filter label=com.docker.compose.project=aro-contrib
+docker volume ls --filter label=com.docker.compose.project=aro-contrib
 # Linux: the output should show no listening socket.
 ss -ltn 'sport = :55432'
 ```
@@ -69,7 +69,7 @@ project name alone doesn't change the port.
 For a fresh, free project and port:
 
 ```sh
-docker compose -p irang-contrib -f docker-compose.dev.yml \
+docker compose -p aro-contrib -f docker-compose.dev.yml \
   up -d --wait --wait-timeout 180
 ```
 
@@ -91,8 +91,8 @@ mkdir -p .data/dev/auth/codex .data/dev/auth/google
 
 Edit `.env.local` locally:
 
-- Keep `DATABASE_URL` pointed at the disposable `second_brain` development
-  database on port 55432, not `second_brain_test` or a real notebook.
+- Keep `DATABASE_URL` pointed at the disposable `aro` development
+  database on port 55432, not `aro_test` or a real notebook.
 - Copy the dev-only `SETUP_TOKEN=...` assignment printed by `setup-token`.
   Leave `AUTH_PASSWORD_HASH` empty so the first-run wizard can create the owner.
 - Set `INSECURE_COOKIES=1` for this loopback HTTP session.
@@ -125,15 +125,15 @@ The full test suite must pass in one run:
 ```sh
 bun run typecheck
 bun run lint -- --max-warnings=0
-TEST_DATABASE_URL=postgres://second_brain:second_brain@127.0.0.1:55432/second_brain_test \
+TEST_DATABASE_URL=postgres://aro:aro@127.0.0.1:55432/aro_test \
   bun test
-docker build --build-arg VERSION=2.3.0 \
+docker build --build-arg VERSION=2.4.0 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 git diff --check
 ```
 
 The test database guard accepts only loopback URLs without query overrides,
-with the database name `second_brain_test` or `sb_test_<lane>` using lowercase
+with the database name `aro_test` or `sb_test_<lane>` using lowercase
 letters, numbers, and underscores. Supply an explicit `TEST_DATABASE_URL`.
 Don't bypass the guard or run concurrent suites against the same database.
 
@@ -151,14 +151,14 @@ release or a successful GHCR pull.
 
 The production `compose.yml` is image-only. It doesn't build the app. To try
 the local image as an installation, follow the full [setup guide](docs/SETUP.md)
-in a separate disposable directory and project, with `IRANG_IMAGE=aro:local`
+in a separate disposable directory and project, with `ARO_IMAGE=aro:local`
 explicitly saved in its env file. Don't run it over an existing installation.
 
 Stop the dev server before removing fixtures. Only if you created the
-`irang-contrib` project above and all of its data is disposable:
+`aro-contrib` project above and all of its data is disposable:
 
 ```sh
-docker compose -p irang-contrib -f docker-compose.dev.yml \
+docker compose -p aro-contrib -f docker-compose.dev.yml \
   down -v --remove-orphans
 ```
 

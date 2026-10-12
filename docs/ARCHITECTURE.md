@@ -1,7 +1,7 @@
 # Aro architecture
 
-The product was previously called Irang. Existing operational identifiers remain
-compatible; a product rename does not rename databases, volumes or cookies.
+This document describes Aro 2.4.0. Upgrade compatibility is covered in
+[UPDATE.md](UPDATE.md).
 
 ## Product boundaries
 
@@ -61,7 +61,7 @@ src/
 
 - `src/server/db/index.ts`: `db()`, `query<T>(sql, params)`, `queryOne<T>()`, `tx(fn)`, `closeDb()`. Migrations in `src/server/db/migrations.ts` run automatically on first use. **Append a new migration for schema changes** (never edit `0001`).
 - `src/server/http.ts`: `withApi(handler)` (session required), `withPublicApi`, `ApiError(code, message)`, `json()`, `parseJson(request, zodSchema)`. Error body: `{ error: { code, message } }`.
-- `src/server/auth/session.ts`: `getSession()`; cookie `sb_session`.
+- `src/server/auth/session.ts`: `getSession()`; cookie `aro_session`.
 - `src/server/jev/client.ts`: `await getJev()` returns a TypeSafe client or `null`. `aiSelection(purpose)` independently resolves chat and Jev to a saved profile, an explicit off state, or environment-managed configuration. When no settings row exists, legacy behavior is preserved; adding an inactive profile doesn't change it. Off prevents ambient credentials from reactivating that purpose. Chat uses the same selection in `configuredChatProvider()`. **Optional AI failures must not block capture, notes, search, or graph operations. Chat reports its own unavailable/provider-error state.**
 - `src/server/setup/service.ts` + `src/server/setup/settings.ts`: protected first-run setup and active selections. `setupState()` is `complete` when an environment password is set or users or protected data already exist. It is `ready` only for an empty server with a valid installer token. Owner creation, initial profiles and consumption of ready authorization attempts share one transaction and the occupied-state advisory lock. The environment password remains authoritative.
 - `src/server/setup/ai-profiles.ts`: owner-scoped profile creation, update and deletion. Off preserves profiles; deleting an active profile disables its purpose. Keys and headers are retained only for the same provider and normalized endpoint. `aiSettingsView()` returns safe metadata, never keys, header values or OAuth credentials. Changes apply without restart.
@@ -144,8 +144,8 @@ The interface uses a warm parchment canvas, matte cards, charcoal rail and
 terracotta accent, with Korean and English copy. Pretendard Variable is
 self-hosted; code uses the system monospace stack.
 
-[DESIGN.md](https://github.com/madrobotnet/aro/blob/v2.3.2/DESIGN.md) defines the design guidance and interface contract.
-[src/app/globals.css](https://github.com/madrobotnet/aro/blob/v2.3.2/src/app/globals.css) is the executable source for
+[DESIGN.md](https://github.com/madrobotnet/aro/blob/v2.4.0/DESIGN.md) defines the design guidance and interface contract.
+[src/app/globals.css](https://github.com/madrobotnet/aro/blob/v2.4.0/src/app/globals.css) is the executable source for
 light/dark color, typography, spacing and focus token values, exposed to Tailwind 4
 through `@theme inline`. Use semantic utilities such as `bg-card`, `text-ink`
 and `border-line` rather than copying color values into components. Focus uses
@@ -157,7 +157,7 @@ collapsed below that width. Mobile has a top bar and bottom navigation:
 Home · Inbox · [capture] · Notes · More. Search stays in the top bar;
 the remaining destinations appear in More.
 
-[src/components/shell/nav.ts](https://github.com/madrobotnet/aro/blob/v2.3.2/src/components/shell/nav.ts) defines the shared
+[src/components/shell/nav.ts](https://github.com/madrobotnet/aro/blob/v2.4.0/src/components/shell/nav.ts) defines the shared
 route order: Home `/`, Inbox `/inbox`, Notes `/notes`, Tasks `/tasks`,
 Today `/daily`, Search `/search`, Graph `/graph`, Chat `/chat`, Settings
 `/settings`. Labels are localized, and Inbox shows the open-item count.

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/irang-mark.svg" width="88" alt="Aro logo: two interlocking shapes joined at a seam">
+  <img src="docs/images/aro-mark.svg" width="88" alt="Aro logo: two interlocking shapes joined at a seam">
 </p>
 
 <h1 align="center">Aro · 아로</h1>
@@ -9,11 +9,8 @@
   <a href="README.ko.md">한국어</a> · <a href="docs/SETUP.md">Setup guide</a> · <a href="LICENSE">MIT</a>
 </p>
 
-Previously Irang (이랑). This unshipped development checkout is now Aro; the
-repository has been renamed to `madrobotnet/aro`. Published 2.3.2 images and release archives keep their Irang
-identifiers, as do existing configuration keys, databases, cookies and volumes.
-The release installation commands below install Irang 2.3.2, not the new Aro
-development checkout.
+This documentation describes Aro 2.4.0. Release installation commands require
+a verified release and tag; they do not establish that 2.4.0 is published.
 
 Aro runs on your own server for one owner. Save links and quick thoughts in
 the inbox, turn them into Markdown notes, and build connections between notes
@@ -63,8 +60,7 @@ automatic backups.
 The development checkout adds [Markdown/ZIP import](docs/IMPORT.md) with preview,
 explicit confirmation, conflict blocking and local attachment preservation.
 It also includes an experimental [local SQLite runtime](docs/DESKTOP.md) and
-[desktop backup verification](docs/BACKUP-DESKTOP.md). These are not features of
-the already published 2.3.2 image. Desktop/server movement is explicit note
+[desktop backup verification](docs/BACKUP-DESKTOP.md). Desktop/server movement is explicit note
 export/import, not simultaneous synchronization or a full-account migration.
 The development version also adds [owner-controlled MCP access](docs/AGENT-ACCESS.md):
 separate revocable tokens, inbox-only captures, and reviewed note-change proposals.
@@ -72,8 +68,7 @@ separate revocable tokens, inbox-only captures, and reviewed note-change proposa
 The development checkout also includes operator-triggered, manifest-checked
 [backup and disposable restore verification](docs/BACKUP.md). These management
 commands additionally require Node.js 22+ on the operator host. They do not add
-scheduled backups or restore into an existing installation. They are not part of
-the already published 2.3.2 installation archive.
+scheduled backups or restore into an existing installation.
 
 ## Quick start
 
@@ -87,7 +82,7 @@ The commands use a POSIX shell; macOS and Windows haven't been tested.
 
 ### Released installation archive
 
-The installation bundle is `irang-2.3.2-install.tar.gz`. It includes
+The installation bundle is `aro-2.4.0-install.tar.gz`. It includes
 `compose.yml`, its required `docker/postgres/production/01-app-role.sql` mount,
 the documentation, notices, and `release.json`. The archived Compose file pins
 the image by digest. Keep the bundle's directory structure intact.
@@ -95,22 +90,22 @@ the image by digest. Keep the bundle's directory structure intact.
 **Image access:** the source repository and GitHub release assets are public;
 the GHCR package remains private and image pulls require package permission.
 The commands below require a
-completed `v2.3.2` release with the checks in the [release guide](docs/RELEASING.md).
+completed `v2.4.0` release with the checks in the [release guide](docs/RELEASING.md).
 Use the GitHub CLI to download its assets and `jq` to read the image reference:
 
 ```sh
-mkdir irang-release-2.3.2
-cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/aro
+mkdir aro-release-2.4.0
+cd aro-release-2.4.0
+gh release download v2.4.0 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf irang-2.3.2-install.tar.gz
-cd irang
+tar -xzf aro-2.4.0-install.tar.gz
+cd aro
 
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-docker pull "$IRANG_IMAGE"
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+docker pull "$ARO_IMAGE"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 
 # Edit .env: set INSECURE_COOKIES=1 for loopback HTTP, or keep 0 for HTTPS.
 docker compose up -d --wait --wait-timeout 180
@@ -122,23 +117,23 @@ authentication alone isn't a Docker registry credential. Public release asset
 downloads do not grant private image access. If you don't have registry access, build from
 source instead.
 
-### Build the published 2.3.2 source
+### Build the 2.4.0 source
 
 The source repository is public; this path doesn't require GHCR access.
 Compose has no build configuration, so
-build the image explicitly:
+build the image explicitly once the verified `v2.4.0` tag is available:
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  irang:local bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  aro:local bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 
-# Edit .env: add IRANG_IMAGE=irang:local.
+# Edit .env: add ARO_IMAGE=aro:local.
 # Set INSECURE_COOKIES=1 for loopback HTTP, or keep 0 for HTTPS.
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
@@ -156,13 +151,14 @@ What happens during setup:
 1. `setup-env` runs inside the selected application image. It creates a private
    `.env` (mode 0600) with three random secrets: the app database password, the
    database admin password, and the installation code (`SETUP_TOKEN`). It
-   prints the code once in the published 2.3.2 image; the development version
-   keeps it only in the private `.env` for local retrieval. If a `.env` already exists, it stops without changing
+   keeps the code only in the private `.env` for local retrieval. It also sets
+   `POSTGRES_APP_DB=aro`, `POSTGRES_APP_USER=aro`, and `COMPOSE_PROJECT_NAME=aro`.
+   If a `.env` already exists, it stops without changing
    anything. Running `bun install` on your machine won't create this file or
    the code.
 2. Compose starts the selected image after the database passes its health check.
-   Source Compose defaults to `ghcr.io/madrobotnet/irang:2.3.2`; the release
-   archive uses its verified digest, and a source build uses `IRANG_IMAGE=irang:local`.
+   Source Compose defaults to `ghcr.io/madrobotnet/aro:2.4.0`; the release
+   archive uses its verified digest, and a source build uses `ARO_IMAGE=aro:local`.
 3. The app listens on `127.0.0.1` only. Use `INSECURE_COOKIES=1` only for
    loopback HTTP; HTTPS requires `INSECURE_COOKIES=0`.
 
@@ -188,27 +184,11 @@ Put a TLS-terminating reverse proxy in front of the loopback port, keep
 
 ## Upgrading existing installs
 
-> [!WARNING]
-> **Back up before every upgrade**, and never run `docker compose down -v`,
-> because that deletes your data volumes.
->
-> **1.x installs** used a different volume key (`second_brain_pg18`) and
-> password names. Before upgrading, follow
-> [Existing deployments](docs/SETUP.md#10-existing-deployments): set
-> `POSTGRES_DATA_VOLUME`, keep your original `DATABASE_URL` and passwords, and
-> copy attachments out of the old container **before** recreating it. The old
-> Compose file didn't persist attachments.
-
-For installs on 2.1 or later, back up first. Keep the existing installation
-directory, Compose project name, `.env`, and physical data volumes. Replace only
-the distribution files from the next archive, select its `release.json` image,
-pull it, and run `docker compose up -d --wait --wait-timeout 180`. Source
-installs rebuild with `docker build`, keep `IRANG_IMAGE=irang:local`, and
-recreate with `--no-build --pull never`. Don't move an existing `second-brain`
-project into a new `irang` directory and accidentally select empty volumes.
-Keep `INSECURE_COOKIES=1` for loopback HTTP or `0` for HTTPS in `.env`.
-The full upgrade, backup, and restore procedures are in
-[Data, backup and upgrades](docs/SETUP.md#9-data-backup-and-upgrades).
+Back up and verify restoration before upgrading. Never run `docker compose down -v`,
+which deletes data volumes. Keep the existing project, `.env`, database and physical
+volumes. See [UPDATE.md](docs/UPDATE.md) for pre-2.4.0 compatibility requirements,
+verified staging and explicit activation, and
+[Existing deployments](docs/SETUP.md#10-existing-deployments) for older layouts.
 
 ## Your data and the network
 
@@ -273,7 +253,7 @@ bun run db:up
 bun run dev    # http://localhost:3000
 ```
 
-The development database is a separate `second-brain-dev` Compose project on
+The development database is a separate `aro-dev` Compose project on
 port 55432. Other commands and the safeguards around destructive test-database
 operations are in
 [Development commands and test databases](docs/SETUP.md#12-development-commands-and-test-databases).
@@ -297,5 +277,5 @@ Aro's application code is [MIT](LICENSE). Dependencies, runtimes, official
 account-login CLIs, fonts, and the container's operating system keep their own
 licenses and service terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md);
 the image retains notices and inventories under `/app/licenses` and
-`/usr/share/irang/licenses`. The application license doesn't relicense the
+`/usr/share/aro/licenses`. The application license doesn't relicense the
 whole image.

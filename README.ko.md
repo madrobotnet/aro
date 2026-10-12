@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/irang-mark.svg" width="88" alt="아로 로고: 이음매로 맞물린 두 도형">
+  <img src="docs/images/aro-mark.svg" width="88" alt="아로 로고: 이음매로 맞물린 두 도형">
 </p>
 
 <h1 align="center">아로 · Aro</h1>
@@ -9,11 +9,8 @@
   <a href="README.md">English</a> · <a href="docs/SETUP.ko.md">한국어 설치 안내</a> · <a href="docs/SETUP.md">English setup</a> · <a href="LICENSE">MIT</a>
 </p>
 
-이랑(Irang)의 새 제품 이름은 아로(Aro)입니다. 이 개발 체크아웃은 아직
-발행되지 않았으며, 저장소 이름은 `madrobotnet/aro`로 변경되었습니다.
-발행된 2.3.2 이미지와 릴리스 아카이브는 기존
-이름을 유지하며, 설정 키, 데이터베이스, 쿠키와 볼륨 식별자도 보존합니다.
-아래 릴리스 설치 명령은 새 아로 개발판이 아닌 이랑 2.3.2를 설치합니다.
+이 문서는 아로 2.4.0을 설명합니다. 릴리스 설치 명령에는 검증된 릴리스와
+태그가 필요하며, 이 안내 자체가 2.4.0 발행을 뜻하지는 않습니다.
 
 아로는 직접 운영하는 서버에서 소유자 한 명이 쓰는 노트 도구입니다. 링크와 짧은
 생각을 인박스에 먼저 담고 Markdown 노트로 옮겨 적으면서, 노트를 서로 연결해
@@ -59,7 +56,7 @@
 [Markdown/ZIP 가져오기](docs/IMPORT.md)가 추가되었습니다.
 실험 단계의 [로컬 SQLite 실행](docs/DESKTOP.md)과
 [데스크톱 백업 검증](docs/BACKUP-DESKTOP.md)도 개발 중입니다.
-이미 발행된 2.3.2 이미지의 기능은 아닙니다. 데스크톱과 서버 사이의 이동은
+데스크톱과 서버 사이의 이동은
 명시적 노트 내보내기/가져오기이며 동시 동기화나 전체 계정 이전이 아닙니다.
 개발 버전은 별도 토큰·즉시 회수·인박스 캡처·수정 제안 승인을 제공하는
 [소유자 제어 MCP 접근](docs/AGENT-ACCESS.md)도 포함합니다.
@@ -67,7 +64,6 @@
 개발 체크아웃에는 운영자가 직접 실행하는 [백업과 격리 복원 검증](docs/BACKUP.ko.md)
 명령이 있습니다. 파일 체크섬과 버전을 확인하며, 운영자 호스트에 Node.js 22 이상이
 추가로 필요합니다. 예약 백업이나 기존 설치에 덮어쓰는 복원은 제공하지 않습니다.
-이미 발행된 2.3.2 설치 아카이브에는 이 명령이 포함되어 있지 않습니다.
 
 ## 빠른 시작
 
@@ -81,7 +77,7 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 
 ### 릴리스 설치 아카이브
 
-설치 묶음은 `irang-2.3.2-install.tar.gz`입니다. `compose.yml`, 필수 마운트
+설치 묶음은 `aro-2.4.0-install.tar.gz`입니다. `compose.yml`, 필수 마운트
 파일 `docker/postgres/production/01-app-role.sql`, 문서, 고지,
 `release.json`이 들어 있습니다. 아카이브의 Compose 파일은 이미지 다이제스트를
 고정합니다. 묶음의 디렉터리 구조를 그대로 유지하세요.
@@ -89,22 +85,22 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 **이미지 접근:** 소스 저장소와 GitHub 릴리스 파일은 공개되어 있지만 GHCR
 패키지는 비공개이며 이미지를 받으려면 패키지 접근 권한이 필요합니다.
 아래 명령은 [릴리스 안내](docs/RELEASING.md)의
-검증을 마친 `v2.3.2` 릴리스가 있어야 사용할 수 있습니다. GitHub CLI로 릴리스
+검증을 마친 `v2.4.0` 릴리스가 있어야 사용할 수 있습니다. GitHub CLI로 릴리스
 파일을 내려받고, `jq`로 이미지 참조를 읽습니다.
 
 ```sh
-mkdir irang-release-2.3.2
-cd irang-release-2.3.2
-gh release download v2.3.2 --repo madrobotnet/aro
+mkdir aro-release-2.4.0
+cd aro-release-2.4.0
+gh release download v2.4.0 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf irang-2.3.2-install.tar.gz
-cd irang
+tar -xzf aro-2.4.0-install.tar.gz
+cd aro
 
-IRANG_IMAGE=$(jq -r .image release.json)
-export IRANG_IMAGE
-docker pull "$IRANG_IMAGE"
+ARO_IMAGE=$(jq -r .image release.json)
+export ARO_IMAGE
+docker pull "$ARO_IMAGE"
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  "$IRANG_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  "$ARO_IMAGE" bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 
 # .env 편집: 루프백 HTTP는 INSECURE_COOKIES=1, HTTPS는 0을 유지합니다.
 docker compose up -d --wait --wait-timeout 180
@@ -116,23 +112,23 @@ GitHub CLI의 저장소 인증만으로 Docker 레지스트리 자격 증명이 
 공개 릴리스 파일을 받는 것만으로 비공개 이미지 접근 권한이 생기지는 않습니다.
 레지스트리 접근 권한이 없다면 소스에서 빌드하세요.
 
-### 발행된 2.3.2 소스에서 빌드
+### 2.4.0 소스에서 빌드
 
 소스 저장소는 공개되어 있으며 이 경로에는 GHCR 접근 권한이 필요하지 않습니다.
 Compose에 빌드 설정이 없으므로 이미지를
-직접 빌드합니다.
+검증된 `v2.4.0` 태그가 준비된 뒤 직접 빌드합니다.
 
 ```sh
-git clone --branch v2.3.2 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.3.2 \
-  --build-arg REVISION="$(git rev-parse HEAD)" -t irang:local .
-IRANG_IMAGE=irang:local
-export IRANG_IMAGE
+docker build --build-arg VERSION=2.4.0 \
+  --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
+ARO_IMAGE=aro:local
+export ARO_IMAGE
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/install \
-  irang:local bun --no-env-file /app/scripts/setup-env.mjs /install/.env
+  aro:local bun --no-env-file /app/scripts/setup-env.mjs /install/.env
 
-# .env 편집: IRANG_IMAGE=irang:local을 추가합니다.
+# .env 편집: ARO_IMAGE=aro:local을 추가합니다.
 # 루프백 HTTP는 INSECURE_COOKIES=1, HTTPS는 0을 유지합니다.
 docker compose pull db
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
@@ -150,13 +146,15 @@ curl -i http://127.0.0.1:3000/api/health
 
 1. `setup-env`는 선택한 앱 이미지 안에서 실행됩니다. 앱 DB 비밀번호, DB 관리자
    비밀번호, 설치 확인 코드(`SETUP_TOKEN`) 세 가지 무작위 비밀 값을 담은 `.env`
-   (권한 0600)를 만들고 코드를 한 번 출력합니다. `.env`가 이미 있으면 아무것도
+   (권한 0600)를 만들고 코드는 비공개 `.env`에서만 조회합니다.
+   `POSTGRES_APP_DB=aro`, `POSTGRES_APP_USER=aro`, `COMPOSE_PROJECT_NAME=aro`도
+   설정합니다. `.env`가 이미 있으면 아무것도
    바꾸지 않고 종료합니다. 호스트에서 `bun install`을 실행해도 이 파일이나
    코드는 생기지 않습니다.
 2. Compose는 DB 상태 검사가 통과한 뒤 선택한 이미지를 시작합니다.
-   소스 Compose의 기본값은 `ghcr.io/madrobotnet/irang:2.3.2`입니다.
+   소스 Compose의 기본값은 `ghcr.io/madrobotnet/aro:2.4.0`입니다.
    릴리스 아카이브는 검증된 다이제스트를, 소스 빌드는
-   `IRANG_IMAGE=irang:local`을 사용합니다.
+   `ARO_IMAGE=aro:local`을 사용합니다.
 3. 앱은 `127.0.0.1`에만 바인딩됩니다. 루프백 HTTP에서만
    `INSECURE_COOKIES=1`을 쓰고, HTTPS에서는 `INSECURE_COOKIES=0`을 사용하세요.
 
@@ -183,27 +181,11 @@ ssh -L 3000:127.0.0.1:3000 you@your-server
 
 ## 기존 설치 업그레이드
 
-> [!WARNING]
-> **업그레이드 전에는 항상 백업하세요.** `docker compose down -v`는 데이터
-> 볼륨을 삭제하므로 절대 실행하지 마세요.
->
-> **1.x 설치**는 다른 볼륨 키(`second_brain_pg18`)와 비밀번호 이름을
-> 사용했습니다. 업그레이드 전에
-> [기존 배포 이전 절차](docs/SETUP.ko.md#10-existing-deployments)에 따라
-> `POSTGRES_DATA_VOLUME`을 지정하고, 기존 `DATABASE_URL`과 비밀번호를
-> 유지하고, 컨테이너를 다시 만들기 **전에** 첨부파일을 복사해 두세요. 이전
-> Compose 파일은 첨부파일을 보존하지 않았습니다.
-
-2.1 이상 설치는 먼저 백업하세요. 기존 설치 디렉터리, Compose 프로젝트 이름,
-`.env`, 물리 데이터 볼륨을 유지합니다. 다음 아카이브의 배포 파일만 교체하고,
-그 `release.json`의 이미지를 선택해 내려받은 뒤
-`docker compose up -d --wait --wait-timeout 180`을 실행하세요. 소스 설치는
-`docker build`로 다시 빌드하고 `IRANG_IMAGE=irang:local`을 유지한 채
-`--no-build --pull never`로 다시 만듭니다. 기존 `second-brain` 프로젝트를
-새 `irang` 디렉터리로 옮겨서 빈 볼륨을 선택하는 일이 없도록 주의하세요.
-`.env`에는 루프백 HTTP용 `INSECURE_COOKIES=1` 또는 HTTPS용 `0`을 유지합니다.
-정확한 명령과 백업·복원 절차는
-[데이터, 백업, 업그레이드](docs/SETUP.ko.md#9-data-backup-and-upgrades)에 있습니다.
+업그레이드 전에는 백업하고 복원을 검증하세요. `docker compose down -v`는
+데이터 볼륨을 삭제하므로 실행하지 마세요. 기존 프로젝트, `.env`, DB와 물리
+볼륨을 유지해야 합니다. 2.4.0 이전 설치의 필수 환경변수와 쿠키 호환 규칙은
+[기존 배포](docs/SETUP.ko.md#10-existing-deployments), 준비와 활성화 절차는
+[업데이트 안내](docs/UPDATE.md)에 있습니다.
 
 ## 데이터와 네트워크
 
@@ -264,7 +246,7 @@ bun run db:up
 bun run dev    # http://localhost:3000
 ```
 
-개발 DB는 별도 `second-brain-dev` Compose 프로젝트로, 55432 포트를 씁니다.
+개발 DB는 별도 `aro-dev` Compose 프로젝트로, 55432 포트를 씁니다.
 그 밖의 개발 명령과 테스트 DB의 파괴적 작업에 대한 안전장치는
 [개발 안내](docs/SETUP.ko.md#12-development-commands-and-test-databases)에 있습니다.
 
@@ -287,5 +269,5 @@ bun run dev    # http://localhost:3000
 아로의 앱 코드는 [MIT](LICENSE) 라이선스입니다. 의존성, 런타임, 공식 계정
 로그인 CLI, 폰트, 컨테이너 운영체제에는 각각의 라이선스와 서비스 약관이
 적용됩니다. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
-이미지는 `/app/licenses`와 `/usr/share/irang/licenses`에 고지와 목록을
+이미지는 `/app/licenses`와 `/usr/share/aro/licenses`에 고지와 목록을
 보관합니다. 앱 라이선스가 이미지 전체의 라이선스를 바꾸지는 않습니다.
