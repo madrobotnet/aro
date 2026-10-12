@@ -250,7 +250,7 @@ if (options["--eastasianwidth-replacement"]) {
   files["REBUILD.md"] = await readFile(fileURLToPath(new URL("../distribution/cli/eastasianwidth-REBUILD.md", import.meta.url)));
   files["REPLACEMENT.json"] = recipeBytes;
   const archiveBytes = await new Bun.Archive(files, { compress: "gzip" }).bytes();
-  const destination = `sources/${hash(archiveBytes)}-irang-eastasianwidth-compat.tar.gz`;
+  const destination = `sources/${hash(archiveBytes)}-aro-eastasianwidth-compat.tar.gz`;
   await writeFile(resolve(output, destination), archiveBytes, { flag: "wx" });
   const members = Object.entries(files).map(([path, bytes]) => ({ path, bytes: bytes.length, sha256: hash(bytes) }));
   manifest.sources.push({ name: replacementRecipe.package.name, version: replacementRecipe.package.version, destination, sha256: hash(archiveBytes), bytes: archiveBytes.length, members: members.map(m => m.path), delivery: "replacement-preferred-source-input" });

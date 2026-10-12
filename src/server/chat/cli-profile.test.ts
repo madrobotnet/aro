@@ -38,7 +38,7 @@ for (const mode of ["success", "fail", "abort", "corrupt"] as const) {
     if (mode === "corrupt") expect(saved).toEqual([]);
     else expect(saved).toEqual([{ ...credential, accessToken: "rotated-access", expiresAt: 4_000_000_000_000, tokenType: "Bearer" }]);
     expect(await readFile(global, "utf8")).toBe("global-must-not-change");
-    expect(privateRoot).toMatch(/^\/tmp\/second-brain-cli-/);
+    expect(privateRoot).toMatch(/^\/tmp\/aro-cli-/);
     await expect(access(privateRoot)).rejects.toThrow();
   });
 }

@@ -1,5 +1,6 @@
-export const STORAGE_KEY = "irang.offline-captures.v1";
-export const LOCK_NAME = "irang.offline-captures.v1";
+export const STORAGE_KEY = "aro.offline-captures.v1";
+export const LOCK_NAME = "aro.offline-captures.v1";
+export const LEGACY_STORAGE_KEY = "irang.offline-captures.v1";
 export const MAX_DRAFTS = 50;
 export const MAX_BYTES = 512 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -56,6 +57,18 @@ export function writeDrafts(storage, drafts) {
   } catch {
     throw new DraftError("storage", "Could not save locally. Storage may be full or blocked. Keep this page open and copy your text.");
   }
+}
+
+/** Caller holds the new Web Lock and the legacy lock during the move. */
+export function migrateDrafts(storage) {
+  const value = storage.getItem(LEGACY_STORAGE_KEY);
+  if (value === null) return;
+  const legacy = JSON.parse(value);
+  serialize(legacy);
+  const drafts = readDrafts(storage);
+  const ids = new Set(drafts.map((draft) => draft.requestId));
+  writeDrafts(storage, [...drafts, ...legacy.filter((draft) => !ids.has(draft.requestId))]);
+  storage.removeItem(LEGACY_STORAGE_KEY);
 }
 
 export function draftSnapshot(storage) {

@@ -4,6 +4,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hash } from "./update-common.mjs";
+import { releaseRegistry } from "./release-names.mjs";
 import { openSQLite } from "../src/server/db/sqlite";
 import { backupDesktop } from "./backup-desktop-common.ts";
 
@@ -157,27 +158,27 @@ test("snapshot operator seam holds runtime lock and retains completed backup on 
 
 async function server() {
   const f = await base();
-  const image = version => `ghcr.io/madrobotnet/irang:${version}@sha256:${(version === "2.4.0" ? "a" : "b").repeat(64)}`;
+  const image = version => `${releaseRegistry(version)}:${version}@sha256:${(version === "2.3.2" ? "a" : "b").repeat(64)}`;
   const release = version => ({ schemaVersion: 1, version, ref: `refs/tags/v${version}`,
-    revision: (version === "2.4.0" ? "a" : "b").repeat(40), image: image(version),
-    indexDigest: `sha256:${(version === "2.4.0" ? "a" : "b").repeat(64)}`,
+    revision: (version === "2.3.2" ? "a" : "b").repeat(40), image: image(version),
+    indexDigest: `sha256:${(version === "2.3.2" ? "a" : "b").repeat(64)}`,
     platforms: { "linux/amd64": `sha256:${"c".repeat(64)}`, "linux/arm64": `sha256:${"d".repeat(64)}` } });
   const compose = version => JSON.stringify({
     services: {
-      app: { image: `\${IRANG_IMAGE:-${image(version)}}`, ports: ["127.0.0.1:${APP_PORT:-3000}:3000"],
-        volumes: ["app-data:/app/.data"], environment: { DATABASE_URL: "private-fixture" } },
-      db: { image: "postgres:18", volumes: ["postgres-data:/var/lib/postgresql"] },
+      app: { image: version === "2.3.2" ? `\${IRANG_IMAGE:-${image(version)}}` : `\${ARO_IMAGE:-\${IRANG_IMAGE:-${image(version)}}}`, ports: ["127.0.0.1:${APP_PORT:-3000}:3000"],
+        volumes: ["app-data:/app/.data"], environment: { DATABASE_URL: "postgres://second_brain:fixture@db:5432/second_brain" } },
+      db: { image: "postgres:18", environment: { POSTGRES_DB: "second_brain" }, volumes: ["postgres-data:/var/lib/postgresql"] },
     },
     volumes: { "app-data": {}, "postgres-data": {} },
   });
-  const previous = release("2.4.0"), next = { ...release("2.4.1"), compose: { archiveSha256: hash(compose("2.4.1")) } };
+  const previous = release("2.3.2"), next = { ...release("2.4.1"), compose: { archiveSha256: hash(compose("2.4.1")) } };
   f.environment = `IRANG_IMAGE=${previous.image}\nCOMPOSE_PROJECT_NAME=fixture\nPOSTGRES_PASSWORD=synthetic-private-secret\nAPP_PORT=3123\n`;
   await writeFile(join(f.current, ".env"), f.environment, { mode: 0o600 });
   await writeFile(join(f.current, "release.json"), JSON.stringify(previous), { mode: 0o600 });
-  await writeFile(join(f.current, "compose.yml"), compose("2.4.0"), { mode: 0o600 });
+  await writeFile(join(f.current, "compose.yml"), compose("2.3.2"), { mode: 0o600 });
   const bytes = await new Bun.Archive({
-    "irang/compose.yml": compose("2.4.1"), "irang/release.json": JSON.stringify(next),
-    "irang/docker/postgres/production/01-app-role.sql": "-- fixture",
+    "aro/compose.yml": compose("2.4.1"), "aro/release.json": JSON.stringify(next),
+    "aro/docker/postgres/production/01-app-role.sql": "-- fixture",
   }, { compress: "gzip" }).bytes();
   f.archive = join(f.root, "server.tar.gz"); f.sha256 = hash(bytes);
   await writeFile(f.archive, bytes, { mode: 0o600 });
@@ -197,15 +198,15 @@ for (const [allowlist, expectedCode] of [["", 0], ["unexpected.example", 1]]) {
   test(`server update permits only a disabled newly added MCP allowlist (${expectedCode})`, async () => {
     const f = await server();
     const files = await new Bun.Archive(await readFile(f.archive)).files();
-    const compose = Bun.YAML.parse(await files.get("irang/compose.yml").text());
+    const compose = Bun.YAML.parse(await files.get("aro/compose.yml").text());
     compose.services.app.environment.ARO_MCP_ALLOWED_HOSTS = allowlist;
     const content = JSON.stringify(compose);
-    const release = JSON.parse(await files.get("irang/release.json").text());
+    const release = JSON.parse(await files.get("aro/release.json").text());
     release.compose.archiveSha256 = hash(content);
     const members = {};
     for (const [name, file] of files) members[name] = new Uint8Array(await file.arrayBuffer());
-    members["irang/compose.yml"] = content;
-    members["irang/release.json"] = JSON.stringify(release);
+    members["aro/compose.yml"] = content;
+    members["aro/release.json"] = JSON.stringify(release);
     const bytes = await new Bun.Archive(members, { compress: "gzip" }).bytes();
     await writeFile(f.archive, bytes);
     f.args[f.args.indexOf("--sha256") + 1] = hash(bytes);
@@ -229,7 +230,11 @@ test("server stops before backup and stages only an image-pin change for repeata
   expect(records.every(record => !record.leaked)).toBe(true);
   expect(await readFile(join(f.current, ".env"), "utf8")).toBe(f.environment);
   const nextImage = JSON.parse(await readFile(join(f.root, "docker-state.json"))).next.image;
-  expect(await readFile(join(f.directory, ".env"), "utf8")).toBe(f.environment.replace(/^IRANG_IMAGE=.*$/m, `IRANG_IMAGE=${nextImage}`));
+  const staged = await readFile(join(f.directory, ".env"), "utf8");
+  expect(staged).not.toContain("IRANG_IMAGE=");
+  expect(staged.match(/^ARO_IMAGE=/gm)).toHaveLength(1);
+  expect(staged).toContain(`ARO_IMAGE=${nextImage}`);
+  expect(staged).toContain("POSTGRES_APP_DB=second_brain\nPOSTGRES_APP_USER=second_brain\nCOMPOSE_PROJECT_NAME=fixture");
   expect(await readdir(f.directory)).not.toContain("update-image.json");
   const plan = JSON.parse(await readFile(join(f.directory, "update-activation.json")));
   expect(plan.project).toBe("fixture");
@@ -244,7 +249,61 @@ test("server stops before backup and stages only an image-pin change for repeata
   expect(state.resources).toEqual({});
   expect(result.stdout + result.stderr).not.toContain("synthetic-private-secret");
 });
-test.each(["checksum", "downgrade", "symlink", "existing", "nested", "unauthorized", "remote", "foreign", "volume", "drift", "denied", "provenance", "contract"])(
+
+test("legacy upgrade preserves resolved production names and volumes with real Compose interpolation", async () => {
+  // Given
+  const f = await server();
+  const stateFile = join(f.root, "docker-state.json");
+  f.environment += "POSTGRES_ADMIN_PASSWORD=fixture-admin\nSETUP_TOKEN=fixture-token\n";
+  await writeFile(join(f.current, ".env"), f.environment, { mode: 0o600 });
+  const state = JSON.parse(await readFile(stateFile));
+  const template = await readFile(join(import.meta.dir, "../compose.yml"), "utf8");
+  const nextCompose = template.replace("ghcr.io/madrobotnet/aro:2.4.0", state.next.image);
+  const oldCompose = template
+    .replace(/^  app-db:.*\n/m, "").replace(/^  app-user:.*\n/m, "")
+    .replace(/\$\{ARO_IMAGE:-\$\{IRANG_IMAGE:-[^}]+}}/, `\${IRANG_IMAGE:-${state.previous.image}}`)
+    .replace(/\$\{POSTGRES_APP_USER:\?[^}]+}/g, "second_brain")
+    .replace(/\$\{POSTGRES_APP_DB:\?[^}]+}/g, "second_brain")
+    .replace(/^      POSTGRES_APP_USER:.*\n/m, "")
+    .replace('pg_isready -U postgres -d \\"$${POSTGRES_DB}\\"', "pg_isready -U postgres -d second_brain");
+  const oldConfig = Bun.YAML.parse(oldCompose);
+  oldConfig.services.db.healthcheck.test = ["CMD-SHELL", "pg_isready -U postgres -d second_brain"];
+  await writeFile(join(f.current, "compose.yml"), JSON.stringify(oldConfig), { mode: 0o600 });
+  state.dbReference = "pgvector/pgvector:0.8.6-pg18";
+  state.databaseUrl = "postgres://second_brain:synthetic-private-secret@db:5432/second_brain";
+  await writeFile(stateFile, JSON.stringify(state));
+  const release = { ...state.next, compose: { archiveSha256: hash(nextCompose) } };
+  const bytes = await new Bun.Archive({
+    "aro/compose.yml": nextCompose, "aro/release.json": JSON.stringify(release),
+    "aro/docker/postgres/production/01-app-role.sql": "-- fixture",
+  }, { compress: "gzip" }).bytes();
+  await writeFile(f.archive, bytes);
+  f.args[f.args.indexOf("--sha256") + 1] = hash(bytes);
+  // When
+  const result = await run(f, "real-config");
+  // Then
+  expect(result.code, result.stderr).toBe(0);
+  const staged = await readFile(join(f.directory, ".env"), "utf8");
+  expect(staged).toContain("POSTGRES_APP_DB=second_brain\nPOSTGRES_APP_USER=second_brain\nCOMPOSE_PROJECT_NAME=fixture");
+  expect(staged).not.toContain("IRANG_IMAGE=");
+  expect(JSON.parse(await readFile(join(f.directory, "update-activation.json"))).project).toBe("fixture");
+});
+
+test("updater collapses both image variables into one aro pin", async () => {
+  // Given
+  const f = await server();
+  const state = JSON.parse(await readFile(join(f.root, "docker-state.json")));
+  f.environment += `ARO_IMAGE=${state.previous.image}\nIRANG_IMAGE=${state.previous.image}\n`;
+  await writeFile(join(f.current, ".env"), f.environment, { mode: 0o600 });
+  // When
+  const result = await run(f);
+  // Then
+  expect(result.code, result.stderr).toBe(0);
+  const staged = await readFile(join(f.directory, ".env"), "utf8");
+  expect(staged.match(/^ARO_IMAGE=/gm)).toHaveLength(1);
+  expect(staged).not.toContain("IRANG_IMAGE=");
+});
+test.each(["checksum", "downgrade", "symlink", "existing", "nested", "unauthorized", "remote", "foreign", "volume", "drift", "denied", "provenance", "contract", "missing-names"])(
   "server refuses %s without stopping or activating", async mode => {
     // Given
     const f = await server();

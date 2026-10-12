@@ -244,7 +244,7 @@ async function prepareCLI(root, out, architecture) {
     ["CC-BY-3.0", "https://creativecommons.org/licenses/by/3.0/legalcode.txt", "e6bc9e9c474700b708f568bac9e5a8a9bcb2b1dad53442f5ba449fcb848b8e76"],
     ["CC0-1.0", "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt", "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"],
   ]) await download(url, `notices/terms/${name}.txt`, { sha256: hash });
-  for (const [path, bytes] of await replacementFiles()) await save(`sources/width-preferred/${path}`, bytes, { component: "@irang/eastasianwidth-compat" });
+  for (const [path, bytes] of await replacementFiles()) await save(`sources/width-preferred/${path}`, bytes, { component: "@aro/eastasianwidth-compat" });
   await writeFile(resolve(out, "manifest.json"), json({ schemaVersion: 1, platform: `linux/${architecture}`, records, targets,
     nativeReplacementVerified: false, originalCompilerIdentityClaimed: false }));
   return targets;
@@ -289,13 +289,13 @@ export async function prepareReleaseMaterials(options) {
   const inventory = JSON.parse(await readFile(resolve(collector, "inventory.json")));
   inventory.sourceRoot = "/usr/local";
   await writeFile(resolve(collector, "inventory.json"), json(inventory));
-  for (const destination of ["app/licenses/cli", "usr/share/irang/licenses/cli"]) {
+  for (const destination of ["app/licenses/cli", "usr/share/aro/licenses/cli"]) {
     await rm(resolve(root, destination), { recursive: true });
     await cp(collector, resolve(root, destination), { recursive: true });
   }
   await rm(collector, { recursive: true });
   for (const owner of ["app", "cli", "runtime", "debian"]) {
-    await cp(resolve(out, owner, "notices"), resolve(root, "usr/share/irang/licenses", `${owner}-sources`), { recursive: true });
+    await cp(resolve(out, owner, "notices"), resolve(root, "usr/share/aro/licenses", `${owner}-sources`), { recursive: true });
   }
   await mkdir(resolve(out, "release"));
   await writeFile(resolve(out, "release/width-replacements.json"), json(replacements));
@@ -310,13 +310,13 @@ export async function prepareReleaseMaterials(options) {
   for (const target of targets) assert.deepEqual(await digest(resolve(root, safe(target.path))), {
     bytes: target.bytes, sha256: target.sha256,
   }, `Target changed during acquisition: ${target.path}`);
-  const manifest = { schemaVersion: 1, kind: "irang-selected-materials", version, revision, platform,
+  const manifest = { schemaVersion: 1, kind: "aro-selected-materials", version, revision, platform,
     nativeRelinkVerified: false, targets, files: selected };
   const text = json(manifest);
   assert(!/\/home\/ubuntu\/|\.omo\/evidence\//.test(text), "Private material locator");
   await writeFile(resolve(out, "manifest.json"), text, { flag: "wx" });
-  await writeFile(resolve(root, "usr/share/irang/licenses/materials.json"), text);
-  await writeFile(resolve(root, "usr/share/irang/licenses/materials.sha256"), `${sha(text)}  materials.json\n`);
+  await writeFile(resolve(root, "usr/share/aro/licenses/materials.json"), text);
+  await writeFile(resolve(root, "usr/share/aro/licenses/materials.sha256"), `${sha(text)}  materials.json\n`);
   return { materialManifestSha256: sha(text), files: selected.length, targets: targets.length };
 }
 

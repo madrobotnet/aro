@@ -6,6 +6,7 @@ import { backup } from "./backup.mjs";
 import { restoreCheck } from "./restore-check.mjs";
 import { runner, releaseIdentity } from "./backup/common.mjs";
 import { absent, artifact, owned, separate, seal, plan, hash } from "./update-common.mjs";
+import { releasePrefix } from "./release-names.mjs";
 
 export async function updateServer(input) {
   const current = input["current-directory"], target = input.directory, output = input.backup;
@@ -25,7 +26,8 @@ export async function updateServer(input) {
   assert(Bun.semver.satisfies(input.version, `>${previous.version}`), "Only a newer stable target is supported; no DB downgrade");
   const bytes = await artifact(input, 64 * 1024 * 1024);
   const { files, release } = await verifiedFiles(bytes, input.version, input.sha256);
-  assert(!files.has("irang/update-image.json") && !files.has("irang/update-activation.json"), "Reserved update artifact name");
+  const prefix = releasePrefix(input.version);
+  assert(!files.has(`${prefix}/update-image.json`) && !files.has(`${prefix}/update-activation.json`), "Reserved update artifact name");
   const r = runner();
   const base = ["compose", "--project-name", project, "--project-directory", current];
   const old = [...base, "--env-file", join(current, ".env"), "-f", join(current, "compose.yml")];
@@ -54,6 +56,23 @@ export async function updateServer(input) {
     assert(db.Config.Labels?.["com.docker.compose.project"] === project &&
       db.Config.Labels?.["com.docker.compose.service"] === "db" && db.State.Running &&
       !db.State.Paused && !db.State.Restarting, "DB project/state mismatch");
+    const database = new URL(original.services.app.environment?.DATABASE_URL ?? "");
+    const appDb = decodeURIComponent(database.pathname.slice(1));
+    const appUser = decodeURIComponent(database.username);
+    assert(["postgres:", "postgresql:"].includes(database.protocol) &&
+      /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(appDb) && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(appUser) &&
+      original.services.db.environment?.POSTGRES_DB === appDb,
+    "Cannot determine existing database and role; refusing upgrade");
+    const runningEnv = Object.fromEntries((app.Config.Env ?? []).map(value => {
+      const index = value.indexOf("=");
+      return [value.slice(0, index), value.slice(index + 1)];
+    }));
+    assert(runningEnv.DATABASE_URL === database.href, "Running application database differs from configuration");
+    const dbEnv = Object.fromEntries((db.Config.Env ?? []).map(value => {
+      const index = value.indexOf("=");
+      return [value.slice(0, index), value.slice(index + 1)];
+    }));
+    assert(dbEnv.POSTGRES_DB === appDb, "Running database differs from configuration");
     for (const [service, container, destination] of [
       ["app", app, "/app/.data"], ["db", db, "/var/lib/postgresql"],
     ]) {
@@ -74,7 +93,7 @@ export async function updateServer(input) {
     "New image provenance mismatch");
     await mkdir(target, { mode: 0o700 });
     for (const [name, file] of files) {
-      const destination = join(target, name.slice("irang/".length));
+      const destination = join(target, name.slice(prefix.length + 1));
       await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
       await writeFile(destination, new Uint8Array(await file.arrayBuffer()), { flag: "wx", mode: 0o600 });
     }
@@ -82,13 +101,29 @@ export async function updateServer(input) {
     // pin. Avoid an out-of-band overlay so stock backup and the next upgrade
     // resolve the same image from this directory.
     const previousEnv = environment.toString("utf8");
-    const stagedEnv = /^IRANG_IMAGE=/m.test(previousEnv)
-      ? previousEnv.replace(/^IRANG_IMAGE=.*$/m, `IRANG_IMAGE=${release.image}`)
-      : `${previousEnv}${previousEnv.endsWith("\n") ? "" : "\n"}IRANG_IMAGE=${release.image}\n`;
+    const stagedEnv = previousEnv.split(/\r?\n/).filter(line =>
+      !/^(?:IRANG_IMAGE|ARO_IMAGE|POSTGRES_APP_DB|POSTGRES_APP_USER|COMPOSE_PROJECT_NAME)=/.test(line))
+      .join("\n").replace(/\n*$/, "\n") +
+      `ARO_IMAGE=${release.image}\nPOSTGRES_APP_DB=${appDb}\nPOSTGRES_APP_USER=${appUser}\nCOMPOSE_PROJECT_NAME=${project}\n`;
     await writeFile(join(target, ".env"), stagedEnv, { flag: "wx", mode: 0o600 });
     const resolved = JSON.parse(await r.run([...next, "config", "--format", "json"]));
     const expected = structuredClone(original);
     expected.services.app.image = release.image;
+    if (resolved.services.db.environment?.POSTGRES_APP_USER === appUser) {
+      expected.services.db.environment ??= {};
+      expected.services.db.environment.POSTGRES_APP_USER = appUser;
+    }
+    // Both healthchecks target the same recorded database; only their spelling changed.
+    const healthcheck = resolved.services.db.healthcheck?.test;
+    if (JSON.stringify(healthcheck) === JSON.stringify(["CMD-SHELL", 'pg_isready -U postgres -d "$${POSTGRES_DB}"'])) {
+      expected.services.db.healthcheck.test = healthcheck;
+    }
+    if (resolved["x-upgrade-checks"]?.["app-db"] === appDb &&
+        resolved["x-upgrade-checks"]?.["app-user"] === appUser) {
+      expected["x-upgrade-checks"] ??= {};
+      expected["x-upgrade-checks"]["app-db"] = appDb;
+      expected["x-upgrade-checks"]["app-user"] = appUser;
+    }
     // An empty allowlist preserves the old closed-by-default public MCP
     // boundary when upgrading from a release without this optional setting.
     if (!Object.hasOwn(expected.services.app.environment ?? {}, "ARO_MCP_ALLOWED_HOSTS") &&

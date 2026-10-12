@@ -1,8 +1,9 @@
-export const URL_PENDING_MARKER = "<!-- second-brain:url-status:pending -->";
-export const URL_FAILED_MARKER = "<!-- second-brain:url-status:failed -->";
+export const URL_PENDING_MARKER = "<!-- aro:url-status:pending -->";
+export const URL_FAILED_MARKER = "<!-- aro:url-status:failed -->";
 
-const LEGACY_PENDING = new Set(["> URL 내용을 가져오는 중입니다."]);
+const LEGACY_PENDING = new Set(["<!-- second-brain:url-status:pending -->", "> URL 내용을 가져오는 중입니다."]);
 const LEGACY_FAILED = new Set([
+  "<!-- second-brain:url-status:failed -->",
   "> URL 내용을 가져오지 못했습니다. 원문 링크는 보존되었습니다.",
 ]);
 

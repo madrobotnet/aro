@@ -9,12 +9,12 @@
     "observationIndex": 72
   },
   "package": {
-    "name": "@irang/eastasianwidth-compat",
-    "version": "0.2.0-irang.1",
+    "name": "@aro/eastasianwidth-compat",
+    "version": "0.2.0-aro.1",
     "private": true,
     "main": "index.cjs",
     "license": "MIT AND Unicode-3.0",
-    "irangReplaces": "eastasianwidth@0.2.0; new independent software, not relicensed upstream"
+    "aroReplaces": "eastasianwidth@0.2.0; new independent software, not relicensed upstream"
   },
   "files": [
     {"path":"index.cjs","sha256":"7cbe7b67c7c3f8608b200f6dfdddaeb3cfbc2528d60c8340e8745f17445ecc07"},
@@ -28,7 +28,7 @@
   ],
   "generatorAdaptation": {
     "from": "const out = \"/home/ubuntu/project/second-brain/.omo/evidence/packaging-resume-20261001/repair/eastasianwidth-licensed\";",
-    "to": "const out = resolve(process.env.IRANG_WIDTH_OUTPUT ?? \".\");",
+    "to": "const out = resolve(process.env.ARO_WIDTH_OUTPUT ?? process.env.IRANG_WIDTH_OUTPUT ?? \".\");",
     "reason": "Portable output directory in a copied new generator only; never edit original candidate or old implementation"
   },
   "integrationQueue": [

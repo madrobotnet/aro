@@ -75,7 +75,7 @@ describe("markdown export", () => {
 
     const response = await exportResponse(new Date("2026-09-30T23:59:00.000Z"));
     expect(response.headers.get("content-type")).toBe("application/zip");
-    expect(response.headers.get("content-disposition")).toBe("attachment; filename=irang-export-2026-09-30.zip");
+    expect(response.headers.get("content-disposition")).toBe("attachment; filename=aro-export-2026-09-30.zip");
     expect(response.headers.get("cache-control")).toBe("no-store");
     const entries = await unzip(response);
 

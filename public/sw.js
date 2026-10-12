@@ -1,6 +1,6 @@
 /* Capture-only cache. Never intercept/cache authenticated app pages, API data, or providers. */
-const CACHE_PREFIX = "irang-offline-capture-";
-const CACHE_NAME = `${CACHE_PREFIX}v2`;
+const CACHE_PREFIX = "aro-offline-capture-";
+const CACHE_NAME = `${CACHE_PREFIX}v1`;
 const ASSETS = [
   "/icons/offline-capture.html",
   "/icons/offline-capture.js",
@@ -31,7 +31,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     for (const name of await caches.keys()) {
-      if (name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME) await caches.delete(name);
+      if ((name.startsWith(CACHE_PREFIX) || name.startsWith("irang-offline-capture-")) && name !== CACHE_NAME) await caches.delete(name);
     }
     await self.clients.claim();
   })());

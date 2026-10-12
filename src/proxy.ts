@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const SESSION_COOKIE = "sb_session";
+const SESSION_COOKIE = "aro_session";
 const AI_AUTH_COOKIE = "sb_ai_auth";
 const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/health", "/manifest.webmanifest", "/icons/", "/fonts/", "/favicon"];
 
@@ -48,7 +48,7 @@ export function proxy(request: NextRequest) {
     || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) {
     return pageResponse(request);
   }
-  if (request.cookies.get(SESSION_COOKIE)?.value) {
+  if (request.cookies.get(SESSION_COOKIE)?.value || request.cookies.get("sb_session")?.value) {
     return pageResponse(request);
   }
   if (pathname.startsWith("/api/")) {

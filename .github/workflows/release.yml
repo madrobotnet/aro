@@ -7,15 +7,12 @@ on:
 
 permissions: {}
 concurrency:
-  group: irang-release-${{ github.ref }}
+  group: aro-release-${{ github.ref }}
   cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
-
-env:
-  IMAGE: ghcr.io/madrobotnet/irang
 
 jobs:
   validate:
@@ -26,6 +23,9 @@ jobs:
     outputs:
       version: ${{ steps.identity.outputs.version }}
       revision: ${{ steps.identity.outputs.revision }}
+      image: ${{ steps.identity.outputs.image }}
+      prefix: ${{ steps.identity.outputs.prefix }}
+      archive: ${{ steps.identity.outputs.archive }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,6 +50,7 @@ jobs:
           version="${REF#refs/tags/v}"
           bun --no-env-file scripts/verify-release.mjs validate --root . --version "$version" --ref "$REF" --revision "$revision"
           printf 'version=%s\nrevision=%s\n' "$version" "$revision" >> "$GITHUB_OUTPUT"
+          VERSION="$version" bun --no-env-file -e 'const {releaseRegistry,releasePrefix,installArchiveName}=await import("./scripts/release-names.mjs"); const v=process.env.VERSION; console.log(`image=${releaseRegistry(v)}\nprefix=${releasePrefix(v)}\narchive=${installArchiveName(v)}`);' >> "$GITHUB_OUTPUT"
 
   ci:
     needs: validate
@@ -71,6 +72,9 @@ jobs:
           - {runner: ubuntu-24.04, arch: amd64, platform: linux/amd64, machine: x86_64}
           - {runner: ubuntu-24.04-arm, arch: arm64, platform: linux/arm64, machine: aarch64}
     env:
+      IMAGE: ${{ needs.validate.outputs.image }}
+      PREFIX: ${{ needs.validate.outputs.prefix }}
+      ARCHIVE: ${{ needs.validate.outputs.archive }}
       VERSION: ${{ needs.validate.outputs.version }}
       REVISION: ${{ needs.validate.outputs.revision }}
     steps:
@@ -109,7 +113,7 @@ jobs:
         with:
           context: "{{defaultContext}}"
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=ghcr.io/madrobotnet/irang,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=min
           sbom: true
           build-args: |
@@ -161,6 +165,9 @@ jobs:
           - {runner: ubuntu-24.04, arch: amd64, platform: linux/amd64, machine: x86_64}
           - {runner: ubuntu-24.04-arm, arch: arm64, platform: linux/arm64, machine: aarch64}
     env:
+      IMAGE: ${{ needs.validate.outputs.image }}
+      PREFIX: ${{ needs.validate.outputs.prefix }}
+      ARCHIVE: ${{ needs.validate.outputs.archive }}
       VERSION: ${{ needs.validate.outputs.version }}
       REVISION: ${{ needs.validate.outputs.revision }}
       PLATFORM: ${{ matrix.platform }}
@@ -204,22 +211,22 @@ jobs:
           docker pull --platform "$PLATFORM" "$image"
           docker image inspect "$image" > receipt/inspect.json
           bun --no-env-file scripts/verify-release.mjs image --inspect receipt/inspect.json --version "$VERSION" --ref "$GITHUB_REF" --revision "$REVISION" --platform "$PLATFORM"
-          docker run --rm --network none --entrypoint cat "$image" /usr/share/irang/licenses/materials.json > receipt/materials.json
+          docker run --rm --network none --entrypoint cat "$image" /usr/share/$PREFIX/licenses/materials.json > receipt/materials.json
           cp -r build/sources receipt/sources
-          export SOURCE_INDEX="irang-$VERSION-sources-linux-$ARCH-index.json"
+          export SOURCE_INDEX="$PREFIX-$VERSION-sources-linux-$ARCH-index.json"
           export MATERIAL_SEAL="$(sha256sum receipt/materials.json | cut -d ' ' -f 1)"
           export SOURCE_INDEX_SHA="$(sha256sum "receipt/sources/$SOURCE_INDEX" | cut -d ' ' -f 1)"
           bun --no-env-file -e 'const {verifySourceAssets}=await import("./distribution/release/restore.mjs"); await verifySourceAssets("receipt/sources",process.env.SOURCE_INDEX,process.env.SOURCE_INDEX_SHA,{version:process.env.VERSION,revision:process.env.REVISION,platform:process.env.PLATFORM,materialManifestSha256:process.env.MATERIAL_SEAL});'
-          bun --no-env-file scripts/smoke-image.mjs --image "$image" --project "irang-package-qa-$ARCH-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --port 3316 --evidence-dir receipt/smoke
+          bun --no-env-file scripts/smoke-image.mjs --image "$image" --project "aro-package-qa-$ARCH-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --port 3316 --evidence-dir receipt/smoke
           export BUILD_DIGEST="$digest"
           python3 - <<'PY'
           import base64, hashlib, json, os, pathlib, urllib.request
           p = pathlib.Path("receipt")
           credentials = base64.b64encode((os.environ["GITHUB_ACTOR"]+":"+os.environ["GH_TOKEN"]).encode()).decode()
-          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:madrobotnet/irang:pull",
+          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:"+os.environ["IMAGE"].removeprefix("ghcr.io/")+":pull",
             headers={"Authorization":"Basic "+credentials})
           with urllib.request.urlopen(req, timeout=60) as r: token = json.load(r)["token"]
-          req = urllib.request.Request("https://ghcr.io/v2/madrobotnet/irang/manifests/"+os.environ["BUILD_DIGEST"],
+          req = urllib.request.Request("https://ghcr.io/v2/"+os.environ["IMAGE"].removeprefix("ghcr.io/")+"/manifests/"+os.environ["BUILD_DIGEST"],
             headers={"Authorization":"Bearer "+token, "Accept":"application/vnd.oci.image.index.v1+json"})
           with urllib.request.urlopen(req, timeout=60) as r: index_bytes = r.read()
           assert "sha256:"+hashlib.sha256(index_bytes).hexdigest() == os.environ["BUILD_DIGEST"]
@@ -258,6 +265,9 @@ jobs:
     outputs:
       digest: ${{ steps.merge.outputs.digest }}
     env:
+      IMAGE: ${{ needs.validate.outputs.image }}
+      PREFIX: ${{ needs.validate.outputs.prefix }}
+      ARCHIVE: ${{ needs.validate.outputs.archive }}
       VERSION: ${{ needs.validate.outputs.version }}
       REVISION: ${{ needs.validate.outputs.revision }}
       GH_TOKEN: ${{ github.token }}
@@ -294,10 +304,10 @@ jobs:
           import base64, hashlib, json, os, pathlib, urllib.request
           root = pathlib.Path("merged")
           credentials = base64.b64encode((os.environ["GITHUB_ACTOR"]+":"+os.environ["GH_TOKEN"]).encode()).decode()
-          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:madrobotnet/irang:pull",
+          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:"+os.environ["IMAGE"].removeprefix("ghcr.io/")+":pull",
             headers={"Authorization":"Basic "+credentials})
           with urllib.request.urlopen(req, timeout=60) as r: token = json.load(r)["token"]
-          req = urllib.request.Request("https://ghcr.io/v2/madrobotnet/irang/manifests/"+os.environ["CANDIDATE"],
+          req = urllib.request.Request("https://ghcr.io/v2/"+os.environ["IMAGE"].removeprefix("ghcr.io/")+"/manifests/"+os.environ["CANDIDATE"],
             headers={"Authorization":"Bearer "+token, "Accept":"application/vnd.oci.image.index.v1+json"})
           with urllib.request.urlopen(req, timeout=60) as r:
             raw = r.read()
@@ -305,7 +315,7 @@ jobs:
           assert "sha256:"+hashlib.sha256(raw).hexdigest() == digest
           (root/"index.json").write_bytes(raw)
           def get(kind, digest):
-            req = urllib.request.Request("https://ghcr.io/v2/madrobotnet/irang/"+kind+"/"+digest,
+            req = urllib.request.Request("https://ghcr.io/v2/"+os.environ["IMAGE"].removeprefix("ghcr.io/")+"/"+kind+"/"+digest,
               headers={"Authorization":"Bearer "+token, "Accept":"application/vnd.oci.image.manifest.v1+json"})
             with urllib.request.urlopen(req, timeout=60) as r: data = r.read()
             assert "sha256:"+hashlib.sha256(data).hexdigest() == digest
@@ -343,6 +353,9 @@ jobs:
       contents: write
       packages: write
     env:
+      IMAGE: ${{ needs.validate.outputs.image }}
+      PREFIX: ${{ needs.validate.outputs.prefix }}
+      ARCHIVE: ${{ needs.validate.outputs.archive }}
       VERSION: ${{ needs.validate.outputs.version }}
       REVISION: ${{ needs.validate.outputs.revision }}
       DIGEST: ${{ needs.merge-candidate.outputs.digest }}
@@ -399,9 +412,9 @@ jobs:
           PY
           bun --no-env-file scripts/verify-release.mjs checksums --root assets
           mkdir extracted
-          tar -xzf "assets/irang-$VERSION-install.tar.gz" -C extracted
+          tar -xzf "assets/$ARCHIVE" -C extracted
           docker pull --platform linux/amd64 "$IMAGE@$DIGEST"
-          bun --no-env-file scripts/smoke-image.mjs --image "$IMAGE@$DIGEST" --project "irang-package-qa-archive-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --port 3316 --evidence-dir archive-smoke --install-dir extracted/irang
+          bun --no-env-file scripts/smoke-image.mjs --image "$IMAGE@$DIGEST" --project "aro-package-qa-archive-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --port 3316 --evidence-dir archive-smoke --install-dir "extracted/$PREFIX"
       - name: Promote immutable tags without rebuild
         run: |
           set -euo pipefail
@@ -410,7 +423,7 @@ jobs:
           raw = pathlib.Path("merged/index.json").read_bytes()
           assert "sha256:"+hashlib.sha256(raw).hexdigest() == os.environ["DIGEST"]
           credentials = base64.b64encode((os.environ["GITHUB_ACTOR"]+":"+os.environ["GH_TOKEN"]).encode()).decode()
-          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:madrobotnet/irang:pull,push",
+          req = urllib.request.Request("https://ghcr.io/token?service=ghcr.io&scope=repository:"+os.environ["IMAGE"].removeprefix("ghcr.io/")+":pull,push",
             headers={"Authorization":"Basic "+credentials})
           with urllib.request.urlopen(req, timeout=60) as r: token = json.load(r)["token"]
           headers = {"Authorization":"Bearer "+token, "Accept":"application/vnd.oci.image.index.v1+json"}
@@ -418,7 +431,7 @@ jobs:
           absent = []
           # Preflight BOTH tags: auth/network/other 404 errors are never absence.
           for tag in tags:
-            url = "https://ghcr.io/v2/madrobotnet/irang/manifests/"+tag
+            url = "https://ghcr.io/v2/"+os.environ["IMAGE"].removeprefix("ghcr.io/")+"/manifests/"+tag
             try:
               with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
                 existing = r.read()

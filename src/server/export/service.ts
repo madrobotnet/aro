@@ -67,7 +67,7 @@ const MISSING_METADATA_SQL = `
   WHERE deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM attachments WHERE id=lower(m[1])::uuid)`;
 
 export function exportFileName(now: Date): string {
-  return `irang-export-${now.toISOString().slice(0, 10)}.zip`;
+  return `aro-export-${now.toISOString().slice(0, 10)}.zip`;
 }
 
 function isMissingFile(error: unknown): boolean {

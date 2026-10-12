@@ -7,9 +7,9 @@ import { assetPrefix, prepareAssets, sha, safe, digest } from "../../../distribu
 import { restoreAssets, verifySourceAssets } from "../../../distribution/release/restore.mjs";
 import { replacementFiles, replaceWidth, archiveTree } from "../../../scripts/prepare-release-materials.mjs";
 
-async function fixture(platform = "linux/arm64") {
+async function fixture(platform = "linux/arm64", version = "2.4.0") {
   const root = await mkdtemp(join(tmpdir(), "source-assets-"));
-  const options = { version: "2.3.2", revision: "a".repeat(40), platform, limit: 8192,
+  const options = { version, revision: "a".repeat(40), platform, limit: 8192,
     materials: join(root, "materials"), out: join(root, "out") };
   const content = Buffer.alloc(10000, 65);
   const row = { path: "sources/input", sha256: sha(content), bytes: content.length, mode: 0o644 };
@@ -19,7 +19,7 @@ async function fixture(platform = "linux/arm64") {
     await mkdir(join(options.materials, item.owner, "sources"), { recursive: true });
     await writeFile(join(options.materials, item.owner, item.path), item.bytes ? content : "");
   }
-  const manifest = { schemaVersion: 1, kind: "irang-selected-materials",
+  const manifest = { schemaVersion: 1, kind: version === "2.3.2" ? "irang-selected-materials" : "aro-selected-materials",
     version: options.version, revision: options.revision, platform, targets: [], files: rows };
   const seal = async () => {
     const text = JSON.stringify(manifest);
@@ -30,17 +30,19 @@ async function fixture(platform = "linux/arm64") {
   return { root, options, row, manifest, seal };
 }
 
+for (const version of ["2.3.2", "2.4.0"]) {
 for (const platform of ["linux/amd64", "linux/arm64"]) {
-  test(`${platform} partitions deterministically and restores duplicate source ownership`, async () => {
-    const { root, options, row } = await fixture(platform);
+  test(`${version} ${platform} partitions deterministically and restores duplicate source ownership`, async () => {
+    const { root, options, row } = await fixture(platform, version);
     try {
       const result = await prepareAssets(options);
       const first = await readFile(join(options.out, result.indexName), "utf8");
       await prepareAssets({ ...options, out: join(root, "second") });
       expect(await readFile(join(root, "second", result.indexName), "utf8")).toBe(first);
       const index = await verifySourceAssets(options.out, result.indexName, sha(first), {
-        materialManifestSha256: options.seal, platform, version: "2.3.2", revision: options.revision,
+        materialManifestSha256: options.seal, platform, version, revision: options.revision,
       });
+      expect(result.indexName).toBe(`${version === "2.3.2" ? "irang" : "aro"}-${version}-sources-${platform.replace("/", "-")}-index.json`);
       expect(index.assets.every(a => a.bytes < 8192 && a.name.includes(platform.replace("/", "-")))).toBe(true);
       expect(index.blobs[row.sha256].pieces.length).toBe(2);
       expect(index.associations.filter(r => r.sha256 === row.sha256).map(r => r.owner).sort()).toEqual(["app", "cli", "runtime"]);
@@ -57,9 +59,11 @@ for (const platform of ["linux/amd64", "linux/arm64"]) {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 }
+}
 
-test("release checksums validates current source indexes beyond outer file hashes", async () => {
-  const { root, options } = await fixture();
+for (const version of ["2.3.2", "2.4.0"]) {
+test(`${version} release checksums validates source indexes beyond outer file hashes`, async () => {
+  const { root, options } = await fixture("linux/arm64", version);
   try {
     const result = await prepareAssets(options);
     const check = async () => {
@@ -84,6 +88,7 @@ test("release checksums validates current source indexes beyond outer file hashe
     expect((await check()).code).not.toBe(0);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+}
 
 test("rejects corrupted selected input before creating output", async () => {
   const { root, options } = await fixture();
@@ -101,7 +106,7 @@ test("rejects material seal and target identity mismatches", async () => {
     await assert.rejects(prepareAssets({ ...options, seal: "f".repeat(64) }), /seal mismatch/);
     await assert.rejects(prepareAssets({ ...options, platform: "linux/amd64" }), /platform mismatch/);
     await assert.rejects(prepareAssets({ ...options, revision: "b".repeat(40) }), /revision mismatch/);
-    await assert.rejects(prepareAssets({ ...options, version: "2.2.0" }), /Unsupported source version/);
+    await assert.rejects(prepareAssets({ ...options, version: "2.4.0-rc" }), /Unsupported source version/);
     await assert.rejects(access(options.out), { code: "ENOENT" });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -184,17 +189,22 @@ test("portable replacement regenerates pinned ranges without private producer pa
   const root = await mkdtemp(join(tmpdir(), "width-source-"));
   try {
     const materials = await replacementFiles();
+    const metadata = JSON.parse(materials.get("package.json"));
+    expect(metadata.name).toBe("@aro/eastasianwidth-compat");
+    expect(metadata.version).toBe("0.2.0-aro.1");
+    expect(metadata.aroReplaces).toBeDefined();
     for (const [path, bytes] of materials) {
       await mkdir(join(root, dirname(path)), { recursive: true });
       await writeFile(join(root, path), bytes);
       expect(bytes.toString()).not.toMatch(/\/home\/ubuntu\/|\.omo\/evidence\//);
     }
-    const child = Bun.spawn([process.execPath, "--no-env-file", "generate.mjs"], {
-      cwd: root, stdout: "pipe", stderr: "pipe",
+    await mkdir(join(root, "generated"));
+    const child = Bun.spawn([process.execPath, "--no-env-file", "generate.mjs", "--input", join(root, "sources/EastAsianWidth-6.0.0.txt")], {
+      cwd: root, env: { PATH: process.env.PATH, ARO_WIDTH_OUTPUT: join(root, "generated") }, stdout: "pipe", stderr: "pipe",
     });
     const [code, errors] = await Promise.all([child.exited, new Response(child.stderr).text(), new Response(child.stdout).text()]);
     expect({ code, errors }).toEqual({ code: 0, errors: "" });
-    expect((await digest(join(root, "ranges.json"))).sha256).toBe("0e8a6564a9bae1f35ae3065b8c9e4c0b879720d1ad1547151035d09367efe609");
+    expect((await digest(join(root, "generated/ranges.json"))).sha256).toBe("0e8a6564a9bae1f35ae3065b8c9e4c0b879720d1ad1547151035d09367efe609");
     const { default: width } = await import(join(root, "index.cjs"));
     expect({ width: width.eastAsianWidth("①"), length: width.length("①a"), slice: width.slice("abc", 0, 2) })
       .toEqual({ width: "A", length: 3, slice: "ab" });

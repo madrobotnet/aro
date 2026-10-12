@@ -35,7 +35,13 @@ afterEach(async () => {
 });
 
 for (const scenario of [
-  { name: "default", image: "ghcr.io/madrobotnet/irang:2.3.2", values: {}, expected: defaults },
+  { name: "default", image: "ghcr.io/madrobotnet/aro:2.4.0", values: {}, expected: defaults },
+  {
+    name: "new image wins over legacy",
+    image: "aro:local",
+    values: { ARO_IMAGE: "aro:local", IRANG_IMAGE: "legacy:local" },
+    expected: defaults,
+  },
   {
     name: "operator-provided",
     image: "ghcr.io/example/irang:operator-test",
@@ -50,6 +56,8 @@ for (const scenario of [
     const values = {
       POSTGRES_PASSWORD: "fixture-app-password",
       POSTGRES_ADMIN_PASSWORD: "fixture-admin-password",
+      POSTGRES_APP_DB: "aro",
+      POSTGRES_APP_USER: "aro",
       SETUP_TOKEN: "fixture-setup-token-for-compose-configuration",
       UNRELATED_SECRET: "fixture-unrelated-secret",
       ...scenario.values,
@@ -76,3 +84,24 @@ for (const scenario of [
     expect(config).not.toHaveProperty("services.app.environment.UNRELATED_SECRET");
   });
 }
+
+test.each(["POSTGRES_APP_DB", "POSTGRES_APP_USER"])("missing %s fails during Compose configuration", async (missing) => {
+  // Given
+  const directory = await mkdtemp(path.join(tmpdir(), "aro-compose-"));
+  directories.push(directory);
+  const file = path.join(directory, ".env");
+  const values = { POSTGRES_APP_DB: "aro", POSTGRES_APP_USER: "aro",
+    POSTGRES_PASSWORD: "fixture", POSTGRES_ADMIN_PASSWORD: "fixture", SETUP_TOKEN: "fixture" };
+  await writeFile(file, Object.entries(values).filter(([key]) => key !== missing)
+    .map(([key, value]) => `${key}=${value}`).join("\n"));
+  // When
+  const child = Bun.spawn(["docker", "compose", "--env-file", file, "-f", "compose.yml", "config", "--format", "json"], {
+    cwd: root, env: { PATH: process.env.PATH, HOME: process.env.HOME }, stdout: "pipe", stderr: "pipe",
+  });
+  const [code, stdout, stderr] = await Promise.all([child.exited,
+    new Response(child.stdout).text(), new Response(child.stderr).text()]);
+  // Then
+  expect(code).not.toBe(0);
+  expect(stdout).toBe("");
+  expect(stderr).toContain(missing);
+});

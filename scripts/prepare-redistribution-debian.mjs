@@ -226,7 +226,7 @@ const fetchExact = async (url, timeoutMs) => {
     const response = await fetch(current, {
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { "accept-encoding": "identity", "user-agent": "irang-debian-source-prepare" },
+      headers: { "accept-encoding": "identity", "user-agent": "aro-debian-source-prepare" },
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -497,13 +497,14 @@ const imageInventory = async (image, expectedIndex) => {
   if (!matchedField) fail(`image ${image} index is not ${expectedIndex}`);
   if (inspected.Os !== "linux") fail(`image ${image} OS is ${inspected.Os}, not linux`);
   const { Id: id, Architecture: architecture, Os: os, RepoTags: repoTags } = inspected;
-  const container = `irang-debian-source-${randomBytes(4).toString("hex")}`;
+  const container = `aro-debian-source-${randomBytes(4).toString("hex")}`;
   const probe = join(tmpdir(), `${container}.mjs`);
   await writeFile(probe, PROBE);
   try {
     const result = await run("docker", [
       "run", "--name", container, "--network", "none", "--pull", "never", "--user", "0",
-      "--label", `org.irang.redistribution.debian=${container}`,
+      "--label", `org.aro.redistribution.debian=${container}`,
+      "--label", "aro.qa.owner=aro-id-release",
       "--entrypoint", "/usr/local/bin/node",
       "--mount", `type=bind,src=${probe},dst=/tmp/debian-source-probe.mjs,readonly`,
       image, "/tmp/debian-source-probe.mjs",
@@ -528,7 +529,7 @@ const imageInventory = async (image, expectedIndex) => {
     await run("docker", ["rm", "-f", container]).catch((error) => {
       if (!String(error.message).includes("No such container")) throw error;
     });
-    const left = await run("docker", ["ps", "-aq", "--filter", `label=org.irang.redistribution.debian=${container}`]);
+    const left = await run("docker", ["ps", "-aq", "--filter", `label=org.aro.redistribution.debian=${container}`]);
     if (left.stdout.toString("utf8").trim()) fail(`temporary container ${container} is still present`);
   }
 };

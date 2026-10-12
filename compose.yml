@@ -1,15 +1,17 @@
 # Compose validates these before creating resources. Legacy credentials must
 # select their existing volume; current installs still need a separate admin key.
 x-upgrade-checks:
+  app-db: ${POSTGRES_APP_DB:?Set POSTGRES_APP_DB to the existing database; see docs/UPDATE.md}
+  app-user: ${POSTGRES_APP_USER:?Set POSTGRES_APP_USER to the existing role; see docs/UPDATE.md}
   admin-password: ${POSTGRES_APP_PASSWORD:-${POSTGRES_ADMIN_PASSWORD:?Use the Docker setup command in README.md first}}
   legacy-volume: ${POSTGRES_APP_PASSWORD:+${POSTGRES_DATA_VOLUME:?Set POSTGRES_DATA_VOLUME to the existing volume key; see docs/SETUP.md}}
 
 services:
   app:
-    image: ${IRANG_IMAGE:-ghcr.io/madrobotnet/irang:2.3.2}
+    image: ${ARO_IMAGE:-${IRANG_IMAGE:-ghcr.io/madrobotnet/aro:2.4.0}}
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://second_brain:${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Use the Docker setup command in README.md first}}@db:5432/second_brain}
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_APP_USER:?Set POSTGRES_APP_USER; see docs/UPDATE.md}:${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Use the Docker setup command in README.md first}}@db:5432/${POSTGRES_APP_DB:?Set POSTGRES_APP_DB; see docs/UPDATE.md}}
       SETUP_TOKEN: ${SETUP_TOKEN:?Use the Docker setup command in README.md first}
       AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:-}
       INSECURE_COOKIES: ${INSECURE_COOKIES:-0}
@@ -39,12 +41,13 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-${POSTGRES_PASSWORD:?Use the Docker setup command in README.md first}}
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-${POSTGRES_PASSWORD:?Use the Docker setup command in README.md first}}
-      POSTGRES_DB: second_brain
+      POSTGRES_DB: ${POSTGRES_APP_DB:?Set POSTGRES_APP_DB; see docs/UPDATE.md}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:?Set POSTGRES_APP_USER; see docs/UPDATE.md}
     volumes:
       - ${POSTGRES_DATA_VOLUME:-postgres-data}:/var/lib/postgresql
       - ./docker/postgres/production:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d second_brain"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 3s
       retries: 20

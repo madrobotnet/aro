@@ -1,4 +1,5 @@
-export const SESSION_COOKIE = "sb_session";
+export const SESSION_COOKIE = "aro_session";
+export const LEGACY_SESSION_COOKIE = "sb_session";
 export const LOGIN_FAIL_LIMIT = 5;
 export const LOGIN_FAIL_WINDOW_MIN = 15;
 

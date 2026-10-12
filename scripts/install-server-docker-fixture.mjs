@@ -4,7 +4,7 @@ import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 const args = process.argv.slice(2);
 await appendFile(join(process.env.HOME, "docker-calls.jsonl"),
-  JSON.stringify({ args, leaked: Boolean(process.env.SETUP_TOKEN || process.env.IRANG_IMAGE || process.env.COMPOSE_FILE) }) + "\n");
+  JSON.stringify({ args, leaked: Boolean(process.env.SETUP_TOKEN || process.env.ARO_IMAGE || process.env.IRANG_IMAGE || process.env.COMPOSE_FILE) }) + "\n");
 const mode = process.env.DOCKER_CONFIG?.split("/").at(-1);
 if (mode === "old-compose" && args[0] === "compose" && args[1] === "version") {
   console.log("2.40.0");

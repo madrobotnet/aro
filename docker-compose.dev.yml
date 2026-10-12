@@ -1,19 +1,19 @@
 # Local Postgres (pgvector) for development and the integration test suite.
-name: second-brain-dev
+name: aro-dev
 
 services:
   db:
     image: pgvector/pgvector:0.8.6-pg18
     environment:
-      POSTGRES_USER: second_brain
-      POSTGRES_PASSWORD: second_brain
-      POSTGRES_DB: second_brain
+      POSTGRES_USER: aro
+      POSTGRES_PASSWORD: aro
+      POSTGRES_DB: aro
     ports:
       - "127.0.0.1:55432:5432"
     volumes:
       - ./docker/postgres/dev:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U second_brain -d second_brain"]
+      test: ["CMD-SHELL", "pg_isready -U aro -d aro"]
       interval: 2s
       timeout: 3s
       retries: 30

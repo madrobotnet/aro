@@ -3,7 +3,7 @@ import { closeDb, connectedDatabaseUrl, db } from "@/server/db";
 
 /** The development Compose initializer creates this separate test database. */
 export const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ?? "postgres://second_brain:second_brain@127.0.0.1:55432/second_brain_test";
+  process.env.TEST_DATABASE_URL ?? "postgres://aro:aro@127.0.0.1:55432/aro_test";
 // Parallel development lanes may point TEST_DATABASE_URL at their own database (sb_test_<lane>).
 
 type TestDatabase = { readonly url: string; readonly database: string };
@@ -28,10 +28,10 @@ export function parseTestDatabaseUrl(raw: string): TestDatabase {
   const local = host === "localhost" || host === "[::1]" || (isIP(host) === 4 && host.startsWith("127."));
   if (
     !["postgres:", "postgresql:"].includes(url.protocol) || !local || url.search || url.hash ||
-    !/^(second_brain_test|sb_test_[a-z0-9_]+)$/.test(database)
+    !/^(aro_test|sb_test_[a-z0-9_]+)$/.test(database)
   ) {
     throw new UnsafeTestDatabaseError(
-      "Tests require a loopback second_brain_test or sb_test_<lane> database without URL query overrides.",
+      "Tests require a loopback aro_test or sb_test_<lane> database without URL query overrides.",
     );
   }
   return { url: url.href, database };

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import {
-  STORAGE_KEY, MAX_BYTES, readDrafts, writeDrafts, prepareFlush, flushDrafts,
+  STORAGE_KEY, LEGACY_STORAGE_KEY, LOCK_NAME, migrateDrafts, MAX_BYTES, readDrafts, writeDrafts, prepareFlush, flushDrafts,
 } from "../../public/icons/offline-capture-queue.js";
 
 function storage() {
@@ -10,6 +10,7 @@ function storage() {
   return {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => { values.set(key, value); },
+    removeItem: (key) => { values.delete(key); },
   };
 }
 const draft = (text = "thought") => ({
@@ -223,5 +224,81 @@ test("worker serves cached public capture offline and cleans only its own older 
   w.names.set("irang-offline-capture-old", new Map());
   w.handlers.get("activate")({ waitUntil: (promise) => { done = promise; } });
   await done;
-  expect([...w.names.keys()]).toEqual(["irang-offline-capture-v2", "unrelated-auth-cache"]);
+  expect([...w.names.keys()]).toEqual(["aro-offline-capture-v1", "unrelated-auth-cache"]);
+});
+
+test("legacy drafts move once with unchanged identities and no duplicates", () => {
+  // Given
+  const store = storage(), first = draft("old"), second = draft("new");
+  store.setItem(LEGACY_STORAGE_KEY, JSON.stringify([first]));
+  writeDrafts(store, [first, second]);
+  // When
+  migrateDrafts(store);
+  migrateDrafts(store);
+  // Then
+  expect(readDrafts(store)).toEqual([first, second]);
+  expect(store.getItem(LEGACY_STORAGE_KEY)).toBeNull();
+  expect(LOCK_NAME).toBe(STORAGE_KEY);
+});
+
+test.each(["write", "invalid", "remove"])("failed legacy move retains its source: %s", (failure) => {
+  // Given
+  const store = storage();
+  const value = failure === "invalid" ? "{" : JSON.stringify([draft()]);
+  store.setItem(LEGACY_STORAGE_KEY, value);
+  if (failure === "write") store.setItem = () => { throw new DOMException("quota", "QuotaExceededError"); };
+  if (failure === "remove") store.removeItem = () => { throw new DOMException("denied", "SecurityError"); };
+  // When / Then
+  expect(() => migrateDrafts(store)).toThrow();
+  expect(store.getItem(LEGACY_STORAGE_KEY)).toBe(value);
+});
+
+test("page startup migrates only while holding new and legacy Web Locks", async () => {
+  // Given
+  const store = storage(), saved = draft("before upgrade");
+  store.setItem(LEGACY_STORAGE_KEY, JSON.stringify([saved]));
+  const locks = [];
+  let grant;
+  const granted = new Promise(resolve => { grant = resolve; });
+  let rendered;
+  const done = new Promise(resolve => { rendered = resolve; });
+  const node = () => ({
+    addEventListener() {}, replaceChildren() {}, append() {},
+    hidden: false, disabled: false, textContent: "",
+  });
+  const elements = new Map();
+  const count = node();
+  Object.defineProperty(count, "textContent", { set: rendered });
+  elements.set("count", count);
+  const context = {
+    LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts,
+    localStorage: store, AbortSignal,
+    document: {
+      getElementById(id) {
+        if (!elements.has(id)) elements.set(id, node());
+        return elements.get(id);
+      },
+      createElement: node, querySelectorAll: () => [], addEventListener() {},
+    },
+    window: { addEventListener() {} },
+    navigator: { locks: { async request(name, options, action) {
+      locks.push(name);
+      if (name === LOCK_NAME) { await granted; return action({ name }); }
+      return options({ name });
+    } } },
+  };
+  const source = readFileSync(new URL("../../public/icons/offline-capture.js", import.meta.url), "utf8");
+  // When
+  runInNewContext(source.slice(source.indexOf("\n") + 1), context);
+  expect(locks).toEqual([LOCK_NAME]);
+  expect(store.getItem(LEGACY_STORAGE_KEY)).not.toBeNull();
+  grant();
+  await Promise.race([done, new Promise((_, reject) => {
+    const signal = AbortSignal.timeout(1000);
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  })]);
+  // Then
+  expect(locks).toEqual([LOCK_NAME, LEGACY_STORAGE_KEY]);
+  expect(readDrafts(store)).toEqual([saved]);
+  expect(store.getItem(LEGACY_STORAGE_KEY)).toBeNull();
 });

@@ -5,6 +5,14 @@ import {
 } from "./inbox-url-status";
 
 describe("inbox URL status", () => {
+  test.each(["pending", "failed"] as const)("recognises and strips persisted old %s markers", (status) => {
+    const body = `memo\n\n<!-- second-brain:url-status:${status} -->`;
+    expect(inboxUrlStatus(body)).toBe(status);
+    expect(stripInboxUrlStatus(body)).toBe("memo");
+    if (status === "pending") {
+      expect(replacePendingInboxUrlStatus(body, URL_FAILED_MARKER)).toBe(`memo\n\n${URL_FAILED_MARKER}`);
+    }
+  });
   test("recognises stable and legacy markers", () => {
     expect(inboxUrlStatus(`memo\n\n${URL_PENDING_MARKER}`)).toBe("pending");
     expect(inboxUrlStatus(URL_FAILED_MARKER)).toBe("failed");

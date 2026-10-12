@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { query, queryOne, tx } from "@/server/db";
 import { databaseBackend, sqliteStore } from "@/server/db/backend";
-import { SESSION_COOKIE, sessionTtlDays } from "./config";
+import { LEGACY_SESSION_COOKIE, SESSION_COOKIE, sessionTtlDays } from "./config";
 
 export type Session = { id: string; userId: string; expiresAt: string };
 
@@ -98,7 +98,7 @@ export async function revokeAllSessions(): Promise<number> {
 /** Current request's session (reads the cookie). Null when missing/expired/revoked. */
 export async function getSession(): Promise<Session | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = store.get(SESSION_COOKIE)?.value || store.get(LEGACY_SESSION_COOKIE)?.value;
   if (!token) return null;
   return sessionFromToken(token);
 }

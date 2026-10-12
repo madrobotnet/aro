@@ -177,7 +177,7 @@ console.log(JSON.stringify({platform:process.platform,arch:process.arch,bun:{ver
     const [image] = JSON.parse(await run(["docker", "image", "inspect", options["--image"]]));
     manifest.image = { id: image.Id, digest: image.Descriptor?.digest, os: image.Os, architecture: image.Architecture, provenance: "Local inspection only; not final release provenance" };
     runtime = JSON.parse(await run(["docker", "run", "--rm", "--read-only", "--network", "none",
-      "--label", "org.irang.runtime-preparation=inspection", "--entrypoint", "/usr/local/bin/bun", image.Id, "--no-env-file", "-e", probe]));
+      "--label", "org.aro.runtime-preparation=inspection", "--label", "aro.qa.owner=aro-id-release", "--entrypoint", "/usr/local/bin/bun", image.Id, "--no-env-file", "-e", probe]));
   } else {
     const runtimeRoot = resolve(options["--runtime-root"]);
     const bun = resolve(runtimeRoot, "usr/local/bin/bun");

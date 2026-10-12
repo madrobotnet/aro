@@ -100,7 +100,7 @@ export function createCliProvider(
 
         // Fixed /tmp rather than app-controlled TMPDIR; each run has an empty cwd
         // and a private HOME so CLI startup cannot discover repository/user config.
-        root = await mkdtemp("/tmp/second-brain-cli-");
+        root = await mkdtemp("/tmp/aro-cli-");
         const cwd = path.join(root, "work");
         const home = path.join(root, "home");
         const config = path.join(home, ".gemini");

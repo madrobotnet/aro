@@ -62,6 +62,40 @@ test("validates full artifact set, checksums, versions, permissions and symlinks
     await assert.rejects(validateBackup(dir, "2.4.0"), /non-symlink/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("legacy backups without recorded names retain second_brain database and role", async () => {
+  // Given
+  const { dir } = await fixture();
+  try {
+    // When
+    const result = await validateBackup(dir, "2.4.0");
+    // Then
+    expect(result.names).toEqual({ database: "second_brain", user: "second_brain" });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("new backups restore recorded database and role names", async () => {
+  // Given
+  const { dir, manifest } = await fixture();
+  manifest.kind = "aro-backup";
+  manifest.database = { database: "aro", user: "aro" };
+  await writeFile(join(dir, "manifest.json"), JSON.stringify(manifest));
+  try {
+    // When
+    const result = await validateBackup(dir, "2.4.0");
+    // Then
+    expect(result.names).toEqual({ database: "aro", user: "aro" });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("invalid recorded names fail before restore resource creation", async () => {
+  const { dir, manifest } = await fixture();
+  manifest.database = { database: "aro;DROP DATABASE postgres", user: "aro" };
+  await writeFile(join(dir, "manifest.json"), JSON.stringify(manifest));
+  try {
+    await expect(validateBackup(dir, "2.4.0")).rejects.toThrow("Cannot determine database/role names");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 test("streaming database hash excludes random restrict tokens, not row contents", async () => {
   const { dir } = await fixture();
   try {
@@ -113,9 +147,9 @@ console.log(typeof out === "string" ? out : JSON.stringify(out));
   }
 });
 
-test.skipIf(process.env.IRANG_BACKUP_CONTAINER_QA !== "1")("real disposable DB/files roundtrip, prior state and failed dump recovery", async () => {
+test.skipIf(process.env.ARO_BACKUP_CONTAINER_QA !== "1")("real disposable DB/files roundtrip, prior state and failed dump recovery", async () => {
   const dir = await mkdtemp(join(tmpdir(), "irang-backup-surface-"));
-  const project = `irang-backup-qa-${randomUUID()}`;
+  const project = `aro-backup-qa-${randomUUID()}`;
   const image = `${project}:fixture`, compose = join(dir, "install"), output = join(dir, "backup");
   const docker = async args => {
     const result = await command(["docker", ...args]);
@@ -135,8 +169,8 @@ test.skipIf(process.env.IRANG_BACKUP_CONTAINER_QA !== "1")("real disposable DB/f
       revision: "a".repeat(40), ref: "refs/tags/v2.4.0", image }));
     await writeFile(join(compose, "compose.yml"), JSON.stringify({
       services: {
-        app: { image, entrypoint: ["sleep", "infinity"], volumes: ["app-data:/app/.data"] },
-        db: { image: "pgvector/pgvector:0.8.6-pg18", environment: {
+        app: { image, entrypoint: ["sleep", "infinity"], environment: { DATABASE_URL: "postgres://second_brain:fixture@db:5432/second_brain" }, volumes: ["app-data:/app/.data"] },
+        db: { image: "pgvector/pgvector:0.8.6-pg18", labels: { "aro.qa.owner": "aro-id-runtime" }, ports: ["127.0.0.1::5432"], environment: {
           POSTGRES_HOST_AUTH_METHOD: "trust", POSTGRES_DB: "second_brain" },
           volumes: ["postgres-data:/var/lib/postgresql"],
           healthcheck: { test: ["CMD-SHELL", 'pg_isready -U postgres -d second_brain && { read comm < /proc/1/comm; test "$$comm" = postgres; }'],
@@ -157,6 +191,13 @@ test.skipIf(process.env.IRANG_BACKUP_CONTAINER_QA !== "1")("real disposable DB/f
     const verify = await cli("restore-check.mjs", ["--backup", output, "--expected-version", "2.4.0"]);
     assert.equal(verify.code, 0, verify.stderr);
     expect(verify.stdout).toContain("RESTORE_CHECK_OK");
+    const legacyManifest = JSON.parse(await readFile(join(output, "manifest.json")));
+    expect(legacyManifest.database).toEqual({ database: "second_brain", user: "second_brain" });
+    legacyManifest.kind = "irang-backup";
+    delete legacyManifest.database;
+    await writeFile(join(output, "manifest.json"), JSON.stringify(legacyManifest));
+    const legacyVerify = await cli("restore-check.mjs", ["--backup", output, "--expected-version", "2.4.0"]);
+    assert.equal(legacyVerify.code, 0, legacyVerify.stderr);
     const broken = join(dir, "broken-backup");
     await cp(output, broken, { recursive: true });
     const brokenManifest = JSON.parse(await readFile(join(broken, "manifest.json")));
@@ -165,12 +206,12 @@ test.skipIf(process.env.IRANG_BACKUP_CONTAINER_QA !== "1")("real disposable DB/f
     brokenManifest.files["database.sql"] = await digest(join(broken, "database.sql"));
     brokenManifest.databaseSha256 = await databaseDigest(join(broken, "database.sql"));
     await writeFile(join(broken, "manifest.json"), JSON.stringify(brokenManifest));
-    const before = await docker(["volume", "ls", "-q", "--filter", "label=irang.backup.owner"]);
+    const before = await docker(["volume", "ls", "-q", "--filter", "label=aro.backup.owner"]);
     const badRestore = await cli("restore-check.mjs", ["--backup", broken, "--expected-version", "2.4.0"]);
     expect(badRestore.code).toBe(1);
     expect(badRestore.stdout).not.toContain("RESTORE_CHECK_OK");
-    expect(await docker(["volume", "ls", "-q", "--filter", "label=irang.backup.owner"])).toBe(before);
-    expect(await docker(["ps", "-aq", "--filter", "label=irang.backup.owner"])).toBe("");
+    expect(await docker(["volume", "ls", "-q", "--filter", "label=aro.backup.owner"])).toBe(before);
+    expect(await docker(["ps", "-aq", "--filter", "label=aro.backup.owner"])).toBe("");
     expect((await cli("backup.mjs", args)).code).toBe(1); // No overwrite.
     const appId = await dc(["ps", "-aq", "app"]);
     expect(await docker(["inspect", "--format", "{{.State.Running}}", appId])).toBe("true");
@@ -185,8 +226,8 @@ test.skipIf(process.env.IRANG_BACKUP_CONTAINER_QA !== "1")("real disposable DB/f
     expect(await docker(["inspect", "--format", "{{.State.Running}}", appId])).toBe("true");
     await assert.rejects(readFile(join(dir, "failed-backup/manifest.json")), { code: "ENOENT" });
     const sandbox = verify.stdout.split(" ")[1];
-    expect(await docker(["ps", "-aq", "--filter", `label=irang.backup.owner=${sandbox.replace("irang-backup-qa-", "")}`])).toBe("");
-    expect(await docker(["volume", "ls", "-q", "--filter", `label=irang.backup.owner=${sandbox.replace("irang-backup-qa-", "")}`])).toBe("");
+    expect(await docker(["ps", "-aq", "--filter", `label=aro.backup.owner=${sandbox.replace("aro-backup-qa-", "")}`])).toBe("");
+    expect(await docker(["volume", "ls", "-q", "--filter", `label=aro.backup.owner=${sandbox.replace("aro-backup-qa-", "")}`])).toBe("");
     console.log(JSON.stringify({ project, backup: backup.stdout, restore: verify.stdout,
       verified: "notes/trash/sessions/vector + binary attachment/auth UID 1001; stopped state; failed dump restart; failed SQL restore cleanup; sandbox cleanup" }));
   } finally {

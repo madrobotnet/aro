@@ -6,11 +6,15 @@ import path from "node:path";
 const directories: string[] = [];
 const root = path.resolve(import.meta.dir, "../../..");
 const modern = {
+  POSTGRES_APP_DB: "aro",
+  POSTGRES_APP_USER: "aro",
   POSTGRES_PASSWORD: "fixture-current-app-password",
   POSTGRES_ADMIN_PASSWORD: "fixture-current-admin-password",
   SETUP_TOKEN: "fixture-upgrade-installer-token",
 };
 const legacy = {
+  POSTGRES_APP_DB: "second_brain",
+  POSTGRES_APP_USER: "second_brain",
   POSTGRES_PASSWORD: "fixture-legacy-admin-password",
   POSTGRES_APP_PASSWORD: "fixture-app#with@reserved:characters",
   DATABASE_URL: "postgres://second_brain:fixture-app%23with%40reserved%3Acharacters@db:5432/second_brain",
@@ -43,7 +47,7 @@ test("keeps the current installation volume and separated database secrets by de
   const config: unknown = JSON.parse(result.stdout);
   expect(config).toMatchObject({
     services: {
-      app: { environment: { DATABASE_URL: "postgres://second_brain:fixture-current-app-password@db:5432/second_brain" } },
+      app: { environment: { DATABASE_URL: "postgres://aro:fixture-current-app-password@db:5432/aro" } },
       db: {
         environment: { POSTGRES_PASSWORD: modern.POSTGRES_ADMIN_PASSWORD, POSTGRES_APP_PASSWORD: modern.POSTGRES_PASSWORD },
         volumes: expect.arrayContaining([expect.objectContaining({ type: "volume", source: "postgres-data", target: "/var/lib/postgresql" })]),
@@ -51,6 +55,13 @@ test("keeps the current installation volume and separated database secrets by de
     },
     volumes: { "postgres-data": { name: "fixture-upgrade_postgres-data" } },
   });
+});
+
+test.each(["POSTGRES_APP_DB", "POSTGRES_APP_USER"])("refuses manual upgrade without %s before resource creation", async (missing) => {
+  const result = await compose({ ...legacy, [missing]: "" });
+  expect(result.exitCode).not.toBe(0);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain(missing);
 });
 
 test("mounts the selected legacy database volume instead of creating a new database", async () => {

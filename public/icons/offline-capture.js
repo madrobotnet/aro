@@ -1,4 +1,4 @@
-import { LOCK_NAME, readDrafts, writeDrafts, prepareFlush, flushDrafts } from "./offline-capture-queue.js";
+import { LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts } from "./offline-capture-queue.js";
 
 const element = (id) => document.getElementById(id);
 const status = element("status");
@@ -57,6 +57,7 @@ async function run(action) {
     if (!navigator.locks) throw new Error("Safe cross-tab draft storage is unavailable in this browser. Use a browser with Web Locks on HTTPS or localhost.");
     await navigator.locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
       if (!lock) throw new Error("Another tab is saving or sending drafts. Wait for it to finish, then try again.");
+      await navigator.locks.request(LEGACY_STORAGE_KEY, async () => migrateDrafts(localStorage));
       await action();
     });
   } catch (error) {
@@ -121,10 +122,7 @@ window.addEventListener("offline", () => {
 window.addEventListener("pageshow", clearConfirmation);
 document.addEventListener("visibilitychange", () => { if (document.hidden) clearConfirmation(); });
 
-try { render(); } catch (error) {
-  element("prepare").disabled = true;
-  status.textContent = error instanceof Error ? error.message : "Cannot read local drafts.";
-}
+run(async () => {});
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" })
     .then(async (registration) => {

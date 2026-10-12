@@ -6,7 +6,7 @@ import { resolve, join, relative } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { verifySourceAssets } from "../distribution/release/restore.mjs";
 
-const registry = "ghcr.io/madrobotnet/irang";
+import { releasePrefix, releaseRegistry, installArchiveName } from "./release-names.mjs";
 const source = "https://github.com/madrobotnet/aro";
 const required = ["compose.yml", "docker/postgres/production/01-app-role.sql",
   "README.md", "README.ko.md", "docs/SETUP.md", "docs/SETUP.ko.md", "LICENSE",
@@ -14,8 +14,7 @@ const required = ["compose.yml", "docker/postgres/production/01-app-role.sql",
   "CHANGELOG.md", "docs/RELEASING.md", "docs/ARCHITECTURE.md",
   "docs/BACKUP.md", "docs/BACKUP.ko.md", "scripts/backup.mjs",
   "scripts/restore-check.mjs", "scripts/backup/common.mjs",
-  "docs/SEMANTIC-SEARCH.md", "docs/images/irang-mark.svg",
-  "docs/images/irang-workbench.png", "docs/images/irang-workbench.ko.png"];
+  "docs/SEMANTIC-SEARCH.md"];
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const json = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 const fail = (message) => { throw new Error(message); };
@@ -31,8 +30,11 @@ function identity(version, ref, revision) {
 
 function labels(actual, version, revision) {
   for (const [key, expected] of Object.entries({
-    title: "Aro", source, version, revision, licenses: "NOASSERTION",
+    version, revision, licenses: "NOASSERTION",
   })) requireValue(actual?.[`org.opencontainers.image.${key}`] === expected, `OCI ${key} mismatch`);
+  const legacy = releasePrefix(version) === "irang";
+  requireValue((legacy ? ["Irang", "Aro"] : ["Aro"]).includes(actual?.["org.opencontainers.image.title"]), "OCI title mismatch");
+  requireValue((legacy ? [source, "https://github.com/madrobotnet/irang"] : [source]).includes(actual?.["org.opencontainers.image.source"]), "OCI source mismatch");
 }
 
 function safePath(path) {
@@ -45,7 +47,7 @@ function safePath(path) {
 
 function publicBytes(bytes) {
   // These exact loopback credentials belong to the documented development fixture.
-  const text = bytes.toString().replace(/postgres:\/\/second_brain:second_brain@127\.0\.0\.1:55432\/second_brain(?:_test)?(?=$|[\s`"'])/g, "");
+  const text = bytes.toString().replace(/postgres:\/\/(?:second_brain:second_brain@127\.0\.0\.1:55432\/second_brain|aro:aro@127\.0\.0\.1:55432\/aro)(?:_test)?(?=$|[\s`"'])/g, "");
   requireValue(!/-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|(?:\/home\/ubuntu\/|\/Users\/[^/\s]+\/)|(?:postgres(?:ql)?:\/\/[^:\s]+:[^@\s]+@)/.test(text),
     "credential or private path in asset");
 }
@@ -68,16 +70,19 @@ async function file(root, path) {
 
 async function validate(root, version, ref, revision) {
   identity(version, ref, revision);
+  const registry = releaseRegistry(version);
   const pkg = await load(join(root, "package.json"));
   requireValue(pkg.version === version && pkg.private === true, "package identity/private mismatch");
   const text = (await file(root, "compose.yml")).toString();
   const parsed = Bun.YAML.parse(text);
-  requireValue(parsed.services?.app?.image === `\${IRANG_IMAGE:-${registry}:${version}}`, "Compose image default mismatch");
+  const imageDefault = releasePrefix(version) === "irang" ? `\${IRANG_IMAGE:-${registry}:${version}}` : `\${ARO_IMAGE:-\${IRANG_IMAGE:-${registry}:${version}}}`;
+  requireValue(parsed.services?.app?.image === imageDefault, "Compose image default mismatch");
   requireValue(!Object.hasOwn(parsed.services.app, "build"), "Compose must be image-only");
   return { text, parsed };
 }
 
 function metadata(input, version, revision) {
+  const registry = releaseRegistry(version);
   requireValue(input.schemaVersion === 1 && input.version === version &&
     input.revision === revision && input.ref === `refs/tags/v${version}`, "metadata identity mismatch");
   const indexBytes = Buffer.from(input.indexRaw);
@@ -145,25 +150,27 @@ function metadata(input, version, revision) {
 async function assemble(root, out, input, version, ref, revision) {
   const compose = await validate(root, version, ref, revision);
   const verified = metadata(input, version, revision);
-  const paths = [...required];
+  const prefix = releasePrefix(version);
+  const paths = [...required, `docs/images/${prefix}-mark.svg`];
+  if (prefix === "irang") paths.push("docs/images/irang-workbench.png", "docs/images/irang-workbench.ko.png");
   const files = {};
-  for (const path of paths.sort()) files[`irang/${path}`] = await file(root, path);
-  const immutable = `${registry}:${version}@${verified.indexDigest}`;
-  const replacement = `\${IRANG_IMAGE:-${immutable}}`;
+  for (const path of paths.sort()) files[`${prefix}/${path}`] = await file(root, path);
+  const immutable = `${releaseRegistry(version)}:${version}@${verified.indexDigest}`;
+  const replacement = prefix === "irang" ? `\${IRANG_IMAGE:-${immutable}}` : `\${ARO_IMAGE:-\${IRANG_IMAGE:-${immutable}}}`;
   const original = compose.parsed.services.app.image;
   requireValue(compose.text.split(original).length === 2, "ambiguous Compose image replacement");
   const transformed = compose.text.replace(original, replacement);
   const parsed = Bun.YAML.parse(transformed);
   parsed.services.app.image = original;
   requireValue(isDeepStrictEqual(parsed, compose.parsed), "Compose fields changed");
-  files["irang/compose.yml"] = Buffer.from(transformed);
-  files["irang/release.json"] = json({ schemaVersion: 1, version, ref, revision, image: immutable, ...verified,
-    compose: { sourceSha256: hash(Buffer.from(compose.text)), archiveSha256: hash(files["irang/compose.yml"]) } });
+  files[`${prefix}/compose.yml`] = Buffer.from(transformed);
+  files[`${prefix}/release.json`] = json({ schemaVersion: 1, version, ref, revision, image: immutable, ...verified,
+    compose: { sourceSha256: hash(Buffer.from(compose.text)), archiveSha256: hash(files[`${prefix}/compose.yml`]) } });
   const manifest = { schemaVersion: 1, version, revision, indexDigest: verified.indexDigest,
     files: Object.entries(files).map(([path, bytes]) => ({ path, size: bytes.length, sha256: hash(bytes) })) };
   // No self-hash: the external checksum list covers manifest and archive bytes.
   const archive = Buffer.from(await new Bun.Archive(files, { compress: "gzip" }).bytes());
-  const name = `irang-${version}-install.tar.gz`;
+  const name = installArchiveName(version);
   await mkdir(out, { recursive: false });
   await writeFile(join(out, name), archive, { flag: "wx" });
   const manifestBytes = json(manifest);
@@ -175,7 +182,7 @@ async function assemble(root, out, input, version, ref, revision) {
 async function checksums(root) {
   const largeSources = new Set();
   const names = await readdir(root);
-  for (const name of names.filter((name) => /^irang-\d+\.\d+\.\d+-sources-linux-(amd64|arm64)-index\.json$/.test(name))) {
+  for (const name of names.filter((name) => /^(?:irang|aro)-\d+\.\d+\.\d+-sources-linux-(amd64|arm64)-index\.json$/.test(name))) {
     const bytes = await file(root, name);
     const index = await verifySourceAssets(root, name, hash(bytes));
     for (const asset of index.assets) largeSources.add(asset.name);

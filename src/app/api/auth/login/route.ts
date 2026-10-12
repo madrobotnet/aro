@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { clientIp } from "@/server/auth/client-ip";
-import { SESSION_COOKIE } from "@/server/auth/config";
+import { LEGACY_SESSION_COOKIE, SESSION_COOKIE } from "@/server/auth/config";
 import { verifyLogin } from "@/server/auth/lockout";
 import { createSession } from "@/server/auth/session";
 import { ApiError, json, parseJson, withPublicApi } from "@/server/http";
@@ -28,6 +28,7 @@ export const POST = withPublicApi(async (request) => {
   }
   const session = await createSession({ passwordHash: hash, userAgent: request.headers.get("user-agent"), ip });
   const store = await cookies();
+  store.delete(LEGACY_SESSION_COOKIE);
   store.set(SESSION_COOKIE, session.token, {
     httpOnly: true,
     sameSite: "lax",

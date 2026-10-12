@@ -86,7 +86,12 @@ export function runner() {
   }
   return { run, dispose() { process.off("SIGINT", signal); process.off("SIGTERM", signal); } };
 }
-export const dumpArgs = ["pg_dump", "--clean", "--if-exists", "-U", "postgres", "second_brain"];
+export const dumpArgs = database => ["pg_dump", "--clean", "--if-exists", "-U", "postgres", database];
+export function databaseNames(database, user) {
+  check(typeof database === "string" && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(database) &&
+    typeof user === "string" && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(user), "Cannot determine database/role names");
+  return { database, user };
+}
 export const archiveArgs = ["tar", "--sort=name", "--format=gnu", "-czf", "-", "-C", "/data", "."];
 export function releaseIdentity(release, version) {
   check(release.schemaVersion === 1 && semver(release.version) && release.version === version &&

@@ -3,7 +3,6 @@ import type { Locale, LocalizedText } from "./i18n/locale";
 
 /**
  * Aro brand: product names, install name and the "Interlock" mark geometry.
- * Operational identifiers (repository, package, database, cookie and storage keys) keep their names.
  */
 
 /** Product name per UI language. Korean reads 아로; English reads Aro. */
@@ -23,7 +22,7 @@ export const BRAND_DESCRIPTION: LocalizedText = {
 /**
  * Approved "Interlock" mark on a 16-unit grid, so every edge lands on a whole pixel at 16px and 32px.
  * One rounded tile (r4) split by a 1-unit stepped seam into two identical halves around a 4x4 window.
- * Fill with the even-odd rule. public/icons/icon.svg and docs/images/irang-mark.svg use the same path.
+ * Fill with the even-odd rule. public/icons/icon.svg and docs/images/aro-mark.svg use the same path.
  */
 export const BRAND_MARK_PATH = "M4 0h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4zM0 6h10v3h6v1H6V7H0z";
 export const BRAND_MARK_VIEWBOX = "0 0 16 16";

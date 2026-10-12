@@ -4,11 +4,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createServer } from "node:net";
+import { installArchiveName, releasePrefix, releaseRegistry } from "./release-names.mjs";
 
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const help = `Fresh server installation only (Bun >=1.4.2, Linux amd64/arm64).
 bun --no-env-file scripts/install-server.mjs --version VERSION --sha256 ARCHIVE_SHA256
-  --directory NEW_DIRECTORY --project NEW_COMPOSE_PROJECT [--port 3000]
+  --directory NEW_DIRECTORY [--project NEW_COMPOSE_PROJECT (default aro)] [--port 3000]
   [--authenticated] [--dry-run] [--archive LOCAL_RELEASE_ARCHIVE] [--password-stdin]
 --authenticated acknowledges an existing authorized docker login to ghcr.io.
 --dry-run validates the archive and plan without Docker, file writes, or startup.
@@ -37,7 +38,7 @@ async function absent(path) {
 }
 
 export async function releaseBytes(version, fetchRelease = fetch) {
-  const url = `https://github.com/madrobotnet/aro/releases/download/v${version}/irang-${version}-install.tar.gz`;
+  const url = `https://github.com/madrobotnet/aro/releases/download/v${version}/${installArchiveName(version)}`;
   const response = await fetchRelease(url, { signal: AbortSignal.timeout(60000) });
   assert(response.ok, `Public release archive unavailable (HTTP ${response.status}); verify publication and version.`);
   assert(Number(response.headers.get("content-length") || 0) <= 64 * 1024 * 1024, "Archive too large");
@@ -59,30 +60,33 @@ export async function verifiedFiles(bytes, version, expected) {
   // Never extract an archive onto disk. Only validated file bytes are created
   // exclusively inside our newly reserved directory; archive modes/links ignored.
   const files = await new Bun.Archive(bytes).files();
+  const prefix = releasePrefix(version);
   assert(files.size > 0 && files.size < 200, "Invalid archive file count");
   let size = 0;
   for (const [name, file] of files) {
-    assert(/^irang\/[a-zA-Z0-9_./-]+$/.test(name) &&
+    assert(name.startsWith(`${prefix}/`) && /^[a-zA-Z0-9_./-]+$/.test(name) &&
       name.split("/").every(part => part && part !== "." && part !== "..") &&
       !/(^|\/)(\.env[^/]*|\.git|\.data|auth|credentials)(\/|$)/.test(name), "Unsafe archive member");
     size += file.size;
     assert(size <= 64 * 1024 * 1024, "Expanded archive too large");
   }
-  const release = JSON.parse(await files.get("irang/release.json")?.text());
+  const release = JSON.parse(await files.get(`${prefix}/release.json`)?.text());
   assert.equal(release.schemaVersion, 1, "Unsupported release schema");
   assert.equal(release.version, version, "Release version mismatch");
   assert.equal(release.ref, `refs/tags/v${version}`, "Release ref mismatch");
   assert.match(release.revision, /^[a-f0-9]{40}$/, "Invalid release revision");
   assert.match(release.indexDigest, /^sha256:[a-f0-9]{64}$/, "Missing immutable digest");
-  assert.equal(release.image, `ghcr.io/madrobotnet/irang:${version}@${release.indexDigest}`, "Release image mismatch");
+  assert.equal(release.image, `${releaseRegistry(version)}:${version}@${release.indexDigest}`, "Release image mismatch");
   assert(["linux/amd64", "linux/arm64"].every(p => /^sha256:[a-f0-9]{64}$/.test(release.platforms?.[p])), "Missing native platforms");
-  const compose = await files.get("irang/compose.yml")?.text();
+  const compose = await files.get(`${prefix}/compose.yml`)?.text();
   assert.equal(hash(compose), release.compose?.archiveSha256, "Compose checksum mismatch");
   const config = Bun.YAML.parse(compose);
-  assert.equal(config.services?.app?.image, `\${IRANG_IMAGE:-${release.image}}`, "Compose image is not release-pinned");
+  assert.equal(config.services?.app?.image, prefix === "irang"
+    ? `\${IRANG_IMAGE:-${release.image}}`
+    : `\${ARO_IMAGE:-\${IRANG_IMAGE:-${release.image}}}`, "Compose image is not release-pinned");
   assert.deepEqual(config.services.app.ports, ['127.0.0.1:${APP_PORT:-3000}:3000'], "Compose must bind loopback only");
   assert(!config.services.app.build, "Compose must not build an image");
-  assert(files.has("irang/docker/postgres/production/01-app-role.sql"), "Missing database initialization asset");
+  assert(files.has(`${prefix}/docker/postgres/production/01-app-role.sql`), "Missing database initialization asset");
   return { files, release };
 }
 
@@ -147,6 +151,7 @@ export async function serverInstallCommand(argv) {
   const version = args["--version"], expected = args["--sha256"];
   assert(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version), "Specify a stable --version");
   assert(/^[a-f0-9]{64}$/.test(expected), "Specify trusted --sha256 from the release checksum list");
+  args["--project"] ??= "aro";
   assert(/^[a-z][a-z0-9-]{2,47}$/.test(args["--project"]), "Specify a new lowercase --project (3-48 characters)");
   const port = Number(args["--port"] || 3000);
   assert(Number.isInteger(port) && port >= 1024 && port <= 65535, "Port must be 1024-65535");
@@ -199,7 +204,7 @@ export async function serverInstallCommand(argv) {
   await mkdir(directory, { mode: 0o700 }); // Atomic reservation, never merges.
   console.log(`Reserved ${directory}. On failure, preserve it and its volumes; see docs/INSTALL-SERVER.md.`);
   for (const [name, file] of files) {
-    const output = join(directory, name.slice("irang/".length));
+    const output = join(directory, name.slice(releasePrefix(version).length + 1));
     // Public release files must be readable by the container's PostgreSQL UID
     // through its init-script bind mount. Only secrets need mode 0600.
     await mkdir(dirname(output), { recursive: true, mode: 0o755 });
@@ -213,7 +218,8 @@ export async function serverInstallCommand(argv) {
     `POSTGRES_PASSWORD=${randomBytes(32).toString("hex")}`,
     `POSTGRES_ADMIN_PASSWORD=${randomBytes(32).toString("hex")}`,
     `SETUP_TOKEN=${setupToken}`,
-    `IRANG_IMAGE=${release.image}`, `COMPOSE_PROJECT_NAME=${project}`,
+    `ARO_IMAGE=${release.image}`, `COMPOSE_PROJECT_NAME=${project}`,
+    "POSTGRES_APP_DB=aro", "POSTGRES_APP_USER=aro",
     `APP_PORT=${port}`, "INSECURE_COOKIES=1", "TRUSTED_PROXY_HOPS=0", "",
   ].join("\n"), { flag: "wx", mode: 0o600 });
   const compose = ["compose", "--project-name", project, "--project-directory", directory,

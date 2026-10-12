@@ -1,12 +1,14 @@
 import { cookies } from "next/headers";
-import { SESSION_COOKIE } from "@/server/auth/config";
+import { LEGACY_SESSION_COOKIE, SESSION_COOKIE } from "@/server/auth/config";
 import { revokeToken } from "@/server/auth/session";
 import { json, withPublicApi } from "@/server/http";
 
 export const POST = withPublicApi(async () => {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (token) await revokeToken(token);
-  store.delete(SESSION_COOKIE);
+  for (const name of [SESSION_COOKIE, LEGACY_SESSION_COOKIE]) {
+    const token = store.get(name)?.value;
+    if (token) await revokeToken(token);
+    store.delete(name);
+  }
   return json({ ok: true });
 });

@@ -27,5 +27,5 @@ function escapeLabel(value: string): string {
 
 export function wikiTitleFromHref(href: string): string | null {
   if (!href.startsWith("/notes/by-title?")) return null;
-  return new URL(href, "https://second-brain.invalid").searchParams.get("title");
+  return new URL(href, "https://aro.invalid").searchParams.get("title");
 }

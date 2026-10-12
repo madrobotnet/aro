@@ -2,6 +2,13 @@ import { expect, test } from "bun:test";
 import { NextRequest } from "next/server";
 import { proxy } from "./proxy";
 
+test.each(["aro_session", "sb_session"])("accepts %s at the proxy gate", (name) => {
+  const response = proxy(new NextRequest("https://brain.example/api/notes", {
+    headers: { cookie: `${name}=fixture-token` },
+  }));
+  expect(response.headers.get("x-middleware-next")).toBe("1");
+});
+
 test("opens only exact read-only share capabilities while private APIs stay protected", () => {
   const token = "a".repeat(64);
   for (const method of ["GET", "HEAD"]) {

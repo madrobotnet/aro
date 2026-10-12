@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { releasePrefix } from "../../scripts/release-names.mjs";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, realpath, readFile, mkdir, open, writeFile } from "node:fs/promises";
@@ -40,9 +41,9 @@ function header(name, size) {
   return h;
 }
 export function assetPrefix(version, platform) {
-  assert.equal(version, "2.3.2", "Unsupported source version");
+  assert(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version), "Unsupported source version");
   assert(["linux/amd64", "linux/arm64"].includes(platform), "Unsupported source platform");
-  return `irang-${version}-sources-${platform.replace("/", "-")}`;
+  return `${releasePrefix(version)}-${version}-sources-${platform.replace("/", "-")}`;
 }
 export async function prepareAssets(options) {
   const prefix = assetPrefix(options.version, options.platform);
@@ -55,7 +56,7 @@ export async function prepareAssets(options) {
   assert.equal(sha(raw), options.seal, "Material manifest seal mismatch");
   const manifest = JSON.parse(raw);
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.kind, "irang-selected-materials");
+  assert(["aro-selected-materials", "irang-selected-materials"].includes(manifest.kind), "Unsupported material kind");
   for (const key of ["version", "revision", "platform"]) assert.equal(manifest[key], options[key], `Material ${key} mismatch`);
   assert(Array.isArray(manifest.files) && manifest.files.length, "Empty selected materials");
   const out = resolve(options.out);
@@ -126,8 +127,10 @@ export async function prepareAssets(options) {
   await writeFile(resolve(out, indexName), text, { flag: "wx", mode: 0o444 });
   await writeFile(resolve(out, indexName + ".sha256"), `${sha(text)}  ${indexName}\n`, { flag: "wx", mode: 0o444 });
   for (const name of ["assets.mjs", "restore.mjs"]) {
-    await writeFile(resolve(out, name), await readFile(new URL(name, import.meta.url)), { flag: "wx" });
+    const helper = await readFile(new URL(name, import.meta.url), "utf8");
+    await writeFile(resolve(out, name), helper.replace("../../scripts/release-names.mjs", "./release-names.mjs"), { flag: "wx" });
   }
+  await writeFile(resolve(out, "release-names.mjs"), await readFile(new URL("../../scripts/release-names.mjs", import.meta.url)), { flag: "wx" });
   return { assets: assets.length, associations: associations.length, unique: unique.size,
     indexName, indexSha256: sha(text), materialManifestSha256: options.seal };
 }

@@ -9,7 +9,10 @@ node -e 'const e=require("./index.cjs");console.log(JSON.stringify({width:e.east
 ```
 
 The copied generator's output directory defaults to the current directory;
-`IRANG_WIDTH_OUTPUT` can select another owned directory. Its source hash check
+`ARO_WIDTH_OUTPUT` can select another owned directory; the old
+`IRANG_WIDTH_OUTPUT` key is still read when the new key is absent. Pass
+`--input /path/to/sources/EastAsianWidth-6.0.0.txt` when the input is outside
+the selected output directory. Its source hash check
 requires the complete original Unicode 6.0 data. Preserve the data's genuine
 copyright headers and both supplied notices. The generated ranges must hash to
 `0e8a6564a9bae1f35ae3065b8c9e4c0b879720d1ad1547151035d09367efe609`.

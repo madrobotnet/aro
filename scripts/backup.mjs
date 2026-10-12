@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, realpath } from "node:fs/promises";
 import { resolve, join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { check, json, save, options, digest, databaseDigest, runner, releaseIdentity, dumpArgs, archiveArgs } from "./backup/common.mjs";
+import { check, json, save, options, digest, databaseDigest, runner, releaseIdentity, dumpArgs, archiveArgs, databaseNames } from "./backup/common.mjs";
 
 export const usage = "node scripts/backup.mjs --install-dir DIR --project PROJECT --output NEW_DIR [--compose-file FILE]";
 export async function backup(input) {
@@ -56,6 +56,9 @@ export async function backup(input) {
     const [image] = JSON.parse(await r.run(["image", "inspect", a.Image]));
     check(image.Config.Labels?.["org.opencontainers.image.version"] === release.version &&
       image.Config.Labels?.["org.opencontainers.image.revision"] === release.revision, "Running app release labels mismatch");
+    const url = new URL(config.services.app.environment?.DATABASE_URL ?? "");
+    const names = databaseNames(decodeURIComponent(url.pathname.slice(1)), decodeURIComponent(url.username));
+    check(config.services.db.environment?.POSTGRES_DB === names.database, "Configured database mismatch");
     await mkdir(canonical, { mode: 0o700 }); // Exclusive; never touch an existing output.
     for (const [src, dest] of [[join(install, ".env"), "operator.env"], [composeFile, "compose.yml"],
       [join(install, "release.json"), "release.json"]]) {
@@ -64,20 +67,20 @@ export async function backup(input) {
     await save(join(canonical, "deployment.json"), { project, appImage: a.Image, dbImage: db.Image,
       appImageReference: a.Config.Image, dbImageReference: db.Config.Image,
       appVolume: mount.Name, dbVolume: dbMounts[0].Name, composeFile,
-      resolvedCompose: config, postgresMajor: 18, appWasRunning: a.State.Running });
+      resolvedCompose: config, postgresMajor: 18, appWasRunning: a.State.Running, database: names });
     restart = a.State.Running;
     if (restart) await r.run(["stop", a.Id]);
-    await r.run(["exec", db.Id, ...dumpArgs], { output: join(canonical, "database.sql") });
-    const helperName = `irang-backup-qa-${helperOwner}`;
+    await r.run(["exec", db.Id, ...dumpArgs(names.database)], { output: join(canonical, "database.sql") });
+    const helperName = `aro-backup-qa-${helperOwner}`;
     check(!await r.run(["ps", "-aq", "--filter", `name=^/${helperName}$`]), "Backup helper name collision");
     helper = helperName;
     const invalid = await r.run(["run", "--rm", "--pull", "never", "--network", "none", "--name", helper,
-      "--label", `irang.backup.owner=${helperOwner}`,
+      "--label", `aro.backup.owner=${helperOwner}`,
       "--mount", `type=volume,src=${mount.Name},dst=/data,readonly`, "--entrypoint", "find", db.Image,
       "/data", "-mindepth", "1", "!", "-type", "f", "!", "-type", "d", "-print", "-quit"]);
     check(!invalid, "App data contains unsupported symlinks/devices; backup refused");
     await r.run(["run", "--rm", "--pull", "never", "--network", "none", "--name", helper,
-      "--label", `irang.backup.owner=${helperOwner}`,
+      "--label", `aro.backup.owner=${helperOwner}`,
       "--mount", `type=volume,src=${mount.Name},dst=/data,readonly`, "--entrypoint", "tar", db.Image,
       ...archiveArgs.slice(1)], { output: join(canonical, "app-data.tar.gz") });
     helper = undefined;
@@ -91,7 +94,8 @@ export async function backup(input) {
     const files = {};
     for (const name of ["operator.env", "compose.yml", "release.json", "deployment.json", "database.sql", "app-data.tar.gz"])
       files[name] = await digest(join(canonical, name));
-    await save(join(canonical, "manifest.json"), { schemaVersion: 1, kind: "irang-backup", version: release.version,
+    await save(join(canonical, "manifest.json"), { schemaVersion: 1, kind: "aro-backup", version: release.version,
+      database: names,
       revision: release.revision, createdAt: new Date().toISOString(), files,
       databaseSha256: await databaseDigest(join(canonical, "database.sql")) });
     return canonical;
@@ -101,7 +105,7 @@ export async function backup(input) {
         const id = await r.run(["ps", "-aq", "--filter", `name=^/${helper}$`], { cleanup: true });
         if (id) {
           const [item] = JSON.parse(await r.run(["inspect", id], { cleanup: true }));
-          check(item.Config.Labels?.["irang.backup.owner"] === helperOwner, "Backup helper cleanup ownership mismatch");
+          check(item.Config.Labels?.["aro.backup.owner"] === helperOwner, "Backup helper cleanup ownership mismatch");
           await r.run(["rm", "-f", id], { cleanup: true });
         }
       }

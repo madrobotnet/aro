@@ -7,7 +7,7 @@ const statePath = join(home, "docker-state.json");
 const state = JSON.parse(await readFile(statePath, "utf8"));
 const mode = process.env.DOCKER_CONFIG?.split("/").at(-1);
 await appendFile(join(home, "calls.jsonl"), JSON.stringify({
-  args, leaked: Boolean(process.env.IRANG_IMAGE || process.env.SETUP_TOKEN || process.env.COMPOSE_FILE),
+  args, leaked: Boolean(process.env.ARO_IMAGE || process.env.IRANG_IMAGE || process.env.SETUP_TOKEN || process.env.COMPOSE_FILE),
 }) + "\n");
 const appId = "a".repeat(64), dbId = "b".repeat(64);
 const dbImage = `sha256:${"d".repeat(64)}`;
@@ -17,7 +17,9 @@ const label = service => ({
 });
 const production = service => ({
   Id: service === "app" ? appId : dbId, Image: service === "app" ? `sha256:${"c".repeat(64)}` : dbImage,
-  Config: { Image: service === "app" ? state.previous.image : "postgres:18", Labels: label(service) },
+  Config: { Image: service === "app" ? state.previous.image : (state.dbReference ?? "postgres:18"), Labels: label(service),
+    Env: service === "app" ? [mode === "missing-names" ? "DATABASE_URL=invalid" :
+      `DATABASE_URL=${state.databaseUrl ?? "postgres://second_brain:fixture@db:5432/second_brain"}`] : ["POSTGRES_DB=second_brain"] },
   State: { Running: service === "app" ? state.running : true, Paused: false, Restarting: false },
   Mounts: [{ Type: "volume", Name: `fixture_${service === "app" ? "app-data" : "postgres-data"}`,
     Destination: service === "app" ? "/app/.data" : "/var/lib/postgresql" }],
@@ -30,9 +32,18 @@ switch (args[0]) {
   case "compose": {
     if (args.includes("version")) { out = "5.5.1"; break; }
     if (args.includes("config")) {
+      if (mode === "real-config") {
+        const docker = Bun.which("docker", { PATH: process.env.PATH.split(":").slice(1).join(":") });
+        const child = Bun.spawn([docker, ...args], { env: process.env, stdout: "pipe", stderr: "pipe" });
+        const [code, stdout] = await Promise.all([child.exited, new Response(child.stdout).text(),
+          new Response(child.stderr).text()]);
+        if (code !== 0) fail();
+        out = JSON.parse(stdout);
+        break;
+      }
       const envFile = args[args.indexOf("--env-file") + 1];
       const env = await readFile(envFile, "utf8");
-      const image = /^IRANG_IMAGE=(.+)$/m.exec(env)?.[1];
+      const image = /^ARO_IMAGE=(.+)$/m.exec(env)?.[1] || /^IRANG_IMAGE=(.+)$/m.exec(env)?.[1];
       const composeFiles = args.flatMap((arg, index) => arg === "-f" ? [args[index + 1]] : []);
       const config = Bun.YAML.parse(await readFile(composeFiles[0], "utf8"));
       config.services.app.image = image || config.services.app.image;
@@ -89,8 +100,9 @@ switch (args[0]) {
     break;
   case "create": {
     const name = args[args.indexOf("--name") + 1];
-    const [key, value] = args[args.indexOf("--label") + 1].split("=");
-    state.resources[name] = { kind: "container", labels: { [key]: value } };
+    const labels = Object.fromEntries(args.flatMap((arg, index) =>
+      arg === "--label" ? [args[index + 1].split("=")] : []));
+    state.resources[name] = { kind: "container", labels };
     out = name;
     break;
   }

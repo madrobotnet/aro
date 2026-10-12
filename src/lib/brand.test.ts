@@ -71,6 +71,6 @@ describe("brand assets", () => {
     expect(favicon).toContain(`viewBox="${BRAND_MARK_VIEWBOX}"`);
     expect(favicon).toContain(`d="${BRAND_MARK_PATH}"`);
     expect(favicon).toContain('fill-rule="evenodd"');
-    expect(repoFile("docs/images/irang-mark.svg").toString("utf8")).toContain(`d="${BRAND_MARK_PATH}"`);
+    expect(repoFile("docs/images/aro-mark.svg").toString("utf8")).toContain(`d="${BRAND_MARK_PATH}"`);
   });
 });

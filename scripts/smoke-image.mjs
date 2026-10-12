@@ -20,8 +20,8 @@ function options(args) {
     result[key] = args[i + 1];
   }
   for (const key of allowed.slice(0, 4)) check(result[key], `Required --${key}`);
-  check(/^irang-package-qa(?:-[a-z0-9][a-z0-9_-]{0,30})?$/.test(result.project),
-    "Project namespace must be irang-package-qa or a suffixed QA name");
+  check(/^(?:aro|irang)-package-qa(?:-[a-z0-9][a-z0-9_-]{0,30})?$/.test(result.project),
+    "Project namespace must be aro-package-qa or a suffixed QA name");
   check(/^[1-9][0-9]{0,4}$/.test(result.port) && Number(result.port) >= 1024 &&
     Number(result.port) <= 65535, "Invalid port (1024..65535)");
   check(/^[a-z0-9][a-z0-9._/-]*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(?:@sha256:[a-f0-9]{64})?$/.test(result.image) &&
@@ -36,9 +36,9 @@ catch (error) { console.error(error.message); process.exit(1); }
 const evidence = path.resolve(input["evidence-dir"]);
 const source = path.resolve(input["install-dir"] ?? path.join(import.meta.dir, ".."));
 const receipts = { image: input.image, project: input.project, scenarios: [], cleanup: [], status: "FAIL" };
-const secrets = new Set(["irang-package-smoke-password"]);
+const secrets = new Set(["aro-package-smoke-password"]);
 const leases = [];
-const password = "irang-package-smoke-password";
+const password = "aro-package-smoke-password";
 const ai = { chat: null, chatConsent: false, jev: null, jevConsent: false };
 const fixtures = [];
 const runNames = new Set();
@@ -50,14 +50,14 @@ let child;
 function safe(value) {
   let text = String(value);
   for (const secret of secrets) if (secret) text = text.replaceAll(secret, "[REDACTED]");
-  return text.replace(/sb_session=[^;\s"]+/g, "sb_session=[REDACTED]")
+  return text.replace(/(?:aro_session|sb_session)=[^;\s"]+/g, "session=[REDACTED]")
     .replace(/\$argon2[^\s"]+/g, "[REDACTED HASH]");
 }
 function record(name, data) {
   receipts.scenarios.push({ name, ...JSON.parse(safe(JSON.stringify(data))) });
 }
 // No host credentials, DATABASE_URL, AI keys, auth homes or Compose overrides.
-const environment = { PATH: process.env.PATH, HOME: temporary ?? tmpdir(), DOCKER_CONFIG: "/nonexistent-irang-qa" };
+const environment = { PATH: process.env.PATH, HOME: temporary ?? tmpdir(), DOCKER_CONFIG: "/nonexistent-aro-qa" };
 async function command(args, { stdin, expect = 0, timeout = 240000, capture = false, cleanup = false } = {}) {
   check(cleanup || !interrupted, "Interrupted");
   child = Bun.spawn(args, {
@@ -105,7 +105,7 @@ async function dockerRun(project, purpose, args, extras) {
   check(!existing.stdout.trim(), `Run container already exists: ${name}`);
   runNames.add(name);
   const result = await command(["docker", "run", "--rm", "--name", name,
-    "--label", `irang.smoke.owner=${owner}`, ...args], extras);
+    "--label", `aro.smoke.owner=${owner}`, "--label", "aro.qa.owner=aro-id-release", ...args], extras);
   runNames.delete(name);
   return result;
 }
@@ -124,7 +124,7 @@ async function http(fixture, name, url, status, { method = "GET", json, form, co
   const responseHeaders = Object.fromEntries(response.headers);
   const cookieHeader = response.headers.get("set-cookie");
   if (cookieHeader) {
-    const value = cookieHeader.match(/sb_session=([^;]+)/)?.[1];
+    const value = cookieHeader.match(/(?:aro_session|sb_session)=([^;]+)/)?.[1];
     if (value) secrets.add(value);
   }
   record(name, { method, url, status: response.status, headers: responseHeaders, body, expectedStatus: status });
@@ -132,7 +132,7 @@ async function http(fixture, name, url, status, { method = "GET", json, form, co
   return { body, bytes, cookieHeader };
 }
 async function database(fixture, sql) {
-  const result = await compose(fixture, ["exec", "-T", "db", "psql", "-U", "postgres", "-d", "second_brain", "-Atc", sql]);
+  const result = await compose(fixture, ["exec", "-T", "db", "psql", "-U", "postgres", "-d", fixture.database, "-Atc", sql]);
   return result.stdout.trim();
 }
 async function counts(fixture, users, settings) {
@@ -154,7 +154,7 @@ async function login(fixture) {
   const result = await http(fixture, "login", "/api/auth/login", 200, { method: "POST", json: { password } });
   check(result.cookieHeader?.includes("HttpOnly") && /SameSite=Lax/i.test(result.cookieHeader) &&
     !/;\s*Secure/i.test(result.cookieHeader), "Invalid loopback session cookie policy");
-  const cookie = result.cookieHeader.match(/sb_session=[^;]+/)?.[0];
+  const cookie = result.cookieHeader.match(/(?:aro_session|sb_session)=[^;]+/)?.[0];
   check(cookie, "Missing session cookie");
   return cookie;
 }
@@ -203,13 +203,17 @@ async function persist(fixture) {
 async function fixture(project, legacy) {
   const directory = path.join(temporary, project);
   await mkdir(directory);
-  await cp(path.join(source, "compose.yml"), path.join(directory, "compose.yml"));
+  const composeDocument = Bun.YAML.parse(await readFile(path.join(source, "compose.yml"), "utf8"));
+  for (const service of Object.values(composeDocument.services)) service.labels = { ...service.labels, "aro.qa.owner": "aro-id-release" };
+  for (const volume of Object.values(composeDocument.volumes)) volume.labels = { ...volume.labels, "aro.qa.owner": "aro-id-release" };
+  composeDocument.networks = { default: { labels: { "aro.qa.owner": "aro-id-release" } } };
+  await writeFile(path.join(directory, "compose.yml"), Bun.YAML.stringify(composeDocument));
   await cp(path.join(source, "docker/postgres/production"), path.join(directory, "docker/postgres/production"), { recursive: true });
   // The producer checkout may be private (0700/0600). Only these public SQL
   // fixture bytes must be readable by PostgreSQL's unprivileged container user.
   await chmod(path.join(directory, "docker/postgres/production"), 0o755);
   await chmod(path.join(directory, "docker/postgres/production/01-app-role.sql"), 0o644);
-  const item = { project, directory, env: path.join(directory, ".env"), base: `http://127.0.0.1:${input.port}`, allocated: false };
+  const item = { project, directory, env: path.join(directory, ".env"), base: `http://127.0.0.1:${input.port}`, database: legacy ? "second_brain" : "aro", allocated: false };
   fixtures.push(item);
   const bootstrapArgs = ["--user", `${process.getuid()}:${process.getgid()}`, "-v", `${directory}:/install`,
     input.image, "bun", "--no-env-file", "/app/scripts/setup-env.mjs", "/install/.env"];
@@ -227,7 +231,9 @@ async function fixture(project, legacy) {
   const repeat = await dockerRun(project, "bootstrap", bootstrapArgs, { expect: 1 });
   check(original === await readFile(item.env, "utf8"), "Bootstrap overwrote env");
   record("bootstrap", { project, mode: "0600", distinct: true, noOverwrite: true, repeatExit: repeat.code });
-  values.IRANG_IMAGE = input.image; values.APP_PORT = input.port; values.INSECURE_COOKIES = "1";
+  delete values.IRANG_IMAGE;
+  values.ARO_IMAGE = input.image; values.APP_PORT = input.port; values.INSECURE_COOKIES = "1";
+  values.POSTGRES_APP_DB = item.database; values.POSTGRES_APP_USER = item.database;
   let legacyHashEnv;
   if (legacy) {
     values.POSTGRES_APP_PASSWORD = "fixture-app#with@reserved:characters";
@@ -250,7 +256,7 @@ async function fixture(project, legacy) {
   check(config.services.app.image === input.image && !config.services.app.build, "Requires producer image-only Compose");
   const app = config.services.app.environment;
   const db = config.services.db.environment;
-  check(app.DATABASE_URL === (values.DATABASE_URL ?? `postgres://second_brain:${values.POSTGRES_PASSWORD}@db:5432/second_brain`), "Wrong app URL");
+  check(app.DATABASE_URL === (values.DATABASE_URL ?? `postgres://${item.database}:${values.POSTGRES_PASSWORD}@db:5432/${item.database}`), "Wrong app URL");
   check(db.POSTGRES_PASSWORD === (values.POSTGRES_ADMIN_PASSWORD ?? values.POSTGRES_PASSWORD) &&
     db.POSTGRES_APP_PASSWORD === (values.POSTGRES_APP_PASSWORD ?? values.POSTGRES_PASSWORD), "Wrong DB secrets");
   check(!Object.keys(app).some(key => key.startsWith("POSTGRES_")) &&
@@ -323,7 +329,7 @@ async function cleanup() {
     await attempt(name, async () => {
     const inspected = await command(["docker", "container", "inspect", name], { expect: null, cleanup: true });
     if (inspected.code === 0) {
-      check(JSON.parse(inspected.stdout)[0].Config.Labels["irang.smoke.owner"] === owner, "Run container ownership changed");
+      check(JSON.parse(inspected.stdout)[0].Config.Labels["aro.smoke.owner"] === owner, "Run container ownership changed");
       await command(["docker", "rm", "-f", JSON.parse(inspected.stdout)[0].Id], { cleanup: true });
       receipts.cleanup.push({ container: name, removed: true });
     } else check(inspected.stderr.includes("No such"), "Cannot inspect run container for cleanup");
@@ -366,7 +372,7 @@ try {
   }
   await collisions(input.project);
   await collisions(`${input.project}-legacy`);
-  temporary = await mkdtemp(path.join(tmpdir(), "irang-image-smoke-"));
+  temporary = await mkdtemp(path.join(tmpdir(), "aro-image-smoke-"));
   environment.HOME = temporary;
   // Keep the caller's pinned CLI plugins, never its registry credentials.
   environment.DOCKER_CONFIG = path.join(temporary, "docker-config");

@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 test("creates private distinct installer and database secrets through the bootstrap CLI", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "second-brain-bootstrap-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aro-bootstrap-"));
   directories.push(directory);
   const file = path.join(directory, ".env");
   const process = Bun.spawn([Bun.which("bun") ?? "bun", "--no-env-file", script, file], { stdout: "pipe", stderr: "pipe" });
@@ -28,13 +28,15 @@ test("creates private distinct installer and database secrets through the bootst
   expect(values.POSTGRES_ADMIN_PASSWORD).toMatch(/^[a-f0-9]{64}$/);
   expect(new Set([values.SETUP_TOKEN, values.POSTGRES_PASSWORD, values.POSTGRES_ADMIN_PASSWORD]).size).toBe(3);
   expect(values.INSECURE_COOKIES).toBe("0");
+  expect(values.POSTGRES_APP_DB).toBe("aro");
+  expect(values.POSTGRES_APP_USER).toBe("aro");
   expect((await stat(file)).mode & 0o777).toBe(0o600);
   expect(stdout).not.toContain(values.POSTGRES_PASSWORD);
   expect(stdout).not.toContain(values.POSTGRES_ADMIN_PASSWORD);
 });
 
 test("refuses to overwrite an existing environment file", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "second-brain-bootstrap-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aro-bootstrap-"));
   directories.push(directory);
   const file = path.join(directory, ".env");
   const first = Bun.spawn([Bun.which("bun") ?? "bun", "--no-env-file", script, file], { stdout: "ignore", stderr: "pipe" });
@@ -46,7 +48,7 @@ test("refuses to overwrite an existing environment file", async () => {
 });
 
 test("exports a password hash that survives Compose dotenv parsing", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "second-brain-password-env-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aro-password-env-"));
   directories.push(directory);
   const root = path.resolve(path.dirname(script), "..");
   const password = "fixture-Compose-literal-hash";
@@ -66,6 +68,8 @@ test("exports a password hash that survives Compose dotenv parsing", async () =>
     `SETUP_TOKEN=${"a".repeat(64)}`,
     "POSTGRES_PASSWORD=fixture-app-password",
     "POSTGRES_ADMIN_PASSWORD=fixture-admin-password",
+    "POSTGRES_APP_DB=aro",
+    "POSTGRES_APP_USER=aro",
     exported,
   ].join("\n"), { mode: 0o600 });
   const compose = Bun.spawn(["docker", "compose", "-f", path.join(root, "compose.yml"), "--env-file", file, "config", "--format", "json"], {
@@ -87,7 +91,7 @@ test("exports a password hash that survives Compose dotenv parsing", async () =>
 });
 
 test("exports a password hash that survives the local Next environment loader", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "second-brain-local-password-env-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aro-local-password-env-"));
   directories.push(directory);
   const root = path.resolve(path.dirname(script), "..");
   const password = "fixture-local-Next-literal-hash";

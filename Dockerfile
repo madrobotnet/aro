@@ -48,18 +48,18 @@ COPY --from=builder --chown=nextjs:nodejs \
     /app/scripts/build-database-url.mjs \
     ./scripts/
 # Notices contract uses /app/licenses. The same bytes are also published under
-# /usr/share/irang/licenses, with the root LICENSE and third-party notices.
+# /usr/share/aro/licenses, with the root LICENSE and third-party notices.
 COPY --from=builder /app/app-licenses /app/licenses/app
-COPY --from=builder /app/app-licenses /usr/share/irang/licenses/app
+COPY --from=builder /app/app-licenses /usr/share/aro/licenses/app
 COPY --from=ai-tools /tmp/cli-licenses /app/licenses/cli
-COPY --from=ai-tools /tmp/cli-licenses /usr/share/irang/licenses/cli
+COPY --from=ai-tools /tmp/cli-licenses /usr/share/aro/licenses/cli
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/licenses/
-COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/irang/licenses/
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/aro/licenses/
 COPY public/fonts/LICENSE-Pretendard.txt /app/licenses/LICENSE-Pretendard.txt
-COPY public/fonts/LICENSE-Pretendard.txt /usr/share/irang/licenses/LICENSE-Pretendard.txt
+COPY public/fonts/LICENSE-Pretendard.txt /usr/share/aro/licenses/LICENSE-Pretendard.txt
 COPY LICENSE /LICENSE
 COPY THIRD_PARTY_NOTICES.md /THIRD_PARTY_NOTICES.md
-RUN chmod -R a+rX /app/licenses /usr/share/irang /LICENSE /THIRD_PARTY_NOTICES.md \
+RUN chmod -R a+rX /app/licenses /usr/share/aro /LICENSE /THIRD_PARTY_NOTICES.md \
     && rm -rf /tmp/cli-licenses /tmp/collect-image-licenses.mjs
 RUN mkdir -p /app/.data/attachments /app/.data/auth/codex /app/.data/auth/google \
     && chown -R nextjs:nodejs /app/.data && chmod 700 /app/.data/auth
@@ -80,10 +80,10 @@ COPY distribution/cli/components.json distribution/cli/grants.json \
 COPY distribution/cli/width-inputs ./distribution/cli/width-inputs/
 COPY scripts/prepare-release-materials.mjs scripts/prepare-redistribution-runtime.mjs \
     scripts/prepare-redistribution-debian.mjs scripts/prepare-source-assets.mjs \
-    scripts/collect-image-licenses.mjs ./scripts/
+    scripts/collect-image-licenses.mjs scripts/release-names.mjs ./scripts/
 COPY --from=filesystem / /target/
 ARG TARGETARCH
-ARG VERSION=2.3.2
+ARG VERSION=2.4.0
 ARG REVISION=local
 RUN bun --no-env-file scripts/prepare-release-materials.mjs \
     --root /target --out /materials --version "$VERSION" --revision "$REVISION" \
@@ -91,7 +91,7 @@ RUN bun --no-env-file scripts/prepare-release-materials.mjs \
 
 FROM materials AS source-export
 RUN bun --no-env-file scripts/prepare-source-assets.mjs \
-    --materials /materials --seal "$(sha256sum /target/usr/share/irang/licenses/materials.json | cut -d ' ' -f 1)" \
+    --materials /materials --seal "$(sha256sum /target/usr/share/aro/licenses/materials.json | cut -d ' ' -f 1)" \
     --version "$VERSION" --revision "$REVISION" --platform "linux/$TARGETARCH" --out /source-assets
 
 FROM scratch AS source-assets
@@ -112,10 +112,10 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     CODEX_HOME=/app/.data/auth/codex \
     GEMINI_CLI_HOME=/app/.data/auth/google
 USER 1001:1001
-ARG VERSION=2.3.2
+ARG VERSION=2.4.0
 ARG REVISION=local
 LABEL org.opencontainers.image.title="Aro" \
-      org.opencontainers.image.description="Aro application image. Third-party notices are in /app/licenses and /usr/share/irang/licenses." \
+      org.opencontainers.image.description="Aro application image. Third-party notices are in /app/licenses and /usr/share/aro/licenses." \
       org.opencontainers.image.source="https://github.com/madrobotnet/aro" \
       org.opencontainers.image.url="https://github.com/madrobotnet/aro" \
       org.opencontainers.image.version="${VERSION}" \

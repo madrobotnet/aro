@@ -93,7 +93,7 @@ export async function verifySourceAssets(directory, indexName, indexSha256, expe
   }
   const manifest = JSON.parse(Buffer.concat(chunks));
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.kind, "irang-selected-materials");
+  assert(["aro-selected-materials", "irang-selected-materials"].includes(manifest.kind), "Unsupported material kind");
   for (const key of ["version", "revision", "platform"]) assert.equal(manifest[key], index[key], `Sealed material ${key} mismatch`);
   assert.deepEqual(index.associations.filter(row => row !== material), manifest.files, "Sealed selected-file associations differ");
   return index;

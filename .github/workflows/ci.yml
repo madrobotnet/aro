@@ -83,11 +83,11 @@ jobs:
 
       - name: Run full test suite
         env:
-          TEST_DATABASE_URL: postgres://second_brain:second_brain@127.0.0.1:55432/second_brain_test
+          TEST_DATABASE_URL: postgres://aro:aro@127.0.0.1:55432/aro_test
         run: bun test
 
       - name: Production Docker build
-        run: docker build --tag second-brain:ci .
+        run: docker build --tag aro:ci .
 
       # Only tears down the Postgres stack started above on this runner.
       - name: Tear down test Postgres

@@ -10,7 +10,7 @@ const Result = z.object({
   database: z.string().nullable(),
 });
 const secret = "fixture-secret-not-for-logs";
-const local = `postgres://fixture:${secret}@127.0.0.1:1/second_brain_test`;
+const local = `postgres://fixture:${secret}@127.0.0.1:1/aro_test`;
 
 async function runHelper(testUrl: string, action = "connect") {
   const child = Bun.spawn([
@@ -19,7 +19,7 @@ async function runHelper(testUrl: string, action = "connect") {
      try {
        if (process.env.CASE_ACTION !== "uninitialized") helper.connectTestDatabase();
        if (process.env.CASE_ACTION === "changed") {
-         process.env.DATABASE_URL = "postgres://fixture:fixture@127.0.0.1:1/second_brain";
+         process.env.DATABASE_URL = "postgres://fixture:fixture@127.0.0.1:1/aro";
        }
        if (process.env.CASE_ACTION !== "connect") await helper.resetData();
        helper.connectTestDatabase();
@@ -37,7 +37,7 @@ async function runHelper(testUrl: string, action = "connect") {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      DATABASE_URL: "postgres://fixture:fixture@127.0.0.1:1/second_brain",
+      DATABASE_URL: "postgres://fixture:fixture@127.0.0.1:1/aro",
       TEST_DATABASE_URL: testUrl,
       CASE_ACTION: action,
     },
@@ -53,11 +53,11 @@ async function runHelper(testUrl: string, action = "connect") {
 }
 
 for (const [label, url, database] of [
-  ["default name", local, "/second_brain_test"],
-  ["parallel lane", local.replace("second_brain_test", "sb_test_notes"), "/sb_test_notes"],
-  ["localhost", local.replace("127.0.0.1", "localhost"), "/second_brain_test"],
-  ["IPv6 loopback", local.replace("127.0.0.1", "[::1]"), "/second_brain_test"],
-  ["IPv4 loopback", local.replace("127.0.0.1", "127.0.0.2"), "/second_brain_test"],
+  ["default name", local, "/aro_test"],
+  ["parallel lane", local.replace("aro_test", "sb_test_notes"), "/sb_test_notes"],
+  ["localhost", local.replace("127.0.0.1", "localhost"), "/aro_test"],
+  ["IPv6 loopback", local.replace("127.0.0.1", "[::1]"), "/aro_test"],
+  ["IPv4 loopback", local.replace("127.0.0.1", "127.0.0.2"), "/aro_test"],
 ] as const) {
   test(`permits repeated initialization of the explicit local test database: ${label}`, async () => {
     const result = await runHelper(url);
@@ -67,13 +67,13 @@ for (const [label, url, database] of [
 }
 
 for (const [label, url] of [
-  ["application database", local.replace("second_brain_test", "second_brain")],
-  ["maintenance database", local.replace("second_brain_test", "postgres")],
+  ["application database", local.replace("aro_test", "aro")],
+  ["maintenance database", local.replace("aro_test", "postgres")],
   ["remote host", local.replace("127.0.0.1", "db.example.invalid")],
   ["loopback lookalike", local.replace("127.0.0.1", "127.remote.invalid")],
-  ["missing database", local.replace("second_brain_test", "")],
-  ["missing host", `postgres://fixture:${secret}@/second_brain_test`],
-  ["socket host", `postgres://fixture:${secret}@%2Ftmp/second_brain_test`],
+  ["missing database", local.replace("aro_test", "")],
+  ["missing host", `postgres://fixture:${secret}@/aro_test`],
+  ["socket host", `postgres://fixture:${secret}@%2Ftmp/aro_test`],
   ["host override", local + "?host=production.invalid"],
   ["port override", local + "?port=5432"],
   ["server options", local + "?options=-csearch_path%3Dprivate"],
