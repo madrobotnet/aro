@@ -34,7 +34,11 @@ switch (args[0]) {
     if (args.includes("config")) {
       if (mode === "real-config") {
         const docker = Bun.which("docker", { PATH: process.env.PATH.split(":").slice(1).join(":") });
-        const child = Bun.spawn([docker, ...args], { env: process.env, stdout: "pipe", stderr: "pipe" });
+        // The real CLI resolves its Compose plugin from the invoking user's Docker
+        // configuration, so the fixture's fake HOME and DOCKER_CONFIG must not reach it.
+        const realEnv = Object.fromEntries(Object.entries(process.env)
+          .filter(([key]) => key !== "HOME" && key !== "DOCKER_CONFIG"));
+        const child = Bun.spawn([docker, ...args], { env: realEnv, stdout: "pipe", stderr: "pipe" });
         const [code, stdout] = await Promise.all([child.exited, new Response(child.stdout).text(),
           new Response(child.stderr).text()]);
         if (code !== 0) fail();
