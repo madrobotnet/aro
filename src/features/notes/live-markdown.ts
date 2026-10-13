@@ -7,6 +7,7 @@ import { compositionActive, compositionSettled, deferEdit, sourceChange } from "
 import { isComposing } from "./wikilink-autocomplete";
 
 export type LiveWindow = { readonly from: number; readonly to: number };
+export const liveRaw = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
 export type LiveRange =
   | { readonly kind: "hide"; readonly from: number; readonly to: number; readonly syntax: string }
   | { readonly kind: "mark"; readonly from: number; readonly to: number; readonly className: string }
@@ -40,6 +41,7 @@ function activeLine(state: EditorState, from: number): boolean {
 
 /** Plans are also the unit-test surface: replacements with no widget contain syntax only. */
 export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): LiveRange[] {
+  if (state.facet(liveRaw)) return [];
   const ranges: LiveRange[] = [];
   const tree = syntaxTree(state);
   const seen = new Set<string>();
@@ -217,7 +219,7 @@ const livePlugin = ViewPlugin.fromClass(class {
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
     if (isComposing(update.view) || update.state.field(compositionActive, false)) { this.decorations = this.decorations.map(update.changes); return; }
-    if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(compositionSettled)))) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged || update.startState.facet(liveRaw) !== update.state.facet(liveRaw) || update.startState.facet(liveLabels) !== update.state.facet(liveLabels) || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(compositionSettled)))) {
       this.decorations = liveDecorations(update.state, liveWindows(update.state, update.view.visibleRanges));
     }
   }

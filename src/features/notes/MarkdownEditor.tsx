@@ -24,7 +24,7 @@ import { refreshNoteViews } from "./note-cache";
 import { isComposing, wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "./wikilink-autocomplete";
 import { formatTransaction, type FormatAction } from "./editor-format";
 import { EDITOR_HEADER_COPY } from "./editor-header-copy";
-import { liveLabels, liveMarkdown } from "./live-markdown";
+import { liveLabels, liveMarkdown, liveRaw } from "./live-markdown";
 import { compositionEdits, deferEdit, sourceChange } from "./composition-edits";
 import { LIVE_EDITOR_COPY } from "./live-editor-copy";
 import { liveTables } from "./live-tables";
@@ -45,7 +45,7 @@ const BASIC_SETUP = { foldGutter: false, lineNumbers: false, highlightActiveLine
 const fetchNoteTitles: FetchTitles = async (query, signal) =>
   (await api<{ notes: NoteTitleMatch[] }>(`/api/notes/titles?q=${encodeURIComponent(query)}&limit=12`, { signal })).notes;
 
-export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: string; value: string; onChange: (value: string) => void; onAppend: (markdown: string) => void }) {
+export function MarkdownEditor({ noteId, value, onChange, onAppend, raw = false }: { noteId: string; value: string; onChange: (value: string) => void; onAppend: (markdown: string) => void; raw?: boolean }) {
   const { resolvedTheme } = useTheme();
   const { locale } = useLocale();
   const copy = useCopy(NOTES_COPY).editor;
@@ -113,7 +113,6 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
     ...liveTables(),
     ...wikiLinkCompletion(fetchNoteTitles),
     EditorView.lineWrapping,
-    syntaxHighlighting(writingHighlight),
     // Highest precedence: the light/dark base theme comes first in the extension list and would otherwise win.
     Prec.highest(EditorView.theme({
       "&": { backgroundColor: "var(--card)", color: "var(--ink)" },
@@ -139,11 +138,13 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   // A new list reconfigures the live editor in place, as a theme change does; text, selection and undo history stay.
   const extensions = useMemo(() => [
     ...baseExtensions,
+    liveRaw.of(raw),
+    ...(raw ? [] : [syntaxHighlighting(writingHighlight)]),
     liveLabels.of({ editSource: liveCopy.editSource, wikiLabel: liveCopy.wikiLabel }),
     EditorState.phrases.of(copy.phrases),
     EditorView.contentAttributes.of({ "aria-label": copy.bodyLabel }),
     wikiLinkEnv.of({ createLabel: linksCopy.create, onCreate: (title) => void createLinkedNote(title) }),
-  ], [baseExtensions, copy, liveCopy, linksCopy, createLinkedNote]);
+  ], [baseExtensions, raw, copy, liveCopy, linksCopy, createLinkedNote]);
 
   const upload = async (file: File) => {
     setUploading(true);

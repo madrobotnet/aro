@@ -2,7 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorSelection, StateEffect, StateField, type EditorState } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { compositionActive, compositionSettled, deferEdit } from "./composition-edits";
-import { liveLabels, liveWindows, type LiveWindow } from "./live-markdown";
+import { liveLabels, liveRaw, liveWindows, type LiveWindow } from "./live-markdown";
 import { isComposing } from "./wikilink-autocomplete";
 
 type Cell = { readonly from: number; readonly text: string };
@@ -10,6 +10,7 @@ export type LiveTable = { readonly from: number; readonly to: number; readonly r
 
 /** Only visit visible syntax subtrees, including a table that crosses a window edge. */
 export function liveTableRanges(state: EditorState, windows: readonly LiveWindow[]): LiveTable[] {
+  if (state.facet(liveRaw)) return [];
   const tables = new Map<number, LiveTable>();
   for (const window of windows) syntaxTree(state).iterate({
     from: window.from, to: window.to,
@@ -76,7 +77,7 @@ const tableField = StateField.define<{ readonly windows: readonly LiveWindow[]; 
     let windows = tr.docChanged ? value.windows.map((window) => ({ from: tr.changes.mapPos(window.from), to: tr.changes.mapPos(window.to, 1) })) : value.windows;
     for (const effect of tr.effects) if (effect.is(tableWindows)) windows = effect.value;
     if (tr.state.field(compositionActive, false)) return { windows, decorations: value.decorations.map(tr.changes) };
-    if (tr.docChanged || tr.selection || windows !== value.windows || syntaxTree(tr.startState) !== syntaxTree(tr.state) || tr.state.facet(liveLabels) !== tr.startState.facet(liveLabels) || tr.effects.some((effect) => effect.is(compositionSettled))) {
+    if (tr.docChanged || tr.selection || windows !== value.windows || syntaxTree(tr.startState) !== syntaxTree(tr.state) || tr.state.facet(liveRaw) !== tr.startState.facet(liveRaw) || tr.state.facet(liveLabels) !== tr.startState.facet(liveLabels) || tr.effects.some((effect) => effect.is(compositionSettled))) {
       return { windows, decorations: tableDecorations(tr.state, windows) };
     }
     return value;

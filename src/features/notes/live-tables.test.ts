@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { liveTableRanges } from "./live-tables";
+import { liveRaw } from "./live-markdown";
 
 const doc = "| 단계 | 상태 |\n| --- | --- |\n| 문서 | 진행 중 |\n\n끝";
 function state(anchor: number) { return EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage })] }); }
@@ -23,4 +24,9 @@ test("shows raw table source when the cursor or selection touches it", () => {
 test("excludes offscreen tables and finds a table crossing a visible range", () => {
   expect(liveTableRanges(state(doc.length), [{ from: doc.length, to: doc.length }])).toEqual([]);
   expect(liveTableRanges(state(doc.length), [{ from: 28, to: 32 }])).toHaveLength(1);
+});
+
+test("raw mode does not replace table source", () => {
+  const raw = EditorState.create({ doc, selection: { anchor: doc.length }, extensions: [markdown({ base: markdownLanguage }), liveRaw.of(true)] });
+  expect(liveTableRanges(raw, [{ from: 0, to: doc.length }])).toEqual([]);
 });

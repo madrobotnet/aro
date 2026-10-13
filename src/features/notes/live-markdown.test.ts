@@ -3,7 +3,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { parseWikiLinks } from "@/lib/wikilinks";
-import { liveRanges, liveWindows, taskChange } from "./live-markdown";
+import { liveRanges, liveRaw, liveWindows, taskChange } from "./live-markdown";
 
 function state(doc: string, anchor = doc.length) {
   return EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage })] });
@@ -106,4 +106,12 @@ test("checkbox toggles only one character through the shared task scanner", () =
   expect(changes.apply(before.doc).toString()).toBe(doc.replace("[ ]", "[x]"));
   expect(changes.desc.toString()).toContain("1:1");
   expect(taskChange(state("```\n- [ ] 코드\n```"), 5)).toBeNull();
+});
+
+test("raw mode has no live decorations and preserves source and selection", () => {
+  const doc = "# 한글\n- [ ] 할 일\n[[문서|표시]]\n```한글42\n코드\n```";
+  const before = EditorState.create({ doc, selection: { anchor: 2 }, extensions: [markdown({ base: markdownLanguage }), liveRaw.of(true)] });
+  expect(liveRanges(before, [{ from: 0, to: doc.length }])).toEqual([]);
+  expect(before.doc.toString()).toBe(doc);
+  expect(before.selection.main.head).toBe(2);
 });

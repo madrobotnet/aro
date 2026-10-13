@@ -30,6 +30,8 @@ import { EDITOR_HEADER_COPY } from "./editor-header-copy";
 import { NoteMoreMenu } from "./NoteMoreMenu";
 import { TagEditor } from "./TagEditor";
 import { mergeCommaItems } from "./comma-items";
+import { LIVE_EDITOR_COPY } from "./live-editor-copy";
+import { readRawMode, subscribeRawMode, writeRawMode } from "./raw-mode";
 
 export function NoteDetail({ noteId }: { noteId: string }) {
   const copy = useCopy(NOTES_COPY);
@@ -76,8 +78,11 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   const { controller, snapshot } = useDraft(note);
   const sourceKey = params.has("line") ? JSON.stringify([params.get("line"), params.get("at")]) : null;
   const [view, setView] = useState<{ sourceKey: string | null; mode: "edit" | "preview" }>({ sourceKey, mode: sourceKey === null ? "edit" : "preview" });
+  const prefersRaw = useSyncExternalStore(subscribeRawMode, readRawMode, () => false);
+  const liveCopy = useCopy(LIVE_EDITOR_COPY);
   // A new source link into an already open note must also open preview; an explicit mode choice wins for that link.
-  const mode = view.sourceKey === sourceKey ? view.mode : sourceKey === null ? "edit" : "preview";
+  const baseMode = view.sourceKey === sourceKey ? view.mode : sourceKey === null ? "edit" : "preview";
+  const mode = baseMode === "edit" && prefersRaw ? "raw" : baseMode;
   const evidence = sourceEvidence(params.get("line"), params.get("at"), note.updatedAt, snapshot.state !== "saved" || snapshot.body !== note.body, checking);
   // Read when a task toggle settles, which may be after the preview has been left for the editor.
   const modeRef = useRef(mode);
@@ -174,8 +179,11 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   };
   const history = <RevisionHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} noteId={note.id}
     currentBody={note.deletedAt ? note.body : snapshot.body} readOnly={Boolean(note.deletedAt)} onRestore={restoreRevision} />;
-  const modeControl = <div role="group" aria-label={copy.detail.modeLabel} className="flex shrink-0 rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line">{(["edit", "preview"] as const).map((value) => (
-    <button key={value} type="button" aria-pressed={mode === value} className={cn("min-h-touch min-w-touch shrink-0 whitespace-nowrap rounded-ctl px-0.5 py-1.5 text-xs transition-colors lg:min-h-0 lg:px-3", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => setView({ sourceKey, mode: value })}>{copy.detail[value]}</button>
+  const modeControl = <div role="group" aria-label={copy.detail.modeLabel} className="flex shrink-0 rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line">{(["edit", "raw", "preview"] as const).map((value) => (
+    <button key={value} type="button" aria-pressed={mode === value} aria-label={value === "raw" ? liveCopy.rawLabel : undefined} className={cn("min-h-touch min-w-touch shrink-0 whitespace-nowrap rounded-ctl px-0.5 py-1.5 text-xs transition-colors lg:min-h-0 lg:px-3", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => {
+      if (value !== "preview") writeRawMode(value === "raw");
+      setView({ sourceKey, mode: value === "preview" ? "preview" : "edit" });
+    }}>{value === "raw" ? liveCopy.raw : copy.detail[value]}</button>
   ))}</div>;
 
   if (note.deletedAt) {
@@ -209,12 +217,12 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   return (
     <section className="relative min-w-0 flex-1 overflow-y-auto bg-card pb-36 scrollbar-thin">
       <div className="py-2 sm:px-4">
-        <div className="flex min-w-0 items-center lg:gap-1">
+        <div className="flex min-w-0 flex-wrap items-center lg:gap-1">
           <Link href="/notes" aria-label={copy.detail.backToList} title={copy.detail.backToList} className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center text-sm text-mute hover:text-ink lg:hidden"><span aria-hidden>←</span></Link>
           {note.dailyDate ? <DailyNav date={note.dailyDate} /> : null}
-          {snapshot.state !== "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} /> : null}
-          <div className="ml-auto">{modeControl}</div>
-          <Button variant="ghost" iconOnly className="min-h-touch min-w-touch" aria-label={copy.detail.pin} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} onClick={() => void patchFlag({ pinned: !note.pinned })}><Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} /></Button>
+          {snapshot.state !== "failed" ? <SaveIndicator state={snapshot.state} version={snapshot.version} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} /> : null}
+          <div className={cn("ml-auto", note.dailyDate && "max-sm:order-last max-sm:mt-1 max-sm:flex max-sm:w-full max-sm:justify-end")}>{modeControl}</div>
+          <Button variant="ghost" iconOnly className={cn("min-h-touch min-w-touch", note.dailyDate && "max-sm:ml-auto")} aria-label={copy.detail.pin} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} onClick={() => void patchFlag({ pinned: !note.pinned })}><Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} /></Button>
           {!note.archived ? <ShareNoteDialog noteId={note.id} beforeCreate={() => controller.flush()} /> : null}
           <NoteMoreMenu disabled={actionBusy} actions={[
             { label: note.archived ? copy.detail.unarchive : copy.detail.archive, icon: <Archive aria-hidden className="size-4" />, run: () => void patchFlag({ archived: !note.archived }) },
@@ -223,7 +231,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
             { label: copy.detail.moveToTrash, icon: <Trash2 aria-hidden className="size-4" />, danger: true, run: () => void trash() },
           ]} />
         </div>
-        {snapshot.state === "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} /> : null}
+        {snapshot.state === "failed" ? <SaveIndicator state={snapshot.state} version={snapshot.version} error={snapshot.error} retry={() => void controller.retry()} /> : null}
       </div>
       <div className="mx-auto max-w-3xl px-4 pt-3 sm:px-8 lg:pt-6">
         <input aria-label={copy.detail.titleLabel} placeholder={copy.detail.titleLabel}
@@ -246,7 +254,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
         {evidence.state !== "none" && evidence.state !== "ready" ? (
           <p role="status" className={cn("mt-3 rounded-ctl px-3 py-2 text-sm", evidence.state === "checking" ? "bg-desk text-mute" : "bg-warn-soft text-warn")}>{copy.detail.sourceEvidence[evidence.state]}</p>
         ) : null}
-        <div className="mt-3">{mode === "edit" ? <MarkdownEditor key={restoreEpoch} noteId={note.id} value={snapshot.body} onChange={(body) => controller.update({ body })} onAppend={(markdown) => {
+        <div className="mt-3">{mode !== "preview" ? <MarkdownEditor key={restoreEpoch} raw={mode === "raw"} noteId={note.id} value={snapshot.body} onChange={(body) => controller.update({ body })} onAppend={(markdown) => {
           const body = controller.getSnapshot().body;
           controller.update({ body: `${body}${body && !body.endsWith("\n") ? "\n" : ""}${markdown}` });
           void controller.flush().then((saved) => {
@@ -282,19 +290,19 @@ function CommaField({ label, defaultValue, placeholder, onCommit }: { label: str
   }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />;
 }
 
-function SaveIndicator({ state, error, retry, compact = false }: { state: string; error: unknown; retry: () => void; compact?: boolean }) {
+function SaveIndicator({ state, version, error, retry, compact = false }: { state: string; version: number; error: unknown; retry: () => void; compact?: boolean }) {
   const { locale } = useLocale();
   const copy = useCopy(NOTES_COPY);
-  if (state === "failed") return <div role="alert" data-save-state={state} className="order-last w-full rounded-ctl border border-danger/30 bg-danger-soft px-3 py-2 text-sm">
+  if (state === "failed") return <div role="alert" data-save-state={state} data-save-version={version} className="order-last w-full rounded-ctl border border-danger/30 bg-danger-soft px-3 py-2 text-sm">
     <div className="flex items-center justify-between gap-2"><span className="font-medium text-danger">{copy.detail.saveFailed}</span><Button size="sm" className="min-h-touch sm:min-h-0" variant="ghost" onClick={retry}>{copy.retry}</Button></div>
     <p>{localizedApiError(error, locale, copy.detail.saveFailedDetail)}</p>
   </div>;
   const saving = state === "saving" || state === "dirty";
   // One live region whose text changes, so screen readers hear each save state.
-  return <span role="status" data-save-state={state} aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
+  return <span role="status" data-save-state={state} data-save-version={version} aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
     className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs", saving ? "text-warn" : "text-mute")}>
     {saving ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : <Check aria-hidden className="size-3.5" />}
     {/* A daily note's header also holds the date control, so on phones the state is its icon. */}
-    <span className={compact ? "sr-only sm:not-sr-only" : "max-[375px]:sr-only"}>{saving ? copy.detail.saving : copy.detail.saved}</span>
+    <span className={compact ? "sr-only sm:not-sr-only" : "max-[430px]:sr-only"}>{saving ? copy.detail.saving : copy.detail.saved}</span>
   </span>;
 }
