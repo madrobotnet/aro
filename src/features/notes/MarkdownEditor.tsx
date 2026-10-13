@@ -27,6 +27,7 @@ import { EDITOR_HEADER_COPY } from "./editor-header-copy";
 import { liveLabels, liveMarkdown } from "./live-markdown";
 import { compositionEdits, deferEdit, sourceChange } from "./composition-edits";
 import { LIVE_EDITOR_COPY } from "./live-editor-copy";
+import { liveTables } from "./live-tables";
 
 const writingHighlight = HighlightStyle.define([
   { tag: [tags.heading1, tags.heading2], fontWeight: "700" },
@@ -109,6 +110,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
     markdown({ base: markdownLanguage }),
     ...compositionEdits,
     ...liveMarkdown(),
+    ...liveTables(),
     ...wikiLinkCompletion(fetchNoteTitles),
     EditorView.lineWrapping,
     syntaxHighlighting(writingHighlight),

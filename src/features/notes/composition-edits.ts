@@ -7,6 +7,11 @@ export type DeferredEdit =
   | { readonly kind: "command"; readonly selection: EditorSelection; readonly run: (view: EditorView, selection: EditorSelection) => void };
 
 export const compositionSettled = StateEffect.define<null>();
+const composing = StateEffect.define<boolean>();
+export const compositionActive = StateField.define<boolean>({
+  create: () => false,
+  update: (value, tr) => tr.effects.reduce((active, effect) => effect.is(composing) ? effect.value : active, value),
+});
 const enqueue = StateEffect.define<DeferredEdit>();
 const takeFirst = StateEffect.define<null>();
 
@@ -52,13 +57,16 @@ export function sourceChange(before: string, after: string): ChangeSet {
 }
 
 export const compositionEdits = [
+  compositionActive,
   deferredEdits,
   EditorView.domEventHandlers({
+    compositionstart(_event, view) { view.dispatch({ effects: composing.of(true) }); },
     compositionend(_event, view) {
       // CM's observer flushes the native commit first. A new composition in the
       // same frame retains the queue for its own end event.
       requestAnimationFrame(() => {
         if (isComposing(view)) return;
+        view.dispatch({ effects: composing.of(false) });
         while (view.state.field(deferredEdits).length) {
           const next = view.state.field(deferredEdits)[0];
           if (!next) break;

@@ -31,7 +31,7 @@ test("styles tags, bullets and quotes but excludes code and wiki targets", () =>
 
 test("every hidden range contains only its construct's syntax across a Markdown corpus", () => {
   const samples = ["한글 English 42 📝", "제목", "한_글", "<script>", "a|b", "태그/문서"];
-  const syntax = { HeaderMark: /^#+$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, QuoteMark: /^>$/, WikiMark: /^(?:\[\[|\]\])$/ };
+  const syntax = { HeaderMark: /^#+$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, FenceMark: /^(?:`{3,}|~{3,})$/, QuoteMark: /^>$/, WikiMark: /^(?:\[\[|\]\])$/ };
   for (const text of samples) {
     for (const prefix of ["", "> ", "- "]) {
       const doc = `${prefix}# ${text}\n\n${prefix}**${text}** _${text}_ \`${text}\`\n\n[[문서|${text}]]\n\n- [ ] ${text}\n- ${text}\n\n\`\`\`${text}\n${text}\n\`\`\`\n끝`;
@@ -51,6 +51,15 @@ test("every hidden range contains only its construct's syntax across a Markdown 
       }
     }
   }
+});
+
+test.each(["```한글 English42", "~~~~한글42 title", "```js title=한국어"])("keeps the entire %s fence info string visible after leaving its line", (opening) => {
+  const fence = opening.startsWith("~") ? "~~~~" : "```";
+  const doc = `${opening}\nconst a = "#태그 [[코드]]";\n${fence}\n끝`;
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  expect(ranges.flatMap((range) => range.kind === "hide" ? [doc.slice(range.from, range.to)] : [])).toEqual([fence, fence]);
+  expect(ranges.flatMap((range) => range.kind === "mark" && range.className === "cm-live-code-info" ? [doc.slice(range.from, range.to)] : [])).toEqual([opening.slice(fence.length)]);
+  expect(liveRanges(state(doc, opening.length), [{ from: 0, to: doc.length }]).filter((range) => range.kind === "hide" && range.from === 0)).toEqual([]);
 });
 
 test("wiki chips hide only an explicitly aliased destination and never a plain target", () => {

@@ -3,10 +3,10 @@ import { EditorSelection, Facet, type EditorState, type Range } from "@codemirro
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { parseInlineTags, parseWikiLinks } from "@/lib/wikilinks";
 import { parseTasks, toggleTask } from "@/lib/tasks";
-import { compositionSettled, deferEdit, sourceChange } from "./composition-edits";
+import { compositionActive, compositionSettled, deferEdit, sourceChange } from "./composition-edits";
 import { isComposing } from "./wikilink-autocomplete";
 
-type Window = { readonly from: number; readonly to: number };
+export type LiveWindow = { readonly from: number; readonly to: number };
 export type LiveRange =
   | { readonly kind: "hide"; readonly from: number; readonly to: number; readonly syntax: string }
   | { readonly kind: "mark"; readonly from: number; readonly to: number; readonly className: string }
@@ -21,8 +21,8 @@ export const liveLabels = Facet.define<LiveLabels, LiveLabels>({
 });
 
 /** Line-aligned visible windows plus four lines; never stringify the whole document. */
-export function liveWindows(state: EditorState, visible: readonly Window[]): Window[] {
-  const windows: Window[] = [];
+export function liveWindows(state: EditorState, visible: readonly LiveWindow[]): LiveWindow[] {
+  const windows: LiveWindow[] = [];
   for (const range of visible) {
     const from = state.doc.line(Math.max(1, state.doc.lineAt(range.from).number - 4)).from;
     const to = state.doc.line(Math.min(state.doc.lines, state.doc.lineAt(range.to).number + 4)).to;
@@ -39,7 +39,7 @@ function activeLine(state: EditorState, from: number): boolean {
 }
 
 /** Plans are also the unit-test surface: replacements with no widget contain syntax only. */
-export function liveRanges(state: EditorState, windows: readonly Window[]): LiveRange[] {
+export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): LiveRange[] {
   const ranges: LiveRange[] = [];
   const tree = syntaxTree(state);
   const seen = new Set<string>();
@@ -51,7 +51,18 @@ export function liveRanges(state: EditorState, windows: readonly Window[]): Live
     tree.iterate({
       from: window.from, to: window.to,
       enter(node) {
-        if (node.name === "FencedCode" || node.name === "CodeBlock" || node.name === "Table") return false;
+        if (node.name === "FencedCode" || node.name === "CodeBlock") {
+          const first = Math.max(state.doc.lineAt(node.from).number, state.doc.lineAt(window.from).number);
+          const last = Math.min(state.doc.lineAt(node.to).number, state.doc.lineAt(window.to).number);
+          for (let number = first; number <= last; number++) add({ kind: "line", from: state.doc.line(number).from, className: "cm-live-fence" });
+          for (const marker of node.node.getChildren("CodeMark")) {
+            if (marker.from >= window.from && marker.from <= window.to && !activeLine(state, marker.from)) add({ kind: "hide", from: marker.from, to: marker.to, syntax: "FenceMark" });
+          }
+          const info = node.node.getChild("CodeInfo");
+          if (info && !activeLine(state, info.from)) add({ kind: "mark", from: info.from, to: info.to, className: "cm-live-code-info" });
+          return false;
+        }
+        if (node.name === "Table") return false;
         const line = state.doc.lineAt(node.from);
         if (node.name === "ListItem") {
           const marker = node.node.getChild("ListMark");
@@ -143,6 +154,13 @@ export function taskChange(state: EditorState, at: number) {
 class TaskWidget extends WidgetType {
   constructor(readonly done: boolean, readonly label: string) { super(); }
   eq(other: TaskWidget) { return this.done === other.done && this.label === other.label; }
+  updateDOM(dom: HTMLElement) {
+    const input = dom.querySelector("input");
+    if (!input) return false;
+    input.checked = this.done;
+    input.setAttribute("aria-label", this.label);
+    return true;
+  }
   toDOM(view: EditorView) {
     const label = document.createElement("label");
     label.className = "cm-live-task";
@@ -165,7 +183,7 @@ class TaskWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 
-export function liveDecorations(state: EditorState, windows: readonly Window[]): DecorationSet {
+export function liveDecorations(state: EditorState, windows: readonly LiveWindow[]): DecorationSet {
   const ranges: Range<Decoration>[] = liveRanges(state, windows).map((range) => {
     switch (range.kind) {
       case "hide": return Decoration.replace({}).range(range.from, range.to);
@@ -198,7 +216,7 @@ const livePlugin = ViewPlugin.fromClass(class {
   update(update: ViewUpdate) {
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
-    if (isComposing(update.view)) { this.decorations = this.decorations.map(update.changes); return; }
+    if (isComposing(update.view) || update.state.field(compositionActive, false)) { this.decorations = this.decorations.map(update.changes); return; }
     if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(compositionSettled)))) {
       this.decorations = liveDecorations(update.state, liveWindows(update.state, update.view.visibleRanges));
     }
@@ -219,6 +237,8 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-task input": { width: "1rem", height: "1rem", margin: "0", accentColor: "var(--accent)", cursor: "pointer" },
   ".cm-live-done": { color: "var(--mute)", textDecoration: "line-through" },
   ".cm-live-wiki": { color: "var(--accent)", backgroundColor: "var(--accent-soft)", borderRadius: "var(--radius-ctl)", padding: "0.125rem 0.25rem", cursor: "text", boxDecorationBreak: "clone" },
+  "& .cm-line.cm-live-fence": { backgroundColor: "var(--desk)", fontFamily: "var(--font-mono)", padding: "0 0.5rem" },
+  ".cm-live-code-info": { fontFamily: "var(--font-sans)", fontSize: "var(--text-xs)", color: "var(--mute)", fontWeight: "600" },
 });
 
 export function liveMarkdown() {
