@@ -76,8 +76,9 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
           // the exact task recognition/text contract, on this bounded item line.
           const task = marker && taskMarker && !quoted ? parseTasks(state.sliceDoc(marker.from, line.to))[0] : undefined;
           if (marker && taskMarker && task) {
-            if (task.done) add({ kind: "mark", from: taskMarker.to, to: line.to, className: "cm-live-done" });
-            if (!activeLine(state, node.from)) add({ kind: "task", from: marker.from, to: taskMarker.to, done: task.done, label: task.text });
+            const textStart = taskMarker.to + (/^[ \t]+/.exec(state.sliceDoc(taskMarker.to, line.to))?.[0].length ?? 0);
+            if (task.done) add({ kind: "mark", from: textStart, to: line.to, className: "cm-live-done" });
+            if (!activeLine(state, node.from)) add({ kind: "task", from: marker.from, to: textStart, done: task.done, label: task.text });
           }
         }
         if (/^ATXHeading[1-6]$/.test(node.name)) add({ kind: "line", from: line.from, className: `cm-live-h${node.name.slice(-1)}` });
@@ -86,7 +87,8 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
         if (className) add({ kind: "mark", from: node.from, to: node.to, className });
         if (!activeLine(state, node.from)) {
           if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark"].includes(node.name)) {
-            add({ kind: "hide", from: node.from, to: node.to, syntax: node.name });
+            const to = node.name === "HeaderMark" ? node.to + (/^[ \t]+/.exec(state.sliceDoc(node.to, line.to))?.[0].length ?? 0) : node.to;
+            add({ kind: "hide", from: node.from, to, syntax: node.name });
           }
           if (node.name === "ListMark" && !node.node.parent?.getChild("Task") && /^[-*+]$/.test(state.sliceDoc(node.from, node.to))) {
             add({ kind: "bullet", from: node.from, to: node.to });
@@ -173,7 +175,9 @@ class TaskWidget extends WidgetType {
     label.append(input);
     label.addEventListener("mousedown", (event) => event.preventDefault());
     input.addEventListener("click", (event) => {
-      event.preventDefault();
+      // Native activation owns the immediate checked state. Cancel it only
+      // during composition, when the source toggle is queued rather than applied.
+      if (isComposing(view)) event.preventDefault();
       const anchor = view.posAtDOM(label);
       deferEdit(view, { kind: "command", selection: EditorSelection.single(anchor), run(current, selection) {
         const changes = taskChange(current.state, selection.main.head);

@@ -17,7 +17,7 @@ test.each([
   const off = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
   const on = liveRanges(state(doc, 0), [{ from: 0, to: doc.length }]);
   // Then
-  expect(off.filter((range) => range.kind === "hide").map((range) => doc.slice(range.from, range.to))).toContain(syntax);
+  expect(off.filter((range) => range.kind === "hide").map((range) => doc.slice(range.from, range.to))).toContain(syntax.startsWith("#") ? syntax + " " : syntax);
   expect(on.filter((range) => range.kind === "hide")).toEqual([]);
 });
 
@@ -31,14 +31,14 @@ test("styles tags, bullets and quotes but excludes code and wiki targets", () =>
 
 test("every hidden range contains only its construct's syntax across a Markdown corpus", () => {
   const samples = ["한글 English 42 📝", "제목", "한_글", "<script>", "a|b", "태그/문서"];
-  const syntax = { HeaderMark: /^#+$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, FenceMark: /^(?:`{3,}|~{3,})$/, QuoteMark: /^>$/, WikiMark: /^(?:\[\[|\]\])$/ };
+  const syntax = { HeaderMark: /^#+[ \t]*$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, FenceMark: /^(?:`{3,}|~{3,})$/, QuoteMark: /^>$/, WikiMark: /^(?:\[\[|\]\])$/ };
   for (const text of samples) {
     for (const prefix of ["", "> ", "- "]) {
       const doc = `${prefix}# ${text}\n\n${prefix}**${text}** _${text}_ \`${text}\`\n\n[[문서|${text}]]\n\n- [ ] ${text}\n- ${text}\n\n\`\`\`${text}\n${text}\n\`\`\`\n끝`;
       const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
       for (const range of ranges) {
         if (range.kind === "bullet") expect(/^[-*+]$/.test(doc.slice(range.from, range.to))).toBe(true);
-        if (range.kind === "task") expect(/^(?:[-*+]|\d+[.)])[ \t]+\[[ \txX]\]$/.test(doc.slice(range.from, range.to))).toBe(true);
+        if (range.kind === "task") expect(/^(?:[-*+]|\d+[.)])[ \t]+\[[ \txX]\][ \t]*$/.test(doc.slice(range.from, range.to))).toBe(true);
         if (range.kind !== "hide") continue;
         if (range.syntax === "WikiDestination") {
           const link = parseWikiLinks(doc).find((link) => link.start + 2 === range.from && link.label !== null);
@@ -114,4 +114,20 @@ test("raw mode has no live decorations and preserves source and selection", () =
   expect(liveRanges(before, [{ from: 0, to: doc.length }])).toEqual([]);
   expect(before.doc.toString()).toBe(doc);
   expect(before.selection.main.head).toBe(2);
+});
+
+test.each(["#", "##", "###"])("hides the %s delimiter space off-line and reveals the exact prefix on-line", (prefix) => {
+  const doc = `${prefix} 제목\n본문`;
+  const off = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  expect(off.find((range) => range.kind === "hide" && range.from === 0)).toEqual({ kind: "hide", from: 0, to: prefix.length + 1, syntax: "HeaderMark" });
+  expect(liveRanges(state(doc, prefix.length + 1), [{ from: 0, to: doc.length }]).some((range) => range.kind === "hide" && range.from === 0)).toBe(false);
+});
+
+test("done styling begins at the first non-space character, not the checkbox gap", () => {
+  const doc = "- [x] \t  이름 변경 반영\n끝";
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  const mark = ranges.find((range) => range.kind === "mark" && range.className === "cm-live-done");
+  expect(mark?.from).toBe(doc.indexOf("이름"));
+  const task = ranges.find((range) => range.kind === "task");
+  expect(task && task.kind === "task" && task.to).toBe(doc.indexOf("이름"));
 });
