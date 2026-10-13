@@ -1,6 +1,6 @@
 "use client";
 
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { startCompletion } from "@codemirror/autocomplete";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState, Prec } from "@codemirror/state";
@@ -24,6 +24,7 @@ import { refreshNoteViews } from "./note-cache";
 import { isComposing, wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "./wikilink-autocomplete";
 import { formatTransaction, type FormatAction } from "./editor-format";
 import { EDITOR_HEADER_COPY } from "./editor-header-copy";
+import { liveMarkdown } from "./live-markdown";
 
 const writingHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: "1.375em", fontWeight: "700" },
@@ -89,7 +90,8 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   // The failure itself, not its text, so a language switch re-renders the message.
   const [uploadFailure, setUploadFailure] = useState<{ error: unknown } | null>(null);
   const baseExtensions = useMemo(() => [
-    markdown(),
+    markdown({ base: markdownLanguage }),
+    ...liveMarkdown(),
     ...wikiLinkCompletion(fetchNoteTitles),
     EditorView.lineWrapping,
     syntaxHighlighting(writingHighlight),
