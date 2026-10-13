@@ -58,7 +58,11 @@
 [데스크톱 백업 검증](docs/BACKUP-DESKTOP.md)도 제공합니다.
 Bun 1.4.2로 실제 Windows 11 x64와 Linux arm64에서 소유자 초기화, 프로덕션 실행,
 로그인, 노트·첨부, 재시작 후 데이터 유지, 중복 실행 거부, 정지 상태의 백업 검증,
-Ctrl+C 종료를 검증했습니다. macOS는 미검증입니다. Windows에서는 모델 관리,
+Ctrl+C 종료를 검증했습니다. 같은 프로덕션 체크아웃 흐름과 프로그램으로 전달한
+SIGINT/SIGTERM 종료는 GitHub 호스팅 `macos-latest`(Apple Silicon, macOS 26.6.2)와
+`macos-26-intel`(x64, macOS 26.6.1)에서도 검증했습니다. 실제 Mac은 사용하지 않았으며,
+대화형 Terminal Ctrl+C, 다운로드 파일의 Gatekeeper/격리 동작, 잠자기/깨우기,
+기본값 이외의 파일시스템은 검증하지 않았습니다. Windows와 macOS에서는 모델 관리,
 서버/Docker 도구, 공식 채팅 CLI 제공자, 데스크톱 패키징·업데이트를 지원하지 않습니다.
 데스크톱과 서버 사이의 이동은
 명시적 노트 내보내기/가져오기이며 동시 동기화나 전체 계정 이전이 아닙니다.

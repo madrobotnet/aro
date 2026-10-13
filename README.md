@@ -63,9 +63,13 @@ It also includes an experimental [local SQLite runtime](docs/DESKTOP.md) and
 [desktop backup verification](docs/BACKUP-DESKTOP.md), verified on real Windows 11
 x64 and Linux arm64 with Bun 1.4.2 for owner initialization, production start,
 login, notes/attachments, restart persistence, duplicate-start refusal, stopped
-backup verification and Ctrl+C shutdown. macOS is unverified. Windows model
-management, server/Docker tooling, official chat CLI providers and desktop
-packaging/updates are unsupported. Desktop/server movement is explicit note
+backup verification and Ctrl+C shutdown. The same production checkout workflow
+and programmatic SIGINT/SIGTERM shutdown passed on GitHub-hosted `macos-latest`
+(Apple Silicon, macOS 26.6.2) and `macos-26-intel` (x64, macOS 26.6.1), not a
+physical Mac. Interactive Terminal Ctrl+C, Gatekeeper/quarantine, sleep/wake and
+non-default filesystems were not exercised. Windows and macOS model management,
+server/Docker tooling, official chat CLI providers and desktop packaging/updates
+are unsupported. Desktop/server movement is explicit note
 export/import, not simultaneous synchronization or a full-account migration.
 The development version also adds [owner-controlled MCP access](docs/AGENT-ACCESS.md):
 separate revocable tokens, inbox-only captures, and reviewed note-change proposals.

@@ -1,7 +1,9 @@
 # Desktop backup and restore verification
 
-These commands are verified on Linux arm64 and real Windows 11 x64 with Bun 1.4.2
-and require a **stopped desktop application**. macOS is unverified.
+These commands are verified with Bun 1.4.2 on Linux arm64, real Windows 11 x64,
+and GitHub-hosted macOS runners: `macos-latest` (Apple Silicon, macOS 26.6.2/25G83,
+image 20260907.0351.1) and `macos-26-intel` (x64, macOS 26.6.1/25G76,
+image 20260824.0517.1). They require a **stopped desktop application**.
 They are separate from the PostgreSQL/server backup commands. Run from the
 repository root, as the desktop data directory's owner:
 
@@ -62,10 +64,21 @@ checks content identity and root/sandbox privacy instead of POSIX mode equality;
 it does not preserve or restore individual NTFS ACLs or certify effective access
 for every possible Windows principal.
 
-Linux readers accept v1 only; Windows readers accept v2 only. The other platform
+Linux and macOS readers accept v1 only; Windows readers accept v2 only. The other platform
 family is refused before creating a restore sandbox, and a v2 manifest containing
-POSIX mode fields is malformed. Moving notes between machines uses Markdown/ZIP
-export and import, not a cross-platform desktop backup.
+POSIX mode fields is malformed. Linux and macOS use the identical POSIX v1
+format and unchanged ownership/mode/no-symlink checks. A Linux-made v1 backup
+verified on both Mac images; a backup made by each Mac image verified on Linux.
+This verifies snapshot contents, checksums, modes, SQLite integrity and attachment
+references in both directions, not live restore over an installation. Destination
+paths must be representable on its filesystem; these runs do not certify every
+Linux filename on case-insensitive APFS or non-default filesystems. Moving notes
+between the POSIX and Windows families uses Markdown/ZIP export and import.
+
+macOS temporary parents must be canonical too: use `/private/tmp`, not the
+`/tmp` alias, and resolve an existing `/var/folders/...` parent to its
+`/private/var/folders/...` path before creating a verification directory. Neither
+CLI follows symlink ancestors or relaxes POSIX permissions.
 
 In PowerShell, use absolute paths and private parent directories:
 
@@ -81,6 +94,11 @@ bun --no-env-file scripts/restore-desktop-check.ts `
 Create `aro-backups` and `aro-verification` first. No ACL is relaxed automatically.
 Local model management, server/Docker tooling, official chat CLI providers, and
 desktop packaging/updates are not Windows-supported workflows.
+
+The same workflows remain unsupported on macOS. Verification used GitHub-hosted
+runners, not a physical Mac; interactive Terminal Ctrl+C, Gatekeeper/quarantine
+behavior of downloaded files, sleep/wake and non-default filesystems were not
+exercised. See [DESKTOP.md](DESKTOP.md) for signal and abrupt-launcher-death results.
 
 File copies and hashes use 1 MiB buffers, including for large databases and
 attachments. Manifests are limited to 16 MiB and 100,000 entries. The manifest is

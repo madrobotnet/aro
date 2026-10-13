@@ -5,8 +5,12 @@ PostgreSQL server. The checkout workflow is verified on Linux arm64 and real
 Windows 11 x64 with Bun 1.4.2: owner initialization through stdin, production
 start, HTTP login, notes, binary attachments, restart persistence, duplicate-start
 refusal, stopped backup/restore verification, and Ctrl+C shutdown.
-macOS is unverified. Native Windows packages, Windows desktop updates, and a
-published curl installation endpoint are not available.
+The production checkout workflow is also verified on GitHub-hosted macOS
+runners with Bun 1.4.2 and Node 22, not on a physical Mac:
+`macos-latest` (Apple Silicon, macOS 26.6.2/25G83, image 20260907.0351.1) and
+`macos-26-intel` (x64, macOS 26.6.1/25G76, image 20260824.0517.1).
+Native macOS/Windows packages, macOS/Windows desktop updates, and a published curl
+installation endpoint are not available.
 
 From this checkout, initialize a private data directory. The password is sent
 over standard input, not as a command argument. In Bash:
@@ -23,7 +27,7 @@ unset ARO_PASSWORD
 Initialization creates the single owner locally with AI disabled. It does not
 open a network listener, ask for an installation token, or overwrite an existing
 owner. Use a private terminal; do not enable shell tracing or record the session.
-On Linux the data directory must be owned by the operator, mode 0700, and contain
+On Linux and macOS the data directory must be owned by the operator, mode 0700, and contain
 no symlink path components. The launcher does not relax permissions on an existing
 directory. Windows uses the ACL check described below instead of POSIX mode bits.
 
@@ -37,6 +41,41 @@ bun --no-env-file scripts/desktop.ts start \
 For an already-built application, omit `--dev`. Production mode requires the
 checkout's `.next/BUILD_ID`; this command does not install dependencies or build
 silently. Open `http://127.0.0.1:3000` and use the password just created.
+
+## macOS checkout verification
+
+The two runner images passed typecheck and production build, stdin owner
+initialization, private-directory acceptance and shared/symlink-directory refusal,
+loopback-only listening, duplicate-start refusal, real HTTP login, note creation
+and reading, binary attachment upload/download, session/note/byte persistence
+after restart, and stopped backup/restore verification. Native argon2 hashing and
+password verification worked on both arm64 and x64. Case-distinct attachment
+metadata did not collide on the runners' case-insensitive APFS; portable export's
+case-collision and Unicode filename tests also ran.
+
+POSIX ownership, private modes and no-symlink checks are identical to Linux.
+Use canonical paths: macOS `/tmp` redirects to `/private/tmp`, and `os.tmpdir()`
+can return `/var/folders/...` instead of `/private/var/folders/...`. A redirected
+path is still refused. Resolve an existing temporary parent before creating test
+directories; the launcher never silently resolves away an operator's symlink.
+
+Programmatically delivered SIGINT and SIGTERM left no live recorded descendants
+or listener and allowed reacquisition of the runtime lock. SIGKILL of the launcher
+left two app descendants and the loopback listener alive on both images, although
+the launcher's SQLite lock was released. Recovery killed the recorded owned app
+descendants, checked that the listener was gone, then allowed reuse of the data
+directory. Do not treat an available lock as proof that the app stopped, and do
+not delete lock files or SQLite sidecars.
+
+Local model management remains Linux-only and is not invoked on macOS. Server/
+Docker tooling, official chat CLI providers, desktop packaging and desktop
+updates are unsupported on macOS. Package/update calls refuse before writes.
+Portable source/archive fixture checks do not certify distribution tooling.
+Development `--dev` and live optional external providers were not verified.
+
+Verification used GitHub-hosted runners, not a physical Mac. Interactive Terminal
+Ctrl+C, Gatekeeper/quarantine behavior of downloaded files, sleep/wake, and
+non-default filesystems were not exercised.
 
 ## Windows 11 x64
 
