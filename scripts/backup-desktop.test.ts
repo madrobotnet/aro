@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { chmod, chown, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, chown, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { openSQLite } from "../src/server/db/sqlite";
 import { backupDesktop, hashOrCopy, verifyDesktopBackup } from "./backup-desktop-common";
 
 const roots: string[] = [];
+const canonicalTemporaryParent = process.platform === "darwin" ? await realpath(tmpdir()) : tmpdir();
 const key = process.platform === "win32"
   ? "10000000-0000-4000-8000-000000000001-legacy-name"
   : "10000000-0000-4000-8000-000000000001-legacy\\name";
@@ -28,7 +29,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "aro-backup-test-"));
+  const root = await mkdtemp(join(canonicalTemporaryParent, "aro-backup-test-"));
   roots.push(root);
   const data = join(root, "desktop");
   const backup = join(root, "backup");

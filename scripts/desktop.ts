@@ -82,7 +82,9 @@ async function main(): Promise<void> {
     else throw new Error("Unknown option");
   }
   if (!directory || !Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Invalid data directory or port");
-  if (process.platform !== "linux" && process.platform !== "win32") throw new Error("Desktop is supported only on Linux and Windows");
+  if (process.platform !== "linux" && process.platform !== "win32" && process.platform !== "darwin") {
+    throw new Error("Desktop is supported only on Linux, Windows and macOS");
+  }
   if (process.platform === "win32" && development) throw new Error("Windows --dev is unsupported; run bun run build and start without --dev");
   process.umask(0o077);
   if (command === "init") {
@@ -160,7 +162,9 @@ async function main(): Promise<void> {
   if (process.platform === "win32") process.once("SIGBREAK", stop);
   try {
     try {
-      model = process.platform === "win32" ? undefined : await startConfiguredModel(directory, controller.signal);
+      // Local model management remains Linux-only; desktop macOS is lexical-only.
+      model = process.platform === "win32" || process.platform === "darwin"
+        ? undefined : await startConfiguredModel(directory, controller.signal);
       if (model) env.EMBEDDING_BASE_URL = model.baseURL;
     } catch (error) {
       console.error(`Optional local model unavailable; continuing lexical-only: ${error instanceof Error ? error.message : "startup failed"}`);

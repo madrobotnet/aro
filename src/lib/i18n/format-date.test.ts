@@ -32,8 +32,10 @@ describe("formatDate", () => {
 describe("formatDateTime", () => {
   test("shows hours and minutes without seconds", () => {
     expect(formatDateTime(INSTANT, "ko", SEOUL)).toBe("2026-09-29 오후 7:18");
-    // ICU may put U+202F (narrow no-break space) before the day period.
-    expect(formatDateTime(INSTANT, "en", SEOUL)).toMatch(/^Sep 29, 2026, 7:18\sPM$/);
+    // Darwin ICU also uses " at "; Linux/Windows keep their existing assertion.
+    const expected = process.platform === "darwin"
+      ? /^Sep 29, 2026(?:,| at) 7:18\sPM$/ : /^Sep 29, 2026, 7:18\sPM$/;
+    expect(formatDateTime(INSTANT, "en", SEOUL)).toMatch(expected);
   });
 
   test("no output contains a seconds field", () => {

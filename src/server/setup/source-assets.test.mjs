@@ -1,14 +1,15 @@
 import { test, expect } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, access, symlink, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, realpath, rm, access, symlink, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { assetPrefix, prepareAssets, sha, safe, digest } from "../../../distribution/release/assets.mjs";
 import { restoreAssets, verifySourceAssets } from "../../../distribution/release/restore.mjs";
 import { replacementFiles, replaceWidth, archiveTree } from "../../../scripts/prepare-release-materials.mjs";
 
+const temporaryParent = process.platform === "darwin" ? await realpath(tmpdir()) : tmpdir();
 async function fixture(platform = "linux/arm64", version = "2.4.0") {
-  const root = await mkdtemp(join(tmpdir(), "source-assets-"));
+  const root = await mkdtemp(join(temporaryParent, "source-assets-"));
   const options = { version, revision: "a".repeat(40), platform, limit: 8192,
     materials: join(root, "materials"), out: join(root, "out") };
   const content = Buffer.alloc(10000, 65);

@@ -241,7 +241,9 @@ export async function verifyDesktopBackup(backup: string, temporaryParent: strin
 }
 
 export function desktopArguments(names: readonly string[]): Record<string, string> {
-  if (process.platform !== "linux" && process.platform !== "win32") fail("Desktop backup requires Linux or Windows with Bun 1.4.2");
+  if (process.platform !== "linux" && process.platform !== "win32" && process.platform !== "darwin") {
+    fail("Desktop backup requires Linux, Windows or macOS with Bun 1.4.2");
+  }
   const values: Record<string, string> = {};
   const args = process.argv.slice(2);
   for (let index = 0; index < args.length; index += 2) {

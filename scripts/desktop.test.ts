@@ -2,15 +2,17 @@ import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { migrateSQLite } from "../src/server/db/sqlite/migrate";
 import { SQLITE_MIGRATIONS } from "../src/server/db/sqlite/migrations";
-import { mkdtemp, rm, chmod, symlink } from "node:fs/promises";
+import { mkdtemp, rm, chmod, symlink, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import argon2 from "argon2";
 import { openSQLite } from "../src/server/db/sqlite";
 import { desktopDirectory, initializeDesktop } from "./desktop";
 
+const temporaryParent = process.platform === "darwin" ? await realpath(tmpdir()) : tmpdir();
+
 test("busy runtime ownership prevents startup and initialization from migrating existing data", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "aro-desktop-lock-"));
+  const directory = await mkdtemp(join(temporaryParent, "aro-desktop-lock-"));
   try {
     using db = new Database(join(directory, "aro.sqlite"));
     db.run("PRAGMA foreign_keys=ON");
@@ -39,7 +41,7 @@ test("busy runtime ownership prevents startup and initialization from migrating 
 });
 
 test("local initialization creates one owner with AI off and never overwrites it", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "aro-desktop-init-"));
+  const directory = await mkdtemp(join(temporaryParent, "aro-desktop-init-"));
   try {
     await initializeDesktop(directory, "a-private-test-password");
     using store = openSQLite({ filename: join(directory, "aro.sqlite") });
@@ -56,7 +58,7 @@ test("local initialization creates one owner with AI off and never overwrites it
 });
 
 test("unsafe directory and short password fail before owner creation", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "aro-desktop-path-"));
+  const directory = await mkdtemp(join(temporaryParent, "aro-desktop-path-"));
   const linked = `${directory}-link`;
   try {
     await expect(initializeDesktop(directory, "short")).rejects.toThrow();
@@ -69,6 +71,7 @@ test("unsafe directory and short password fail before owner creation", async () 
     if (process.platform !== "win32") await chmod(directory, 0o700);
     await symlink(directory, linked, process.platform === "win32" ? "junction" : "dir");
     await expect(desktopDirectory(linked)).rejects.toThrow();
+    await expect(desktopDirectory(join(linked, "child"))).rejects.toThrow();
   } finally {
     await rm(linked, { force: true });
     await rm(directory, { recursive: true, force: true });
@@ -76,7 +79,7 @@ test("unsafe directory and short password fail before owner creation", async () 
 });
 
 test.skipIf(process.platform !== "win32")("Windows default inherited private ACL is accepted", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "aro-desktop-acl-"));
+  const directory = await mkdtemp(join(temporaryParent, "aro-desktop-acl-"));
   try { expect(await desktopDirectory(directory)).toBe(directory); }
   finally { await rm(directory, { recursive: true, force: true }); }
 });

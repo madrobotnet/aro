@@ -12,9 +12,17 @@ export class WindowsDesktopDistributionError extends Error {
   }
 }
 
+export class MacOSDesktopDistributionError extends Error {
+  constructor() {
+    super("macOS desktop packaging and updates are unverified and unsupported");
+    this.code = "macos-desktop-distribution-unsupported";
+  }
+}
+
 /** Produce an unpublished native-runtime directory from a successful standalone build. */
 export async function packageDesktop(output, distDirectory = ".next") {
   if (process.platform === "win32") throw new WindowsDesktopDistributionError();
+  if (process.platform === "darwin") throw new MacOSDesktopDistributionError();
   if (!/^\.next(?:-[a-zA-Z0-9-]+)?$/.test(distDirectory)) throw new Error("Invalid build directory");
   const destination = resolve(output);
   if (destination === root || destination.startsWith(`${root}/`)) throw new Error("Package output must be outside the checkout");

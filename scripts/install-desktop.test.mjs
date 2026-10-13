@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { installDesktop } from "./install-desktop.mjs";
 
+const temporaryParent = process.platform === "darwin" ? await realpath(tmpdir()) : tmpdir();
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 async function archive(extra = {}) {
   return new Bun.Archive({
@@ -21,7 +22,7 @@ async function archive(extra = {}) {
 }
 
 test("desktop archive dry-run does not write and install refuses overwriting", async () => {
-  const root = await mkdtemp(join(tmpdir(), "aro-installer-"));
+  const root = await mkdtemp(join(temporaryParent, "aro-installer-"));
   try {
     const bytes = await archive();
     const target = join(root, "app");
@@ -34,7 +35,7 @@ test("desktop archive dry-run does not write and install refuses overwriting", a
 });
 
 test("desktop archive rejects corrupt checksums and secret paths before creating output", async () => {
-  const root = await mkdtemp(join(tmpdir(), "aro-installer-reject-"));
+  const root = await mkdtemp(join(temporaryParent, "aro-installer-reject-"));
   try {
     const bytes = await archive();
     await expect(installDesktop(bytes, "0".repeat(64), join(root, "wrong"))).rejects.toThrow();
