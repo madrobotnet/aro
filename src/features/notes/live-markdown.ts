@@ -1,7 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
-import { EditorSelection, type EditorState, type Range } from "@codemirror/state";
+import { EditorSelection, Facet, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { parseInlineTags } from "@/lib/wikilinks";
+import { parseInlineTags, parseWikiLinks } from "@/lib/wikilinks";
 import { parseTasks, toggleTask } from "@/lib/tasks";
 import { compositionSettled, deferEdit, sourceChange } from "./composition-edits";
 import { isComposing } from "./wikilink-autocomplete";
@@ -12,7 +12,13 @@ export type LiveRange =
   | { readonly kind: "mark"; readonly from: number; readonly to: number; readonly className: string }
   | { readonly kind: "line"; readonly from: number; readonly className: string }
   | { readonly kind: "bullet"; readonly from: number; readonly to: number }
-  | { readonly kind: "task"; readonly from: number; readonly to: number; readonly done: boolean; readonly label: string };
+  | { readonly kind: "task"; readonly from: number; readonly to: number; readonly done: boolean; readonly label: string }
+  | { readonly kind: "wiki"; readonly from: number; readonly to: number; readonly label: string; readonly target: string };
+
+type LiveLabels = { readonly editSource: (text: string) => string; readonly wikiLabel: (label: string, target: string) => string };
+export const liveLabels = Facet.define<LiveLabels, LiveLabels>({
+  combine: (values) => values[0] ?? { editSource: (text) => text, wikiLabel: (label, target) => `${label}, ${target}` },
+});
 
 /** Line-aligned visible windows plus four lines; never stringify the whole document. */
 export function liveWindows(state: EditorState, visible: readonly Window[]): Window[] {
@@ -79,9 +85,30 @@ export function liveRanges(state: EditorState, windows: readonly Window[]): Live
     const last = state.doc.lineAt(window.to).number;
     for (let number = first; number <= last; number++) {
       const line = state.doc.line(number);
+      const links = parseWikiLinks(line.text);
+      for (const link of links) {
+        const from = line.from + link.start, to = line.from + link.end;
+        let node: ReturnType<typeof tree.resolve> | null = tree.resolve(from, 1);
+        let excluded = false;
+        while (node) {
+          if (["InlineCode", "FencedCode", "CodeBlock", "Table"].includes(node.name)) { excluded = true; break; }
+          node = node.parent;
+        }
+        if (excluded || activeLine(state, from)) continue;
+        // Explicit aliases are display text; only their destination may also be
+        // hidden. Plain links retain their target as ordinary visible source text.
+        add({ kind: "wiki", from, to, label: link.label ?? link.target, target: link.target + (link.heading ? `#${link.heading}` : "") });
+        add({ kind: "hide", from, to: from + 2, syntax: "WikiMark" });
+        add({ kind: "hide", from: to - 2, to, syntax: "WikiMark" });
+        const pipe = line.text.indexOf("|", link.start);
+        if (link.label !== null && pipe !== -1 && pipe < link.end) {
+          add({ kind: "hide", from: from + 2, to: line.from + pipe + 1, syntax: "WikiDestination" });
+        }
+      }
       for (const match of line.text.matchAll(/(^|[\s(])#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)/gu)) {
         if (!parseInlineTags(match[0]).length) continue;
         const from = line.from + match.index + (match[1] ?? "").length;
+        if (links.some((link) => from >= line.from + link.start && from < line.from + link.end)) continue;
         let node: ReturnType<typeof tree.resolve> | null = tree.resolve(from, 1);
         let excluded = false;
         while (node) {
@@ -144,6 +171,7 @@ export function liveDecorations(state: EditorState, windows: readonly Window[]):
       case "hide": return Decoration.replace({}).range(range.from, range.to);
       case "bullet": return Decoration.replace({ widget: new BulletWidget() }).range(range.from, range.to);
       case "task": return Decoration.replace({ widget: new TaskWidget(range.done, range.label) }).range(range.from, range.to);
+      case "wiki": return Decoration.mark({ class: "cm-live-wiki", attributes: { role: "button", tabindex: "0", contenteditable: "false", title: range.target, "aria-label": state.facet(liveLabels).wikiLabel(range.label, range.target) } }).range(range.from, range.to);
       case "line": return Decoration.line({ class: range.className }).range(range.from);
       case "mark": return Decoration.mark({ class: range.className }).range(range.from, range.to);
     }
@@ -153,7 +181,20 @@ export function liveDecorations(state: EditorState, windows: readonly Window[]):
 
 const livePlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet;
-  constructor(view: EditorView) { this.decorations = liveDecorations(view.state, liveWindows(view.state, view.visibleRanges)); }
+  readonly chipKey = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" || event.isComposing || isComposing(this.view) || !(event.target instanceof HTMLElement) || !event.target.classList.contains("cm-live-wiki")) return;
+    // A focused chip is a control, not an IME text target. Handle its activation
+    // before CM's keydown forceFlush recycles the marked span into source text.
+    event.preventDefault();
+    event.stopPropagation();
+    this.view.dispatch({ selection: { anchor: this.view.posAtDOM(event.target, 0) } });
+    this.view.focus();
+  };
+  constructor(readonly view: EditorView) {
+    this.decorations = liveDecorations(view.state, liveWindows(view.state, view.visibleRanges));
+    view.contentDOM.addEventListener("keydown", this.chipKey, true);
+  }
+  destroy() { this.view.contentDOM.removeEventListener("keydown", this.chipKey, true); }
   update(update: ViewUpdate) {
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
@@ -177,6 +218,7 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-task": { display: "inline-flex", alignItems: "center", minHeight: "var(--text-read-leading)", verticalAlign: "middle", marginRight: "0.5rem" },
   ".cm-live-task input": { width: "1rem", height: "1rem", margin: "0", accentColor: "var(--accent)", cursor: "pointer" },
   ".cm-live-done": { color: "var(--mute)", textDecoration: "line-through" },
+  ".cm-live-wiki": { color: "var(--accent)", backgroundColor: "var(--accent-soft)", borderRadius: "var(--radius-ctl)", padding: "0.125rem 0.25rem", cursor: "text", boxDecorationBreak: "clone" },
 });
 
 export function liveMarkdown() {

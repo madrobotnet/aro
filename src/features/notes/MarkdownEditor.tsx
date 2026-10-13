@@ -24,8 +24,9 @@ import { refreshNoteViews } from "./note-cache";
 import { isComposing, wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "./wikilink-autocomplete";
 import { formatTransaction, type FormatAction } from "./editor-format";
 import { EDITOR_HEADER_COPY } from "./editor-header-copy";
-import { liveMarkdown } from "./live-markdown";
+import { liveLabels, liveMarkdown } from "./live-markdown";
 import { compositionEdits, deferEdit, sourceChange } from "./composition-edits";
+import { LIVE_EDITOR_COPY } from "./live-editor-copy";
 
 const writingHighlight = HighlightStyle.define([
   { tag: [tags.heading1, tags.heading2], fontWeight: "700" },
@@ -48,6 +49,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   const { locale } = useLocale();
   const copy = useCopy(NOTES_COPY).editor;
   const formatCopy = useCopy(EDITOR_HEADER_COPY);
+  const liveCopy = useCopy(LIVE_EDITOR_COPY);
   const linksCopy = useCopy(LINKS_COPY).completion;
   const { cache, mutate } = useSWRConfig();
   const { toast } = useToast();
@@ -135,10 +137,11 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   // A new list reconfigures the live editor in place, as a theme change does; text, selection and undo history stay.
   const extensions = useMemo(() => [
     ...baseExtensions,
+    liveLabels.of({ editSource: liveCopy.editSource, wikiLabel: liveCopy.wikiLabel }),
     EditorState.phrases.of(copy.phrases),
     EditorView.contentAttributes.of({ "aria-label": copy.bodyLabel }),
     wikiLinkEnv.of({ createLabel: linksCopy.create, onCreate: (title) => void createLinkedNote(title) }),
-  ], [baseExtensions, copy, linksCopy, createLinkedNote]);
+  ], [baseExtensions, copy, liveCopy, linksCopy, createLinkedNote]);
 
   const upload = async (file: File) => {
     setUploading(true);

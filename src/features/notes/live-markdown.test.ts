@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
+import { parseWikiLinks } from "@/lib/wikilinks";
 import { liveRanges, liveWindows, taskChange } from "./live-markdown";
 
 function state(doc: string, anchor = doc.length) {
@@ -30,18 +31,39 @@ test("styles tags, bullets and quotes but excludes code and wiki targets", () =>
 
 test("every hidden range contains only its construct's syntax across a Markdown corpus", () => {
   const samples = ["한글 English 42 📝", "제목", "한_글", "<script>", "a|b", "태그/문서"];
-  const syntax = { HeaderMark: /^#+$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, QuoteMark: /^>$/ };
+  const syntax = { HeaderMark: /^#+$/, EmphasisMark: /^[*_]+$/, CodeMark: /^`+$/, QuoteMark: /^>$/, WikiMark: /^(?:\[\[|\]\])$/ };
   for (const text of samples) {
     for (const prefix of ["", "> ", "- "]) {
-      const doc = `${prefix}# ${text}\n\n${prefix}**${text}** _${text}_ \`${text}\`\n\n\`\`\`${text}\n${text}\n\`\`\`\n끝`;
+      const doc = `${prefix}# ${text}\n\n${prefix}**${text}** _${text}_ \`${text}\`\n\n[[문서|${text}]]\n\n- [ ] ${text}\n- ${text}\n\n\`\`\`${text}\n${text}\n\`\`\`\n끝`;
       const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
       for (const range of ranges) {
+        if (range.kind === "bullet") expect(/^[-*+]$/.test(doc.slice(range.from, range.to))).toBe(true);
+        if (range.kind === "task") expect(/^(?:[-*+]|\d+[.)])[ \t]+\[[ \txX]\]$/.test(doc.slice(range.from, range.to))).toBe(true);
         if (range.kind !== "hide") continue;
+        if (range.syntax === "WikiDestination") {
+          const link = parseWikiLinks(doc).find((link) => link.start + 2 === range.from && link.label !== null);
+          expect(link).toBeDefined();
+          expect(range.to).toBe(doc.indexOf("|", range.from) + 1);
+          continue;
+        }
         const pattern = Object.entries(syntax).find(([name]) => name === range.syntax)?.[1];
         expect(pattern?.test(doc.slice(range.from, range.to))).toBe(true);
       }
     }
   }
+});
+
+test("wiki chips hide only an explicitly aliased destination and never a plain target", () => {
+  const doc = "관련 [[제품#일정|표시 이름]] [[문서]]\n끝";
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  expect(ranges.flatMap((range) => range.kind === "wiki" ? [range.label] : [])).toEqual(["표시 이름", "문서"]);
+  const hidden = ranges.flatMap((range) => range.kind === "hide" ? [doc.slice(range.from, range.to)] : []);
+  expect(hidden).toEqual(["[[", "]]", "제품#일정|", "[[", "]]"]);
+  const plainFrom = doc.indexOf("문서");
+  expect(ranges.some((range) => range.kind === "hide" && range.from < plainFrom + 2 && range.to > plainFrom)).toBe(false);
+  expect(liveRanges(state(doc, 5), [{ from: 0, to: doc.length }]).filter((range) => range.kind === "wiki")).toEqual([]);
+  const code = "`[[코드]]`\n~~~\n[[펜스]]\n~~~\n끝";
+  expect(liveRanges(state(code), [{ from: 0, to: code.length }]).filter((range) => range.kind === "wiki")).toEqual([]);
 });
 
 test("bounds work to the viewport and updates syntax after a local edit", () => {
