@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test as platformTest } from "bun:test";
 import { once } from "node:events";
 import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
@@ -8,6 +8,9 @@ import { deleteConnectionProfile, saveConnectionProfile } from "@/server/setup/a
 import { closeSQLiteStore } from "@/server/db/backend";
 import { createGoogleProfileProvider } from "./google-profile";
 import { browserHash, readySQLiteGrant, sqliteAuthFixture, sqliteOwnerScope } from "./sqlite-test-fixture";
+
+// These writeback fixtures invoke the Linux-only official CLI adapter.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 sqliteAuthFixture();
 const runtime = Bun.which("node");

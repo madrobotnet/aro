@@ -1,7 +1,10 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// Server Compose configuration requires Linux and the external Docker CLI.
+const test = platformTest.skipIf(process.platform !== "linux" || !Bun.which("docker"));
 
 const directories: string[] = [];
 const root = path.resolve(import.meta.dir, "../../..");

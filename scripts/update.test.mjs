@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { Database } from "bun:sqlite";
 import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,6 +7,9 @@ import { hash } from "./update-common.mjs";
 import { releaseRegistry } from "./release-names.mjs";
 import { openSQLite } from "../src/server/db/sqlite";
 import { backupDesktop } from "./backup-desktop-common.ts";
+
+// Desktop sealing and server executable/Docker fixtures are Linux-only.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 const roots = [];
 afterEach(async () => {

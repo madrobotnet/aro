@@ -8,6 +8,8 @@ import { options, digest, databaseDigest, save } from "./backup/common.mjs";
 import { validateBackup } from "./restore-check.mjs";
 
 const scripts = import.meta.dir;
+// Server backup uses POSIX ownership/modes and executable Docker fixtures.
+const linuxTest = test.skipIf(process.platform !== "linux");
 async function command(args, env = {}) {
   const child = Bun.spawn(args, { env: { PATH: process.env.PATH, HOME: process.env.HOME, ...env },
     stdin: "ignore", stdout: "pipe", stderr: "pipe" });
@@ -38,7 +40,7 @@ async function fixture() {
   await save(join(dir, "manifest.json"), manifest);
   return { dir, manifest };
 }
-test("validates full artifact set, checksums, versions, permissions and symlinks before Docker", async () => {
+linuxTest("validates full artifact set, checksums, versions, permissions and symlinks before Docker", async () => {
   const { dir, manifest } = await fixture();
   try {
     await validateBackup(dir, "2.4.0");
@@ -63,7 +65,7 @@ test("validates full artifact set, checksums, versions, permissions and symlinks
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test("legacy backups without recorded names retain second_brain database and role", async () => {
+linuxTest("legacy backups without recorded names retain second_brain database and role", async () => {
   // Given
   const { dir } = await fixture();
   try {
@@ -74,7 +76,7 @@ test("legacy backups without recorded names retain second_brain database and rol
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test("new backups restore recorded database and role names", async () => {
+linuxTest("new backups restore recorded database and role names", async () => {
   // Given
   const { dir, manifest } = await fixture();
   manifest.kind = "aro-backup";
@@ -88,7 +90,7 @@ test("new backups restore recorded database and role names", async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test("invalid recorded names fail before restore resource creation", async () => {
+linuxTest("invalid recorded names fail before restore resource creation", async () => {
   const { dir, manifest } = await fixture();
   manifest.database = { database: "aro;DROP DATABASE postgres", user: "aro" };
   await writeFile(join(dir, "manifest.json"), JSON.stringify(manifest));
@@ -106,7 +108,7 @@ test("streaming database hash excludes random restrict tokens, not row contents"
     expect(await databaseDigest(join(dir, "other.sql"))).not.toBe(first);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
-test("foreign projects, foreign volumes and bind mounts fail before downtime", async () => {
+linuxTest("foreign projects, foreign volumes and bind mounts fail before downtime", async () => {
   for (const failure of ["project", "volume", "bind"]) {
     const dir = await mkdtemp(join(tmpdir(), "irang-backup-target-"));
     try {
@@ -147,7 +149,7 @@ console.log(typeof out === "string" ? out : JSON.stringify(out));
   }
 });
 
-test.skipIf(process.env.ARO_BACKUP_CONTAINER_QA !== "1")("real disposable DB/files roundtrip, prior state and failed dump recovery", async () => {
+test.skipIf(process.platform !== "linux" || !Bun.which("docker") || process.env.ARO_BACKUP_CONTAINER_QA !== "1")("real disposable DB/files roundtrip, prior state and failed dump recovery", async () => {
   const dir = await mkdtemp(join(tmpdir(), "irang-backup-surface-"));
   const project = `aro-backup-qa-${randomUUID()}`;
   const image = `${project}:fixture`, compose = join(dir, "install"), output = join(dir, "backup");

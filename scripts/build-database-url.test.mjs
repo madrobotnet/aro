@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 async function run(values) {
   const child = Bun.spawn([process.execPath, "--no-env-file",
-    new URL("./build-database-url.mjs", import.meta.url).pathname], {
+    fileURLToPath(new URL("./build-database-url.mjs", import.meta.url))], {
     env: { PATH: process.env.PATH, ...values }, stdout: "pipe", stderr: "pipe",
   });
   const [code, stdout, stderr] = await Promise.all([child.exited,

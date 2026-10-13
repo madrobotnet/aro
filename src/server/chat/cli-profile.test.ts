@@ -1,9 +1,12 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { GoogleCredential } from "@/lib/ai-auth";
 import { createCliProvider } from "./cli-provider";
 import { ChatProviderError } from "./provider";
+
+// Official CLI credential isolation uses Linux process groups and private /tmp.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 const runtime = Bun.which("node");
 if (!runtime) throw new Error("Node is required for CLI fixtures");

@@ -265,7 +265,7 @@ test("attachments preserve metadata, safe names, legacy files and nofollow behav
   expect(saved.sizeBytes).toBe(5);
   expect(saved.noteId).toBe(note.id);
   expect(new TextDecoder().decode((await loadAttachment(saved.id.toUpperCase())).bytes)).toBe("hello");
-  const legacy = `${randomUUID()}-old\\report.txt`;
+  const legacy = `${randomUUID()}-${process.platform === "win32" ? "old-report.txt" : "old\\report.txt"}`;
   await writeFile(filePath(legacy), "legacy");
   const row = store.get<{ id: string }>("INSERT INTO attachments(filename,mime,size_bytes,storage_key) VALUES ('legacy','text/plain',6,?) RETURNING id", [legacy]);
   if (!row) throw new Error("Missing legacy attachment");

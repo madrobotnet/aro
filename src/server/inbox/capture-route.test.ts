@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 test("real capture route enforces owner confirmation expiry and committed replay", async () => {
   const process = Bun.spawn([Bun.which("bun") ?? "bun", "--no-env-file",
-    new URL("./capture-route-fixture.js", import.meta.url).pathname],
-  { cwd: new URL("../../..", import.meta.url).pathname, stdout: "pipe", stderr: "pipe" });
+    fileURLToPath(new URL("./capture-route-fixture.js", import.meta.url))],
+  { cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdout: "pipe", stderr: "pipe" });
   const [exitCode, stdout, stderr] = await Promise.all([
     process.exited, new Response(process.stdout).text(), new Response(process.stderr).text(),
   ]);

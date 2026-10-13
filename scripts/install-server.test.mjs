@@ -8,6 +8,8 @@ import { completeLocalSetup, releaseBytes } from "./install-server.mjs";
 import { releasePrefix, releaseRegistry } from "./release-names.mjs";
 
 const directories = [];
+// These cases execute POSIX Docker wrappers or assert Linux private modes.
+const linuxTest = test.skipIf(process.platform !== "linux");
 const script = join(import.meta.dir, "install-server.mjs");
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 afterEach(async () => {
@@ -97,7 +99,7 @@ async function calls(f) {
   catch (error) { if (error.code === "ENOENT") return []; throw error; }
 }
 
-test("dry run verifies pins with no writes and no Docker calls", async () => {
+linuxTest("dry run verifies pins with no writes and no Docker calls", async () => {
   const f = await fixture(), before = (await readdir(f.root)).sort();
   const result = await run(f, ["--dry-run"]);
   expect(result.code, result.stderr).toBe(0);
@@ -106,7 +108,7 @@ test("dry run verifies pins with no writes and no Docker calls", async () => {
   expect(await calls(f)).toEqual([]);
 });
 
-test("new installs default to the aro Compose project", async () => {
+linuxTest("new installs default to the aro Compose project", async () => {
   const f = await fixture();
   const args = [...f.args];
   args.splice(args.indexOf("--project"), 2);
@@ -115,14 +117,14 @@ test("new installs default to the aro Compose project", async () => {
   expect(JSON.parse(result.stdout).project).toBe("aro");
   expect(await calls(f)).toEqual([]);
 });
-test("requires explicit private registry authorization before any side effect", async () => {
+linuxTest("requires explicit private registry authorization before any side effect", async () => {
   const f = await fixture(), result = await run(f);
   expect(result.code).toBe(1);
   expect(result.stderr).toContain("Private GHCR");
   expect(await calls(f)).toEqual([]);
   expect(await readdir(f.root)).not.toContain("new-install");
 });
-test("rejects a bad checksum, wrong identity and unsafe archive paths before Docker", async () => {
+linuxTest("rejects a bad checksum, wrong identity and unsafe archive paths before Docker", async () => {
   for (const overrides of [
     { "aro/release.json": '{"schemaVersion":1,"version":"9.0.0"}' },
     { "aro/../escape": "bad" },
@@ -138,7 +140,7 @@ test("rejects a bad checksum, wrong identity and unsafe archive paths before Doc
   expect((await run(f, ["--authenticated"])).stderr).toContain("SHA-256 mismatch");
   expect(await calls(f)).toEqual([]);
 });
-test("refuses old Compose, remote Docker, existing resources and unauthorized pulls", async () => {
+linuxTest("refuses old Compose, remote Docker, existing resources and unauthorized pulls", async () => {
   for (const mode of ["old-compose", "remote", "occupied", "unlabelled", "denied"]) {
     const f = await fixture(), result = await run(f, ["--authenticated"], mode);
     expect(result.code, mode).toBe(1);
@@ -147,7 +149,7 @@ test("refuses old Compose, remote Docker, existing resources and unauthorized pu
     expect((await calls(f)).some(c => c.args.includes("up"))).toBe(false);
   }
 });
-test("installs exclusively, pins pull, suppresses secrets, and preserves failed startup", async () => {
+linuxTest("installs exclusively, pins pull, suppresses secrets, and preserves failed startup", async () => {
   for (const mode of ["ok", "startup-failure"]) {
     const f = await fixture(), result = await run(f, ["--authenticated"], mode);
     expect(result.code, result.stderr).toBe(mode === "ok" ? 0 : 1);
@@ -179,7 +181,7 @@ test("installs exclusively, pins pull, suppresses secrets, and preserves failed 
     expect(captured.stdout + captured.stderr).not.toContain(token);
   }
 });
-test("refuses an existing install or symlink directory without changing its data", async () => {
+linuxTest("refuses an existing install or symlink directory without changing its data", async () => {
   const f = await fixture();
   await writeFile(f.directory, "existing-install");
   expect((await run(f, ["--dry-run"])).code).toBe(1);
@@ -189,7 +191,7 @@ test("refuses an existing install or symlink directory without changing its data
   expect((await run(f, ["--dry-run"])).code).toBe(1);
   expect(await calls(f)).toEqual([]);
 });
-test("occupied loopback port prevents image pulls and installation writes", async () => {
+linuxTest("occupied loopback port prevents image pulls and installation writes", async () => {
   const f = await fixture(), socket = createServer();
   await new Promise((accept, reject) => {
     socket.once("error", reject);
@@ -201,7 +203,7 @@ test("occupied loopback port prevents image pulls and installation writes", asyn
     expect(await readdir(f.root)).not.toContain("new-install");
   } finally { await new Promise(accept => socket.close(accept)); }
 });
-test("terminal-only code retrieval checks private ownership without Docker", async () => {
+linuxTest("terminal-only code retrieval checks private ownership without Docker", async () => {
   const f = await fixture();
   expect((await run(f, ["--authenticated"])).code).toBe(0);
   const token = /^SETUP_TOKEN=(.+)$/m.exec(await readFile(join(f.directory, ".env"), "utf8"))[1];
@@ -242,7 +244,7 @@ test("downloads through an HTTP seam with exact GitHub asset URL and clear unava
   } finally { await server.stop(true); }
 });
 
-test("accepts immutable pre-2.4 archive and registry naming", async () => {
+linuxTest("accepts immutable pre-2.4 archive and registry naming", async () => {
   const f = await fixture({}, "2.3.2");
   const result = await run(f, ["--dry-run"]);
   expect(result.code, result.stderr).toBe(0);

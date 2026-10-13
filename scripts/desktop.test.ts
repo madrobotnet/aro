@@ -20,8 +20,8 @@ test("busy runtime ownership prevents startup and initialization from migrating 
     using lock = new Database(join(directory, "runtime.lock.sqlite"));
     lock.run("BEGIN IMMEDIATE");
     const child = Bun.spawn([process.execPath, "--no-env-file", join(import.meta.dir, "desktop.ts"),
-      "start", "--data-dir", directory, "--dev"], {
-      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      "start", "--data-dir", directory], {
+      env: { ...process.env, AUTH_PASSWORD_HASH: "" },
       stdout: "pipe", stderr: "pipe",
     });
     const stderr = await new Response(child.stderr).text();
@@ -60,13 +60,23 @@ test("unsafe directory and short password fail before owner creation", async () 
   const linked = `${directory}-link`;
   try {
     await expect(initializeDesktop(directory, "short")).rejects.toThrow();
-    await chmod(directory, 0o755);
+    if (process.platform === "win32") {
+      const child = Bun.spawn(["icacls", directory, "/grant", "*S-1-5-32-545:(OI)(CI)M"],
+        { stdout: "ignore", stderr: "ignore" });
+      expect(await child.exited).toBe(0);
+    } else await chmod(directory, 0o755);
     await expect(desktopDirectory(directory)).rejects.toThrow();
-    await chmod(directory, 0o700);
-    await symlink(directory, linked);
+    if (process.platform !== "win32") await chmod(directory, 0o700);
+    await symlink(directory, linked, process.platform === "win32" ? "junction" : "dir");
     await expect(desktopDirectory(linked)).rejects.toThrow();
   } finally {
     await rm(linked, { force: true });
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test.skipIf(process.platform !== "win32")("Windows default inherited private ACL is accepted", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "aro-desktop-acl-"));
+  try { expect(await desktopDirectory(directory)).toBe(directory); }
+  finally { await rm(directory, { recursive: true, force: true }); }
 });

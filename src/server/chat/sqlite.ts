@@ -114,7 +114,7 @@ export async function messageStream(threadId: string, content: string, options: 
   });
   const filename = process.env.ARO_SQLITE_PATH;
   if (!filename) throw new Error("Missing SQLite filename");
-  const unlock = lockThread(filename, threadId);
+  const unlock = await lockThread(filename, threadId);
   let provider = options.provider;
   const headers = { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", connection: "keep-alive" };
   let history: StoredMessage[];

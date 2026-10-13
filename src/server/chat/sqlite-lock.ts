@@ -4,21 +4,24 @@ import { isAbsolute, join } from "node:path";
 import { ApiError } from "@/server/http";
 import { chatCopy } from "@/server/i18n/copy";
 import { validId } from "./service";
+import { windowsPrivatePath } from "@/server/desktop/windows-private-path";
 
 /**
  * A dedicated persistent SQLite file per canonical thread, never the app DB.
  * Never unlink these files: another process may still own the original inode.
  * No lease expiry; SQLite/the kernel release the writer on close/process death.
  */
-export function lockThread(filename: string, threadId: string): () => void {
+export async function lockThread(filename: string, threadId: string): Promise<() => void> {
   validId(threadId);
   if (!isAbsolute(filename)) throw new Error("Expected an absolute SQLite filename");
   const directory = `${filename}.chat-locks`;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const stat = lstatSync(directory);
-  if (!stat.isDirectory() || (stat.mode & 0o077) !== 0) {
+  if (!stat.isDirectory() || stat.isSymbolicLink() ||
+      (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) {
     throw new Error("Chat lock directory must be private and not a symlink");
   }
+  if (process.platform === "win32") await windowsPrivatePath(directory, true);
   const path = join(directory, `${threadId.toLowerCase()}.sqlite`);
   // Only open/close an fd when creating a NEW inode. Closing any unrelated fd
   // for an already locked inode drops that process's POSIX SQLite locks.
@@ -28,7 +31,9 @@ export function lockThread(filename: string, threadId: string): () => void {
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
     const file = lstatSync(path);
-    if (!file.isFile() || (file.mode & 0o077) !== 0) throw new Error("Chat lock file must be a private regular file");
+    if (!file.isFile() || file.isSymbolicLink() ||
+        (process.platform !== "win32" && (file.mode & 0o077) !== 0)) throw new Error("Chat lock file must be a private regular file");
+    if (process.platform === "win32") await windowsPrivatePath(path, false);
   }
   const lock = new Database(path, { strict: true });
   try {

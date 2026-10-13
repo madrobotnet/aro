@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 for (const kind of ["debian", "runtime"]) {
-  test(`${kind} preparation labels its probe and preserves failure cleanup`, async () => {
+  test.skipIf(process.platform !== "linux")(`${kind} preparation labels its probe and preserves failure cleanup`, async () => {
     // Given a Docker wire fixture, no daemon or real Docker resource is used.
     const root = await mkdtemp(join(tmpdir(), "aro-resource-labels-"));
     const log = join(root, "docker.jsonl");

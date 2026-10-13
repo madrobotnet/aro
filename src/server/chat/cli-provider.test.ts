@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { once } from "node:events";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Socket } from "node:net";
@@ -7,6 +7,9 @@ import { z } from "zod";
 import { createCliProvider, type CliProviderOptions } from "./cli-provider";
 import { ChatProviderError } from "./provider";
 import { cliInstructions } from "@/server/i18n/copy";
+
+// The official CLI adapter requires Linux process groups and private /tmp.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 const roots: string[] = [];
 const nodeRuntime = Bun.which("node");

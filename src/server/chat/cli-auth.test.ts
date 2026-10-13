@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { LOCALES } from "@/lib/i18n/locale";
@@ -6,6 +6,9 @@ import { readinessCopy } from "@/server/i18n/copy";
 import {
   cliCredentialFile, getCliAuthReadiness,
 } from "./cli-auth";
+
+// Readiness fixtures exercise the Linux-only official CLI authentication paths.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 const roots: string[] = [];
 afterEach(async () => {

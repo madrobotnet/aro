@@ -6,6 +6,8 @@ import { access, lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { openSQLite, sqliteTimestamp } from "../src/server/db/sqlite";
 import { startConfiguredModel } from "./model-management";
+import { windowsPrivatePath } from "../src/server/desktop/windows-private-path";
+import { stopWindowsApp } from "./desktop-process";
 
 const root = resolve(import.meta.dir, "..");
 
@@ -17,6 +19,13 @@ export async function desktopDirectory(directory: string): Promise<string> {
   if (!isAbsolute(directory)) throw new Error("Use an absolute --data-dir");
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const info = await lstat(directory);
+  if (process.platform === "win32") {
+    if (!info.isDirectory() || info.isSymbolicLink() || await realpath(directory) !== directory) {
+      throw new Error("Data directory must be canonical and free of reparse points");
+    }
+    await windowsPrivatePath(directory, true);
+    return directory;
+  }
   if (!info.isDirectory() || info.isSymbolicLink() || await realpath(directory) !== directory ||
       info.uid !== process.getuid?.() || (info.mode & 0o077) !== 0) {
     throw new Error("Data directory must be private, owned by this user, and free of symlinks");
@@ -73,7 +82,8 @@ async function main(): Promise<void> {
     else throw new Error("Unknown option");
   }
   if (!directory || !Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Invalid data directory or port");
-  if (process.platform !== "linux") throw new Error("This development launcher is verified only on Linux");
+  if (process.platform !== "linux" && process.platform !== "win32") throw new Error("Desktop is supported only on Linux and Windows");
+  if (process.platform === "win32" && development) throw new Error("Windows --dev is unsupported; run bun run build and start without --dev");
   process.umask(0o077);
   if (command === "init") {
     if (!passwordStdin || development || seen.has("--port")) throw new Error("init requires only --data-dir and --password-stdin");
@@ -118,7 +128,8 @@ async function main(): Promise<void> {
   }
   if (!development) await access(join(root, distDirectory, "BUILD_ID"), constants.R_OK);
   const env: Record<string, string> = {};
-  for (const key of ["HOME", "PATH", "LANG", "LC_ALL", "TZ", "TERM"]) {
+  for (const key of ["HOME", "PATH", "LANG", "LC_ALL", "TZ", "TERM",
+    ...(process.platform === "win32" ? ["SystemRoot", "SYSTEMROOT", "WINDIR", "USERPROFILE", "TEMP", "TMP"] : [])]) {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
@@ -136,12 +147,20 @@ async function main(): Promise<void> {
   const controller = new AbortController();
   let child: ReturnType<typeof Bun.spawn> | undefined;
   let model: Awaited<ReturnType<typeof startConfiguredModel>>;
-  const stop = () => { controller.abort(); child?.kill("SIGTERM"); };
+  let stopping: Promise<void> | undefined;
+  const stop = () => {
+    controller.abort();
+    if (child) {
+      if (process.platform === "win32") stopping ??= stopWindowsApp(child);
+      else child.kill("SIGTERM");
+    }
+  };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
+  if (process.platform === "win32") process.once("SIGBREAK", stop);
   try {
     try {
-      model = await startConfiguredModel(directory, controller.signal);
+      model = process.platform === "win32" ? undefined : await startConfiguredModel(directory, controller.signal);
       if (model) env.EMBEDDING_BASE_URL = model.baseURL;
     } catch (error) {
       console.error(`Optional local model unavailable; continuing lexical-only: ${error instanceof Error ? error.message : "startup failed"}`);
@@ -152,9 +171,13 @@ async function main(): Promise<void> {
     process.exitCode = await child.exited;
   }
   finally {
+    if (process.platform === "win32" && child) {
+      await (stopping ??= stopWindowsApp(child));
+    }
     await model?.stop();
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
+    if (process.platform === "win32") process.off("SIGBREAK", stop);
     lock.run("ROLLBACK");
   }
 }

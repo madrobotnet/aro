@@ -1,9 +1,11 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
+// Server archive assembly requires the Linux gzip/source tooling.
+const test = platformTest.skipIf(process.platform !== "linux" || !Bun.which("gzip"));
 const sha = (bytes: string) => createHash("sha256").update(bytes).digest("hex");
 
 const directories: string[] = [];

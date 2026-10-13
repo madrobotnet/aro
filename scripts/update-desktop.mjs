@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { installDesktop } from "./install-desktop.mjs";
+import { WindowsDesktopDistributionError } from "./package-desktop.mjs";
 import { backupDesktop, verifyDesktopBackup } from "./backup-desktop-common.ts";
 import { absent, artifact, owned, separate, seal, plan } from "./update-common.mjs";
 
 export async function updateDesktop(input) {
+  if (process.platform === "win32") throw new WindowsDesktopDistributionError();
   const current = input["current-directory"], data = input["data-dir"], target = input.directory;
   const backup = input.backup, temporary = input["temp-parent"];
   separate([current, data, target, backup, temporary]);

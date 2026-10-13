@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, test as platformTest } from "bun:test";
 import { createHash } from "node:crypto";
 import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -8,6 +8,9 @@ import {
   runtimeDigest, startConfiguredModel, writeModelConfig,
 } from "./model-management";
 import { initializeDesktop } from "./desktop";
+
+// Local model management and executable fixtures are Linux-only by contract.
+const test = platformTest.skipIf(process.platform !== "linux");
 
 const directories: string[] = [];
 afterEach(async () => { for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true }); });

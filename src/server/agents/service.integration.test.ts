@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { z } from "zod";
+import { fileURLToPath } from "node:url";
 import { AgentToolCallSchema, CreateAgentTokenSchema } from "@/lib/agent-access";
 import { closeSQLiteStore, sqliteStore } from "@/server/db/backend";
 import { db } from "@/server/db";
@@ -314,7 +315,7 @@ describe(`bounded agent backend (${pg ? "PostgreSQL" : "SQLite"})`, () => {
     const token = await reader();
     const Reply = z.object({ ok: z.boolean(), code: z.string().optional() });
     let signal = Promise.withResolvers<z.infer<typeof Reply>>();
-    const child = Bun.spawn([process.execPath, "--no-env-file", new URL("./process-fixture.ts", import.meta.url).pathname], {
+    const child = Bun.spawn([process.execPath, "--no-env-file", fileURLToPath(new URL("./process-fixture.ts", import.meta.url))], {
       env: process.env, stdin: "ignore", stdout: "ignore", stderr: "pipe",
       ipc(message) { signal.resolve(Reply.parse(message)); },
     });

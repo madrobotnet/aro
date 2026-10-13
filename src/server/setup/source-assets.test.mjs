@@ -128,7 +128,7 @@ test("rejects duplicate owners, unknown owners, unsafe modes and source symlinks
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("rejects overlap without modifying the selected tree", async () => {
+test.skipIf(process.platform !== "linux")("rejects overlap without modifying the selected tree", async () => {
   const { root, options } = await fixture();
   try {
     await assert.rejects(prepareAssets({ ...options, out: join(options.materials, "output") }), /overlaps/);
@@ -185,7 +185,7 @@ test("rejects traversal and private raw containing archives", () => {
   expect(assetPrefix("2.3.2", "linux/amd64")).not.toBe(assetPrefix("2.3.2", "linux/arm64"));
 });
 
-test("portable replacement regenerates pinned ranges without private producer paths", async () => {
+test.skipIf(process.platform !== "linux")("portable replacement regenerates pinned ranges without private producer paths", async () => {
   const root = await mkdtemp(join(tmpdir(), "width-source-"));
   try {
     const materials = await replacementFiles();
@@ -211,7 +211,7 @@ test("portable replacement regenerates pinned ranges without private producer pa
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("width replacement ignores malformed unrelated fixtures and rejects changed originals", async () => {
+test.skipIf(process.platform !== "linux")("width replacement ignores malformed unrelated fixtures and rejects changed originals", async () => {
   const root = await mkdtemp(join(tmpdir(), "width-source-"));
   try {
     await writeFile(join(root, "package.json"), "{ invalid fixture");
@@ -224,7 +224,7 @@ test("width replacement ignores malformed unrelated fixtures and rejects changed
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("preferred-source tar creation streams deterministic complete files", async () => {
+test.skipIf(process.platform !== "linux" || !Bun.which("gzip"))("preferred-source tar creation streams deterministic complete files", async () => {
   const root = await mkdtemp(join(tmpdir(), "source-tar-"));
   try {
     await mkdir(join(root, "tree"));

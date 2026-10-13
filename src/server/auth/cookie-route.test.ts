@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 test("real auth routes preserve legacy login and replace and clear both cookie names", async () => {
   const child = Bun.spawn([process.execPath, "--no-env-file",
-    new URL("./cookie-route-fixture.js", import.meta.url).pathname], {
-    cwd: new URL("../../..", import.meta.url).pathname, stdout: "pipe", stderr: "pipe",
+    fileURLToPath(new URL("./cookie-route-fixture.js", import.meta.url))], {
+    cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdout: "pipe", stderr: "pipe",
   });
   const [code, stdout, stderr] = await Promise.all([child.exited,
     new Response(child.stdout).text(), new Response(child.stderr).text()]);

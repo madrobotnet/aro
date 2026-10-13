@@ -18,7 +18,7 @@ async function sourceHash() {
   }
   await visit(join(root, "src"));
   await visit(join(root, "public"));
-  for (const path of ["scripts/desktop.ts", "scripts/model.ts", "scripts/model-management.ts", "scripts/build.mjs", "package.json", "bun.lock", "next.config.ts"]) {
+  for (const path of ["scripts/desktop.ts", "scripts/desktop-process.ts", "scripts/model.ts", "scripts/model-management.ts", "scripts/build.mjs", "package.json", "bun.lock", "next.config.ts"]) {
     hash.update(path).update(await readFile(join(root, path)));
   }
   return hash.digest("hex");

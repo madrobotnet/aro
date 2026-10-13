@@ -5,8 +5,16 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 
+export class WindowsDesktopDistributionError extends Error {
+  constructor() {
+    super("Windows desktop packaging and updates are unverified and unsupported in this round");
+    this.code = "windows-desktop-distribution-unsupported";
+  }
+}
+
 /** Produce an unpublished native-runtime directory from a successful standalone build. */
 export async function packageDesktop(output, distDirectory = ".next") {
+  if (process.platform === "win32") throw new WindowsDesktopDistributionError();
   if (!/^\.next(?:-[a-zA-Z0-9-]+)?$/.test(distDirectory)) throw new Error("Invalid build directory");
   const destination = resolve(output);
   if (destination === root || destination.startsWith(`${root}/`)) throw new Error("Package output must be outside the checkout");

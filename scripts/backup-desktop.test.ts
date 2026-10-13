@@ -8,7 +8,9 @@ import { openSQLite } from "../src/server/db/sqlite";
 import { backupDesktop, hashOrCopy, verifyDesktopBackup } from "./backup-desktop-common";
 
 const roots: string[] = [];
-const key = "10000000-0000-4000-8000-000000000001-legacy\\name";
+const key = process.platform === "win32"
+  ? "10000000-0000-4000-8000-000000000001-legacy-name"
+  : "10000000-0000-4000-8000-000000000001-legacy\\name";
 const noteId = "20000000-0000-4000-8000-000000000001";
 
 afterEach(async () => {
@@ -50,7 +52,7 @@ async function fixture() {
 
 const testManifestSchema = z.object({
   entries: z.array(z.object({
-    kind: z.enum(["file", "directory"]), path: z.string(), mode: z.number(),
+    kind: z.enum(["file", "directory"]), path: z.string(), mode: z.number().optional(),
     size: z.number().optional(), sha256: z.string().optional(),
   }).passthrough()),
 }).passthrough();
@@ -84,11 +86,18 @@ test("preserves real SQLite rows all attachment bytes permissions and excludes t
   expect(restored.query("SELECT storage_key,size_bytes FROM attachments").get()).toEqual({ storage_key: key, size_bytes: 4 });
   expect(await readFile(join(f.backup, "attachments", key))).toEqual(Buffer.from([0, 255, 1, 2]));
   expect(await readFile(join(f.backup, "attachments", "unreferenced"))).toEqual(large);
-  expect((await lstat(join(f.backup, "attachments"))).mode & 0o777).toBe(0o750);
-  expect((await lstat(join(f.backup, "attachments", key))).mode & 0o777).toBe(0o640);
-  expect((await lstat(join(f.backup, "attachments", "empty"))).mode & 0o777).toBe(0o500);
-  expect((await lstat(join(f.backup, "aro.sqlite"))).mode & 0o777).toBe(0o600);
-  expect((await manifest(f.backup)).version).toBe(1);
+  if (process.platform === "win32") {
+    const value = await manifest(f.backup);
+    expect(value).toMatchObject({ version: 2, platform: "win32", permissionModel: "windows-acl" });
+    expect(value).not.toHaveProperty("dataDirectoryMode");
+    expect(value.entries.every(entry => !("mode" in entry))).toBe(true);
+  } else {
+    expect((await lstat(join(f.backup, "attachments"))).mode & 0o777).toBe(0o750);
+    expect((await lstat(join(f.backup, "attachments", key))).mode & 0o777).toBe(0o640);
+    expect((await lstat(join(f.backup, "attachments", "empty"))).mode & 0o777).toBe(0o500);
+    expect((await lstat(join(f.backup, "aro.sqlite"))).mode & 0o777).toBe(0o600);
+    expect((await manifest(f.backup)).version).toBe(1);
+  }
   expect((await readdir(f.backup)).sort()).toEqual(["aro.sqlite", "attachments", "manifest.json"]);
   const lockBefore = await lstat(join(f.data, "runtime.lock.sqlite"));
   await verifyDesktopBackup(f.backup, f.temporaryParent);
@@ -130,16 +139,24 @@ test("never overwrites even an empty existing output", async () => {
   expect(await readdir(f.backup)).toEqual([]);
 });
 
+async function makeShared(directory: string) {
+  if (process.platform === "win32") {
+    const child = Bun.spawn(["icacls", directory, "/grant", "*S-1-5-32-545:(OI)(CI)M"],
+      { stdout: "ignore", stderr: "ignore" });
+    expect(await child.exited).toBe(0);
+  } else await chmod(directory, 0o755);
+}
+
 test("refuses outputs within source and nonprivate output parents", async () => {
   const f = await fixture();
   await expect(backupDesktop(f.data, join(f.data, "backup"))).rejects.toThrow("outside");
-  await chmod(f.temporaryParent, 0o755);
+  await makeShared(f.temporaryParent);
   await expect(backupDesktop(f.data, join(f.temporaryParent, "backup"))).rejects.toThrow("private");
 });
 
 test("refuses nonprivate source directories", async () => {
   const f = await fixture();
-  await chmod(f.data, 0o755);
+  await makeShared(f.data);
   await expect(backupDesktop(f.data, f.backup)).rejects.toThrow("private");
 });
 
@@ -199,8 +216,9 @@ test("failed copy after copied files cleans partial output with no completed man
   lock.run("ROLLBACK");
 });
 
-test.each(["bytes", "mode", "extra-file", "missing-file", "link"])(
-  "verification refuses %s before sandbox creation", async (corruption) => {
+for (const corruption of ["bytes", "mode", "extra-file", "missing-file", "link"]) {
+  test.skipIf(process.platform === "win32" && corruption === "mode")(
+  `verification refuses ${corruption} before sandbox creation`, async () => {
     const f = await fixture();
     await backupDesktop(f.data, f.backup);
     const attachment = join(f.backup, "attachments", key);
@@ -218,6 +236,7 @@ test.each(["bytes", "mode", "extra-file", "missing-file", "link"])(
     expect(await readdir(f.temporaryParent)).toEqual([]);
   },
 );
+}
 
 test.each(["traversal", "absolute", "duplicate", "version", "parent", "root-mode", "invalid-json"])(
   "verification refuses manifest %s", async (corruption) => {
@@ -276,7 +295,7 @@ test("verification rejects symlinked manifest or sandbox parent", async () => {
   expect(await readdir(f.temporaryParent)).toEqual([]);
 });
 
-test("refuses source ownership mismatch", async () => {
+test.skipIf(process.platform === "win32")("refuses source ownership mismatch", async () => {
   const f = await fixture();
   // Root-only ownership fixture is deterministic; ordinary users test a root-owned directory.
   if (process.getuid?.() === 0) {
@@ -287,6 +306,28 @@ test("refuses source ownership mismatch", async () => {
     await expect(backupDesktop("/", f.backup)).rejects.toThrow("owned");
   }
   expect(await readdir(f.root)).not.toContain("backup");
+});
+
+test("refuses other platform backup format before sandbox writes", async () => {
+  const f = await fixture();
+  await backupDesktop(f.data, f.backup);
+  const value = await manifest(f.backup);
+  value.version = process.platform === "win32" ? 1 : 2;
+  await writeFile(join(f.backup, "manifest.json"), JSON.stringify(value));
+  await expect(verifyDesktopBackup(f.backup, f.temporaryParent)).rejects.toMatchObject({ code: "platform-mismatch" });
+  expect(await readdir(f.temporaryParent)).toEqual([]);
+});
+
+test.skipIf(process.platform !== "win32")("Windows backup rejects POSIX entry modes as malformed", async () => {
+  const f = await fixture();
+  await backupDesktop(f.data, f.backup);
+  const value = await manifest(f.backup);
+  const first = value.entries[0];
+  if (!first) throw new Error("Missing inventory");
+  first.mode = 0o600;
+  await writeFile(join(f.backup, "manifest.json"), JSON.stringify(value));
+  await expect(verifyDesktopBackup(f.backup, f.temporaryParent)).rejects.toThrow();
+  expect(await readdir(f.temporaryParent)).toEqual([]);
 });
 
 test("backs up installations with no attachment directory when there are no attachment rows", async () => {

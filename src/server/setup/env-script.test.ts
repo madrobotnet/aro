@@ -11,7 +11,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
-test("creates private distinct installer and database secrets through the bootstrap CLI", async () => {
+test.skipIf(process.platform !== "linux")("creates private distinct installer and database secrets through the bootstrap CLI", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aro-bootstrap-"));
   directories.push(directory);
   const file = path.join(directory, ".env");
@@ -47,7 +47,7 @@ test("refuses to overwrite an existing environment file", async () => {
   expect(await readFile(file, "utf8")).toBe(original);
 });
 
-test("exports a password hash that survives Compose dotenv parsing", async () => {
+test.skipIf(process.platform !== "linux" || !Bun.which("docker"))("exports a password hash that survives Compose dotenv parsing", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aro-password-env-"));
   directories.push(directory);
   const root = path.resolve(path.dirname(script), "..");

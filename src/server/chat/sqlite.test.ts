@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeEach, expect, test, setDefaultTimeout } from "bun:test";
 import { mkdtempSync, lstatSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,8 @@ const directory = mkdtempSync(join(tmpdir(), "aro-chat-sqlite-"));
 const filename = join(directory, "chat.sqlite");
 const oldMode = process.env.ARO_DATABASE_MODE;
 const oldPath = process.env.ARO_SQLITE_PATH;
+// Windows integration tests include real bounded PowerShell ACL subprocesses.
+if (process.platform === "win32") setDefaultTimeout(20_000);
 
 beforeEach(async () => {
   process.env.ARO_DATABASE_MODE = "sqlite";
@@ -170,14 +172,16 @@ test("body cancellation retains exclusion and prevents late deltas or commits", 
   const unlocked = Promise.withResolvers<void>();
   const waiting = Promise.withResolvers<void>();
   const waiter = Bun.spawn([process.execPath, "-e",
-    `import {Database} from "bun:sqlite"; const d=new Database(process.argv[1]); d.run("PRAGMA busy_timeout=2000"); process.send("waiting"); d.run("BEGIN IMMEDIATE"); process.send("unlocked"); d.close(true);`,
+    `import {Database} from "bun:sqlite"; const d=new Database(process.argv[1]); d.run("PRAGMA busy_timeout=2000");
+     await new Promise(resolve=>process.send("waiting",resolve)); d.run("BEGIN IMMEDIATE");
+     await new Promise(resolve=>process.send("unlocked",resolve)); d.close(true);`,
     join(`${filename}.chat-locks`, `${thread.id}.sqlite`)], {
     stdout: "pipe", stderr: "pipe",
     ipc: value => { if (value === "unlocked") unlocked.resolve(); if (value === "waiting") waiting.resolve(); },
   });
   try {
     await response.body.cancel();
-    expect(() => lockThread(filename, thread.id)).toThrow();
+    await expect(lockThread(filename, thread.id)).rejects.toThrow();
     await waiting.promise;
     barrier.release();
     await unlocked.promise;
@@ -215,10 +219,10 @@ test("allows separate app database writes and another thread during provider wor
 test("locks canonical persistent files across connections and process death", async () => {
   const thread = await createChatThread();
   const lockDirectory = `${filename}.chat-locks`;
-  const unlock = lockThread(filename, thread.id.toUpperCase());
+  const unlock = await lockThread(filename, thread.id.toUpperCase());
   const inode = lstatSync(join(lockDirectory, `${thread.id}.sqlite`)).ino;
-  expect(() => lockThread(filename, thread.id)).toThrow();
-  expect(lstatSync(lockDirectory).mode & 0o077).toBe(0);
+  await expect(lockThread(filename, thread.id)).rejects.toThrow();
+  if (process.platform !== "win32") expect(lstatSync(lockDirectory).mode & 0o077).toBe(0);
   const rejected = childLock(thread.id);
   try {
     expect(await rejected.ready).toEqual({ state: "rejected", code: "conflict" });
@@ -231,12 +235,12 @@ test("locks canonical persistent files across connections and process death", as
   const owner = childLock(thread.id);
   try {
     expect(await owner.ready).toEqual({ state: "locked" });
-    expect(() => lockThread(filename, thread.id)).toThrow();
+    await expect(lockThread(filename, thread.id)).rejects.toThrow();
   } finally {
     owner.child.kill("SIGKILL");
     await owner.child.exited;
   }
-  lockThread(filename, thread.id)();
+  (await lockThread(filename, thread.id))();
   expect(lstatSync(join(lockDirectory, `${thread.id}.sqlite`)).ino).toBe(inode);
   await deleteChatThread(thread.id);
   expect(lstatSync(join(lockDirectory, `${thread.id}.sqlite`)).ino).toBe(inode);
@@ -244,7 +248,7 @@ test("locks canonical persistent files across connections and process death", as
 
 test("rejects malformed paths and request IDs before creating lock files", async () => {
   const before = readdirSync(`${filename}.chat-locks`);
-  expect(() => lockThread(filename, "../escape")).toThrow();
+  await expect(lockThread(filename, "../escape")).rejects.toThrow();
   const thread = await createChatThread();
   await expect(createChatMessageStream(thread.id, "question", { requestId: "../escape" })).rejects.toMatchObject({ code: "validation" });
   expect(readdirSync(`${filename}.chat-locks`)).toEqual(before);
