@@ -32,6 +32,14 @@ notices, full license texts, or required source offers. Review every unresolved
 entry before release; resolve applicable source, attribution and redistribution
 obligations rather than assuming MIT or silently accepting missing texts.
 
+### Link-capture HTML parsing
+
+`node-html-parser@9.0.4` is an explicit, pinned application dependency for
+link-capture text extraction. Its MIT license carries `Copyright 2019 Tao
+Qiufeng`. The collector above retains its complete `LICENSE` and inventories
+its transitive dependencies with the rest of the application tree. Next.js
+external-package tracing retains the parser in standalone distributions.
+
 ## Runtimes, base image and official tools
 
 The Dockerfile uses Bun 1.4.2 from `oven/bun:1.4.2-slim` and Node 22 from
