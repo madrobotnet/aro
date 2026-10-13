@@ -10,7 +10,8 @@ function harness(outcomes) {
     if (outcome instanceof Error) throw outcome;
     return new Response("body", { status: outcome });
   };
-  return { waits, calls: () => calls, options: { request, wait: async ms => { waits.push(ms); } } };
+  const reports = [];
+  return { waits, reports, calls: () => calls, options: { request, wait: async ms => { waits.push(ms); }, report: line => { reports.push(line); } } };
 }
 const init = () => ({});
 
@@ -50,4 +51,21 @@ test("each attempt gets its own request options", async () => {
   await fetchRetry("https://source.example/file", () => { const value = {}; seen.push(value); return value; }, h.options);
   expect(seen).toHaveLength(2);
   expect(seen[0]).not.toBe(seen[1]);
+});
+
+test("a timeout is retried once only", async () => {
+  const timeout = () => Object.assign(new Error("timed out"), { name: "TimeoutError" });
+  const h = harness([timeout(), timeout(), 200]);
+  await expect(fetchRetry("https://source.example/file", init, h.options)).rejects.toThrow("timed out");
+  expect(h.calls()).toBe(2);
+  expect(h.waits).toEqual([1000]);
+});
+
+test("every retry is reported with its cause", async () => {
+  const h = harness([503, new Error("reset"), 200]);
+  await fetchRetry("https://source.example/file", init, h.options);
+  expect(h.reports).toHaveLength(2);
+  expect(h.reports[0]).toContain("HTTP 503");
+  expect(h.reports[0]).toContain("https://source.example/file");
+  expect(h.reports[1]).toContain("Error");
 });
