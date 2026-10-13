@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { Locale, LocalizedText } from "./i18n/locale";
 
 /**
- * Aro brand: product names, install name and the "Interlock" mark geometry.
+ * Aro brand: product names, install name and the approved 아 mark geometry.
  */
 
 /** Product name per UI language. Korean reads 아로; English reads Aro. */
@@ -20,11 +20,10 @@ export const BRAND_DESCRIPTION: LocalizedText = {
 };
 
 /**
- * Approved "Interlock" mark on a 16-unit grid, so every edge lands on a whole pixel at 16px and 32px.
- * One rounded tile (r4) split by a 1-unit stepped seam into two identical halves around a 4x4 window.
- * Fill with the even-odd rule. public/icons/icon.svg and docs/images/aro-mark.svg use the same path.
+ * In-app mark: a rounded tile with 아 from 아로 knocked out on a 16-unit grid; fill even-odd.
+ * App icons draw the glyph in cream on terracotta; the tab icon uses a pixel-fitted small master.
  */
-export const BRAND_MARK_PATH = "M4 0h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4zM0 6h10v3h6v1H6V7H0z";
+export const BRAND_MARK_PATH = "M4 0h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4zM8.74 8a2.96 2.96 0 1 0-5.92 0a2.96 2.96 0 1 0 5.92 0zM6.89 8a1.11 1.11 0 1 0-2.22 0a1.11 1.11 0 1 0 2.22 0zM9.48 4.485a.925 .925 0 0 1 1.85 0v2.59h.925a.925 .925 0 0 1 0 1.85h-.925v2.59a.925 .925 0 0 1-1.85 0z";
 export const BRAND_MARK_VIEWBOX = "0 0 16 16";
 
 export function brandName(locale: Locale): string {

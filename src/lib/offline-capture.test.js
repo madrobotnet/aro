@@ -222,9 +222,10 @@ test("worker serves cached public capture offline and cleans only its own older 
   expect(await (await response).text()).toBe("offline shell");
   w.names.set("unrelated-auth-cache", new Map());
   w.names.set("irang-offline-capture-old", new Map());
+  w.names.set("aro-offline-capture-v1", new Map());
   w.handlers.get("activate")({ waitUntil: (promise) => { done = promise; } });
   await done;
-  expect([...w.names.keys()]).toEqual(["aro-offline-capture-v1", "unrelated-auth-cache"]);
+  expect([...w.names.keys()]).toEqual(["aro-offline-capture-v2", "unrelated-auth-cache"]);
 });
 
 test("legacy drafts move once with unchanged identities and no duplicates", () => {

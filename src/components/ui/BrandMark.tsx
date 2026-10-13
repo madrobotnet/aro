@@ -4,7 +4,7 @@ import { cn } from "./cn";
 export type BrandMarkProps = { className?: string };
 
 /**
- * Aro "Interlock" mark, drawn in currentColor. Defaults come from `.brand-mark` in globals.css
+ * Aro rounded tile with 아 knocked out, drawn in currentColor. Defaults come from `.brand-mark` in globals.css
  * (20px, accent, no shrink). They sit in the components layer, so any size-* or text-* utility
  * passed here wins. Decorative: show the brand name beside it or name the enclosing link/button.
  */

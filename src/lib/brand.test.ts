@@ -66,11 +66,19 @@ describe("brand assets", () => {
     expect(pngSize(repoFile("public/icons/icon-192.png"))).toBe("192x192");
   });
 
-  test("the favicon and the docs mark carry the BrandMark geometry", () => {
+  test("the in-app mark retains the approved path and viewBox", () => {
+    expect(BRAND_MARK_VIEWBOX).toBe("0 0 16 16");
+    expect(BRAND_MARK_PATH).toBe("M4 0h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4zM8.74 8a2.96 2.96 0 1 0-5.92 0a2.96 2.96 0 1 0 5.92 0zM6.89 8a1.11 1.11 0 1 0-2.22 0a1.11 1.11 0 1 0 2.22 0zM9.48 4.485a.925 .925 0 0 1 1.85 0v2.59h.925a.925 .925 0 0 1 0 1.85h-.925v2.59a.925 .925 0 0 1-1.85 0z");
+  });
+
+  test("the tab icon uses its small master and the docs icon uses its app master", () => {
     const favicon = repoFile("public/icons/icon.svg").toString("utf8");
     expect(favicon).toContain(`viewBox="${BRAND_MARK_VIEWBOX}"`);
-    expect(favicon).toContain(`d="${BRAND_MARK_PATH}"`);
+    expect(favicon).toContain('d="M5 5a3 3 0 1 0 0 6a3 3 0 0 0 0-6zm0 2a1 1 0 1 1 0 2a1 1 0 0 1 0-2zM9 3h2v4h2v2h-2v4H9z"');
     expect(favicon).toContain('fill-rule="evenodd"');
-    expect(repoFile("docs/images/aro-mark.svg").toString("utf8")).toContain(`d="${BRAND_MARK_PATH}"`);
+    const appIcon = repoFile("docs/images/aro-mark.svg").toString("utf8");
+    expect(appIcon).toContain('viewBox="0 0 512 512"');
+    expect(appIcon).toContain('d="M8.66 8a2.64 2.64 0 1 0-5.28 0a2.64 2.64 0 1 0 5.28 0zM7.01 8a.99 .99 0 1 0-1.98 0a.99 .99 0 1 0 1.98 0zM9.32 4.865a.825 .825 0 0 1 1.65 0v2.31h.825a.825 .825 0 0 1 0 1.65h-.825v2.31a.825 .825 0 0 1-1.65 0z"');
+    expect(appIcon).toContain('fill-rule="evenodd"');
   });
 });
