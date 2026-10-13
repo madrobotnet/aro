@@ -8,7 +8,7 @@ describe("daily title display", () => {
   test("uses the shared day formatter and daily marker in both locales without mutating the title", () => {
     const note = { title: "2026-10-13", dailyDate: "2026-10-13" };
     const titles = LOCALES.map((locale) => displayNoteTitle(note, locale));
-    expect(titles).toEqual(LOCALES.map((locale) => DAILY_COPY[locale].title(formatDayHeading(note.dailyDate, locale))));
+    expect(titles).toEqual(LOCALES.map((locale) => DAILY_COPY[locale].title(formatDayHeading(note.dailyDate, locale, { weekday: false }))));
     expect(titles.every((title) => title !== note.title)).toBe(true);
     expect(note.title).toBe("2026-10-13");
   });
