@@ -159,12 +159,17 @@ export const ForceGraphCanvas = forwardRef<GraphCanvasHandle, Props>(function Fo
           const y = (node.y ?? 0) + 4 * Math.sqrt(Math.max(1, Math.sqrt(node.degree + 1))) + 4 / scale;
           context.font = `${fontSize}px ${colors.font}`;
           const labelWidth = context.measureText(label).width;
+          // Fit targets node circles; keep their screen-sized labels inside the canvas too.
+          const transform = context.getTransform();
+          const padding = (labelWidth / 2 + 2 / scale) * transform.a;
+          const screenX = Math.max(padding, Math.min(transform.a * x + transform.e, context.canvas.width - padding));
+          const labelX = (screenX - transform.e) / transform.a;
           context.fillStyle = colors.card;
-          context.fillRect(x - labelWidth / 2 - 2 / scale, y, labelWidth + 4 / scale, fontSize + 4 / scale);
+          context.fillRect(labelX - labelWidth / 2 - 2 / scale, y, labelWidth + 4 / scale, fontSize + 4 / scale);
           context.textAlign = "center";
           context.textBaseline = "top";
           context.fillStyle = colors.ink;
-          context.fillText(label, x, y + 2 / scale);
+          context.fillText(label, labelX, y + 2 / scale);
         }}
         linkColor={(link) => {
           if (!activeId) return colors.line;
