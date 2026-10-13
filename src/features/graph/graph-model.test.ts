@@ -3,7 +3,7 @@ import { copyParityIssues } from "@/lib/i18n/copy";
 import { LOCALES } from "@/lib/i18n/locale";
 import type { GraphData } from "@/lib/types";
 import { GRAPH_COPY } from "./graph-copy";
-import { cloneGraphData, graphKey, graphTooltip, neighborIds, stablePaletteIndex, visibleLegendTags } from "./graph-model";
+import { cloneGraphData, graphKey, graphTooltip, neighborIds, showGraphLabel, stablePaletteIndex, visibleLegendTags } from "./graph-model";
 
 const data: GraphData = {
   nodes: [
@@ -16,6 +16,20 @@ const data: GraphData = {
 };
 
 describe("graph model", () => {
+  test("shows small graph titles but gates dense graph labels by zoom and active neighborhood", () => {
+    const neighbors = new Set(["a", "b"]);
+    const visibility = [
+      showGraphLabel("a", 5, 0.5, null, neighbors),
+      showGraphLabel("a", 100, 1, null, neighbors),
+      showGraphLabel("a", 100, 2, null, neighbors),
+      showGraphLabel("a", 100, 0.5, "a", neighbors),
+      showGraphLabel("b", 100, 1, "a", neighbors),
+      showGraphLabel("b", 100, 1.2, "a", neighbors),
+      showGraphLabel("c", 100, 2, "a", neighbors),
+    ];
+    expect(visibility).toEqual([true, false, true, true, false, true, false]);
+  });
+
   test("encodes every server-side graph filter", () => {
     expect(graphKey({ focusId: "note-id", depth: 3, includeTags: true, includeOrphans: false, tag: "work" })).toBe(
       "/api/graph?depth=3&tags=1&orphans=0&focus=note-id&tag=work",

@@ -10,6 +10,7 @@ import {
   graphTooltip,
   neighborIds,
   primaryTag,
+  showGraphLabel,
   stablePaletteIndex,
   type MutableGraphData,
   type MutableGraphLink,
@@ -61,6 +62,7 @@ function useGraphColors() {
     mute: style.getPropertyValue("--mute").trim(),
     line: style.getPropertyValue("--line-strong").trim(),
     card: style.getPropertyValue("--card").trim(),
+    font: getComputedStyle(document.body).fontFamily,
     tags: COLOR_VARS.map((name) => style.getPropertyValue(name).trim()),
   };
 }
@@ -147,6 +149,23 @@ export const ForceGraphCanvas = forwardRef<GraphCanvasHandle, Props>(function Fo
         nodeVal={(node) => Math.max(1, Math.sqrt(node.degree + 1))}
         nodeColor={nodeColor}
         nodeLabel={(node) => graphTooltip(node, locale)}
+        nodeCanvasObjectMode={() => "after"}
+        nodeCanvasObject={(node, context, scale) => {
+          if (!showGraphLabel(node.id, graph.nodes.length, scale, activeId, active)) return;
+          const characters = Array.from(node.label);
+          const label = characters.length > 24 ? `${characters.slice(0, 23).join("")}…` : node.label;
+          const fontSize = 12 / scale;
+          const x = node.x ?? 0;
+          const y = (node.y ?? 0) + 4 * Math.sqrt(Math.max(1, Math.sqrt(node.degree + 1))) + 4 / scale;
+          context.font = `${fontSize}px ${colors.font}`;
+          const labelWidth = context.measureText(label).width;
+          context.fillStyle = colors.card;
+          context.fillRect(x - labelWidth / 2 - 2 / scale, y, labelWidth + 4 / scale, fontSize + 4 / scale);
+          context.textAlign = "center";
+          context.textBaseline = "top";
+          context.fillStyle = colors.ink;
+          context.fillText(label, x, y + 2 / scale);
+        }}
         linkColor={(link) => {
           if (!activeId) return colors.line;
           return endpointId(link.source) === activeId || endpointId(link.target) === activeId ? colors.ink : colors.line;

@@ -68,6 +68,12 @@ export function neighborIds(data: MutableGraphData, nodeId: string | null): Set<
   return neighbors;
 }
 
+/** Dense overviews stay quiet; zoom or an active neighborhood reveals their titles. */
+export function showGraphLabel(nodeId: string, count: number, scale: number, activeId: string | null, neighbors: ReadonlySet<string>): boolean {
+  if (activeId) return nodeId === activeId || (scale >= 1.2 && neighbors.has(nodeId));
+  return count <= 20 || scale >= 2;
+}
+
 export function primaryTag(node: GraphNode): string | null {
   return node.kind === "tag" ? node.label : node.tags[0] ?? null;
 }
