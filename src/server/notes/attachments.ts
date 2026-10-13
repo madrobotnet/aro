@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { QueryResultRow } from "pg";
 import { db } from "@/server/db";
@@ -9,7 +9,6 @@ import { ApiError } from "@/server/http";
 import { attachmentCopy, notesCopy } from "@/server/i18n/copy";
 import { assertNoteId } from "./service";
 import { attachmentsDir, storagePath } from "./attachment-storage";
-import { windowsPrivatePath, WindowsPrivacyError } from "@/server/desktop/windows-private-path";
 
 export { attachmentsDir } from "./attachment-storage";
 
@@ -115,7 +114,11 @@ export async function loadAttachment(id: string): Promise<{ attachment: Attachme
     : (await (await db()).query<AttachmentRow>("SELECT * FROM attachments WHERE id=$1", [id])).rows[0];
   if (!row) throw new ApiError("not_found", attachmentCopy.notFound);
   try {
-    if (process.platform === "win32") await windowsPrivatePath(storagePath(row.storage_key), false);
+    if (process.platform === "win32") {
+      // O_NOFOLLOW is not enforced on Windows; refuse a link placed at the storage path.
+      const info = await lstat(storagePath(row.storage_key));
+      if (!info.isFile() || info.isSymbolicLink()) throw new ApiError("not_found", attachmentCopy.notFound);
+    }
     const file = await open(storagePath(row.storage_key), constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       return { attachment: mapAttachment(row), bytes: await file.readFile() };
@@ -123,7 +126,6 @@ export async function loadAttachment(id: string): Promise<{ attachment: Attachme
       await file.close();
     }
   } catch (error) {
-    if (error instanceof WindowsPrivacyError) throw new ApiError("not_found", attachmentCopy.notFound);
     if (error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ELOOP")) {
       throw new ApiError("not_found", attachmentCopy.notFound);
     }

@@ -1,5 +1,7 @@
 /** Windows has no POSIX child signal propagation. Both attempts target the tree. */
 export async function stopWindowsApp(child: ReturnType<typeof Bun.spawn>): Promise<void> {
+  // A PID that already exited may have been reused; never send taskkill to it.
+  if (child.exitCode !== null) return;
   const graceful = Bun.spawn(["taskkill", "/PID", String(child.pid), "/T"], {
     stdout: "ignore", stderr: "ignore", signal: AbortSignal.timeout(1000),
   });

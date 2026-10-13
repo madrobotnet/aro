@@ -1,3 +1,4 @@
+import { win32 } from "node:path";
 import { z } from "zod";
 
 const aclSchema = z.strictObject({
@@ -37,7 +38,9 @@ export class WindowsPrivacyError extends Error {
 /** Conservative SID allowlist, not a general Windows effective-access evaluator. */
 export async function windowsPrivatePath(path: string, directory: boolean): Promise<void> {
   try {
-    const child = Bun.spawn(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+    // Resolve the system binary directly; a security check must not depend on PATH lookup.
+    const powershell = win32.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    const child = Bun.spawn([powershell, "-NoProfile", "-NonInteractive", "-Command",
       script, Buffer.from(path).toString("base64")], {
       stdout: "pipe", stderr: "pipe", stdin: "ignore",
       signal: AbortSignal.timeout(10_000),

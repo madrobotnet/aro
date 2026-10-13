@@ -6,6 +6,9 @@ import { chatCopy } from "@/server/i18n/copy";
 import { validId } from "./service";
 import { windowsPrivatePath } from "@/server/desktop/windows-private-path";
 
+// The ACL check spawns PowerShell; one verified result per lock directory per process is enough.
+const verifiedWindowsDirectories = new Set<string>();
+
 /**
  * A dedicated persistent SQLite file per canonical thread, never the app DB.
  * Never unlink these files: another process may still own the original inode.
@@ -21,7 +24,10 @@ export async function lockThread(filename: string, threadId: string): Promise<()
       (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) {
     throw new Error("Chat lock directory must be private and not a symlink");
   }
-  if (process.platform === "win32") await windowsPrivatePath(directory, true);
+  if (process.platform === "win32" && !verifiedWindowsDirectories.has(directory)) {
+    await windowsPrivatePath(directory, true);
+    verifiedWindowsDirectories.add(directory);
+  }
   const path = join(directory, `${threadId.toLowerCase()}.sqlite`);
   // Only open/close an fd when creating a NEW inode. Closing any unrelated fd
   // for an already locked inode drops that process's POSIX SQLite locks.
@@ -33,7 +39,6 @@ export async function lockThread(filename: string, threadId: string): Promise<()
     const file = lstatSync(path);
     if (!file.isFile() || file.isSymbolicLink() ||
         (process.platform !== "win32" && (file.mode & 0o077) !== 0)) throw new Error("Chat lock file must be a private regular file");
-    if (process.platform === "win32") await windowsPrivatePath(path, false);
   }
   const lock = new Database(path, { strict: true });
   try {
