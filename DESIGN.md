@@ -93,7 +93,8 @@ The public component contracts are documented in `src/components/ui/README.md`.
 Reuse Button, Input/Textarea, Dialog/Sheet, EmptyState, Badge/TagBadge, Toast,
 Skeleton and the shared shell rather than adding parallel implementations.
 
-`BrandMark` uses the approved Interlock geometry with the existing accent token
+`BrandMark` is a rounded tile with 아 from the Korean name 아로 knocked out.
+App icons show the glyph in cream on terracotta. The mark uses the existing accent token
 and a 20px default; caller size/color utilities override it. Pair the decorative
 mark with the localized product name: 아로 / Aro. Installed-app names use
 `Aro`, and the source repository is `madrobotnet/aro`. New installations from 2.4.0 use `aro` identifiers;

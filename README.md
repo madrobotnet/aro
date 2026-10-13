@@ -1,8 +1,11 @@
 <p align="center">
-  <img src="docs/images/aro-mark.svg" width="88" alt="Aro logo: two interlocking shapes joined at a seam">
+  <img src="docs/images/aro-mark.svg" width="88" alt="Aro logo: 아 in cream on terracotta">
 </p>
 
 <h1 align="center">Aro · 아로</h1>
+
+The mark is a rounded tile with 아 from the Korean name 아로 knocked out.
+App icons show the glyph in cream on terracotta.
 
 <p align="center">
   A self-hosted notebook for linked Markdown notes, built for one owner.<br>

@@ -251,6 +251,9 @@ fields in the release receipt.
 
 ## 5. Installation archive and release assets
 
+The mark is a rounded tile with 아 from the Korean name 아로 knocked out.
+App icons show the glyph in cream on terracotta.
+
 The archive has one `aro/` directory containing:
 
 - `compose.yml` and `docker/postgres/production/01-app-role.sql`;

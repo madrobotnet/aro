@@ -1,8 +1,11 @@
 <p align="center">
-  <img src="docs/images/aro-mark.svg" width="88" alt="아로 로고: 이음매로 맞물린 두 도형">
+  <img src="docs/images/aro-mark.svg" width="88" alt="아로 로고: 테라코타 바탕에 크림색 아">
 </p>
 
 <h1 align="center">아로 · Aro</h1>
+
+마크는 둥근 타일에서 한국어 이름 아로의 ‘아’를 비워 낸 모양입니다.
+앱 아이콘은 테라코타 바탕에 크림색 글자를 표시합니다.
 
 <p align="center">
   Markdown 노트를 서로 이어 쓰는 1인용 자체 호스팅 노트장.<br>

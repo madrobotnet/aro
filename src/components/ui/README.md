@@ -28,7 +28,7 @@ outline); use a tonal wash plus a label or glyph. Page headers follow the recipe
 | Export | Signature | Notes |
 | --- | --- | --- |
 | `cn` | `(...inputs: ClassValue[]) => string` | clsx class-name joiner; does not merge conflicting Tailwind utilities. |
-| `BrandMark` | `({ className? })` | Aro "Interlock" mark in `currentColor`: 20px accent by default (`.brand-mark`), and any `size-*` / `text-*` class wins. Decorative (`aria-hidden`), so name the enclosing link or show the brand name beside it. |
+| `BrandMark` | `({ className? })` | Rounded tile with 아 from 아로 knocked out, in `currentColor`: 20px accent by default (`.brand-mark`), and any `size-*` / `text-*` class wins. Decorative (`aria-hidden`), so name the enclosing link or show the brand name beside it. App icons show the glyph in cream on terracotta. |
 | `Button` | `forwardRef<HTMLButtonElement, ButtonProps>` — `variant?: "primary" \| "secondary" \| "ghost" \| "danger" \| "rail"`, `size?: "sm" \| "md" \| "lg"`, `iconOnly?`, `loading?`, `leading?`, `trailing?` + native button props | `loading` sets `aria-busy` and disables; `iconOnly` needs `aria-label`. |
 | `buttonClassName` | `(opts?: { variant?; size?; iconOnly? }) => string` | For `<Link>`/`<a>` styled as buttons. |
 | `Input` / `Textarea` | `forwardRef` — `label?`, `hint?`, `error?`, `wrapperClassName?`, (`Input` only) `leading?`, `trailing?` + native props | `error` sets `aria-invalid` and `aria-describedby`. |
