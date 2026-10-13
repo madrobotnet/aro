@@ -13,10 +13,10 @@ import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
 import { formatDateTime } from "@/lib/i18n/format-date";
 import type { InboxItem, Note } from "@/lib/types";
+import { inboxPreview } from "@/lib/inbox-preview";
 import { INBOX_COPY } from "./inbox-copy";
 import {
   applyInboxChange,
-  excerpt,
   formatCreated,
   INBOX_KEY,
   INBOX_LATER_KEY,
@@ -281,6 +281,7 @@ export function InboxView() {
               {items.map((item) => {
                 const active = item.id === selected?.id;
                 const status = urlStatus(item.body);
+                const preview = inboxPreview(item);
                 return (
                   <li key={item.id}>
                     <button
@@ -299,7 +300,7 @@ export function InboxView() {
                         <span className="min-w-0 flex-1 truncate font-medium">{item.title}</span>
                         <span className="shrink-0 text-xs text-mute">{formatCreated(item.createdAt, locale)}</span>
                       </span>
-                      <span className="mt-1 line-clamp-2 text-sm leading-relaxed text-mute">{excerpt(item.body) || item.url || copy.noContent}</span>
+                      {preview || item.url ? <span className="mt-1 line-clamp-2 text-sm leading-relaxed text-mute">{preview || item.url}</span> : null}
                       <span className="mt-2 flex flex-wrap items-center gap-1.5">
                         <Badge>{copy.source[item.source]}</Badge>
                         {status === "pending" ? <Badge tone="warn">{copy.badge.urlPending}</Badge> : null}

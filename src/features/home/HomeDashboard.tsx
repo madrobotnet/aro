@@ -11,13 +11,13 @@ import { Badge, TagBadge } from "@/components/ui/Badge";
 import { Button, buttonClassName } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Kbd } from "@/components/ui/Kbd";
 import { Skeleton, SkeletonLines } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
 import { inboxUrlStatus, stripInboxUrlStatus } from "@/lib/inbox-url-status";
+import { inboxPreview } from "@/lib/inbox-preview";
 import type { HomeData, InboxItem, NoteRef, NoteSummary } from "@/lib/types";
 import { INBOX_COPY } from "@/features/inbox/inbox-copy";
 import { HOME_COPY } from "./home-copy";
@@ -84,19 +84,6 @@ export function HomeDashboard() {
           {home ? <Counts stats={home.stats} /> : <p className="mt-2 min-h-5" />}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="primary"
-            size="lg"
-            leading={<Zap aria-hidden className="size-4" />}
-            trailing={
-              <span aria-hidden className="ml-1 hidden lg:inline-flex">
-                <Kbd variant="onAccent">c</Kbd>
-              </span>
-            }
-            onClick={shell.openCapture}
-          >
-            {copy.capture}
-          </Button>
           <Button
             size="lg"
             leading={<FilePlus2 aria-hidden className="size-4" />}
@@ -243,8 +230,8 @@ function InboxSection({ count, items, now }: { count: number; items: InboxItem[]
         <ul className="surface-card divide-y divide-line overflow-hidden">
           {items.map((item) => {
             const status = inboxUrlStatus(item.body);
-            const preview = stripInboxUrlStatus(item.body)
-              || (status === "pending" ? urlCopy.urlPending : status === "failed" ? urlCopy.urlFailed : "");
+            const preview = inboxPreview(item, 280)
+              || (!stripInboxUrlStatus(item.body) ? (status === "pending" ? urlCopy.urlPending : status === "failed" ? urlCopy.urlFailed : "") : "");
             return (
             <li key={item.id}>
               <Link href="/inbox" className="flex min-h-touch flex-col gap-1 px-4 py-3 hover:bg-desk focus-ring sm:px-5">
