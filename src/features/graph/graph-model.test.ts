@@ -16,6 +16,13 @@ const data: GraphData = {
 };
 
 describe("graph model", () => {
+  test("selection preserves every overview label in a small graph", () => {
+    const neighbors = new Set(["a", "b"]);
+    for (const id of ["a", "b", "c"]) {
+      expect(showGraphLabel(id, 20, 0.5, "a", neighbors)).toBe(true);
+    }
+  });
+
   test("shows small graph titles but gates dense graph labels by zoom and active neighborhood", () => {
     const neighbors = new Set(["a", "b"]);
     const visibility = [

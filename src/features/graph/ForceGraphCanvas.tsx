@@ -149,27 +149,35 @@ export const ForceGraphCanvas = forwardRef<GraphCanvasHandle, Props>(function Fo
         nodeVal={(node) => Math.max(1, Math.sqrt(node.degree + 1))}
         nodeColor={nodeColor}
         nodeLabel={(node) => graphTooltip(node, locale)}
-        nodeCanvasObjectMode={() => "after"}
-        nodeCanvasObject={(node, context, scale) => {
-          if (!showGraphLabel(node.id, graph.nodes.length, scale, activeId, active)) return;
-          const characters = Array.from(node.label);
-          const label = characters.length > 24 ? `${characters.slice(0, 23).join("")}…` : node.label;
-          const fontSize = 12 / scale;
-          const x = node.x ?? 0;
-          const y = (node.y ?? 0) + 4 * Math.sqrt(Math.max(1, Math.sqrt(node.degree + 1))) + 4 / scale;
-          context.font = `${fontSize}px ${colors.font}`;
-          const labelWidth = context.measureText(label).width;
-          // Fit targets node circles; keep their screen-sized labels inside the canvas too.
-          const transform = context.getTransform();
-          const padding = (labelWidth / 2 + 2 / scale) * transform.a;
-          const screenX = Math.max(padding, Math.min(transform.a * x + transform.e, context.canvas.width - padding));
-          const labelX = (screenX - transform.e) / transform.a;
-          context.fillStyle = colors.card;
-          context.fillRect(labelX - labelWidth / 2 - 2 / scale, y, labelWidth + 4 / scale, fontSize + 4 / scale);
-          context.textAlign = "center";
-          context.textBaseline = "top";
-          context.fillStyle = colors.ink;
-          context.fillText(label, labelX, y + 2 / scale);
+        onRenderFramePost={(context, scale) => {
+          const labeledNodes = graph.nodes
+            .filter((node) => showGraphLabel(node.id, graph.nodes.length, scale, activeId, active))
+            .sort((a, b) => Number(a.id === activeId) - Number(b.id === activeId));
+          context.save();
+          for (const node of labeledNodes) {
+            const characters = Array.from(node.label);
+            const label = characters.length > 24 ? `${characters.slice(0, 23).join("")}…` : node.label;
+            const fontSize = 12 / scale;
+            const x = node.x ?? 0;
+            const y = (node.y ?? 0) + 4 * Math.sqrt(Math.max(1, Math.sqrt(node.degree + 1))) + 4 / scale;
+            context.font = `${fontSize}px ${colors.font}`;
+            const labelWidth = context.measureText(label).width;
+            const labelHeight = fontSize + 4 / scale;
+            // Clamp the entire label background on both axes, including after panning.
+            const transform = context.getTransform();
+            const padding = (labelWidth / 2 + 2 / scale) * transform.a;
+            const screenX = Math.max(padding, Math.min(transform.a * x + transform.e, context.canvas.width - padding));
+            const screenY = Math.max(0, Math.min(transform.d * y + transform.f, context.canvas.height - labelHeight * transform.d));
+            const labelX = (screenX - transform.e) / transform.a;
+            const labelY = (screenY - transform.f) / transform.d;
+            context.fillStyle = colors.card;
+            context.fillRect(labelX - labelWidth / 2 - 2 / scale, labelY, labelWidth + 4 / scale, labelHeight);
+            context.textAlign = "center";
+            context.textBaseline = "top";
+            context.fillStyle = colors.ink;
+            context.fillText(label, labelX, labelY + 2 / scale);
+          }
+          context.restore();
         }}
         linkColor={(link) => {
           if (!activeId) return colors.line;
