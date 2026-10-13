@@ -30,6 +30,39 @@ kxbvz4rgx5qyAiBcdp3xo878SjeWiMOEw0q/3DRk366CRMRZE0tt9mwOFw==
 const servers = new Set<Server>();
 const sockets = new Set<Socket>();
 
+describe("HTML capture text", () => {
+  test("extracts article text without quoted attributes or navigation and decodes entities once", async () => {
+    const html = `<!doctype html><html><head>
+      <title>Introduction &bull; Zettelkasten Method</title>
+      <style>.fake { content: "style noise >"; }</style>
+      <script>const fake = "<p>script noise</p>";</script>
+      </head><body><nav><a href="/start">navigation noise</a></nav>
+      <article data-description="ideas > folders" title='one > two'>
+      <h1>Getting Started</h1><p>Notes &mdash; ideas &copy; &#169; &#x1F4D6; &nbsp; &amp; connections.</p>
+      <p>Literal &amp;lt;tag&amp;gt; and 2 &lt; 3 &gt; 1.</p>
+      <!-- comment noise --></article></body></html>`;
+
+    const result = await fetchUrlText("https://example.com/introduction", {
+      resolve: async () => ["93.184.216.34"],
+      fetch: async () => new Response(html, { headers: { "content-type": "text/html" } }),
+    });
+
+    expect(result).toEqual({
+      ok: true, url: "https://example.com/introduction",
+      text: "Getting Started Notes — ideas © © 📖 & connections. Literal &lt;tag&gt; and 2 < 3 > 1.",
+    });
+  });
+
+  test("keeps plain text entities and comparisons as supplied", async () => {
+    const text = "Notes &amp; examples: a < b and c > d";
+    const result = await fetchUrlText("https://example.com/plain", {
+      resolve: async () => ["93.184.216.34"],
+      fetch: async () => new Response(text, { headers: { "content-type": "text/plain" } }),
+    });
+    expect(result).toEqual({ ok: true, url: "https://example.com/plain", text });
+  });
+});
+
 async function listen(server: Server): Promise<number> {
   servers.add(server);
   server.on("connection", (socket: Socket) => {
