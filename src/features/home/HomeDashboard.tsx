@@ -20,6 +20,7 @@ import { inboxUrlStatus, stripInboxUrlStatus } from "@/lib/inbox-url-status";
 import { inboxPreview } from "@/lib/inbox-preview";
 import type { HomeData, InboxItem, NoteRef, NoteSummary } from "@/lib/types";
 import { INBOX_COPY } from "@/features/inbox/inbox-copy";
+import { displayNoteTitle } from "@/features/notes/display-title";
 import { HOME_COPY } from "./home-copy";
 import { dailyForDate, homeHeadline, recentWithoutPinned, relativeTime, splitCountPhrase } from "./home-model";
 import { formatDateKey, useLocalDate } from "./use-local-date";
@@ -306,7 +307,7 @@ function NoteRow({ note, now, clamp = 1 }: { note: NoteSummary; now: number; cla
   return (
     <Link href={`/notes/${note.id}`} className="-mx-2 flex min-h-touch flex-col gap-1 rounded-ctl px-2 py-2.5 hover:bg-desk focus-ring">
       <span className="flex items-baseline gap-3">
-        <span className="min-w-0 flex-1 truncate text-md font-medium">{note.title}</span>
+        <span className="min-w-0 flex-1 truncate text-md font-medium">{displayNoteTitle(note, locale)}</span>
         <span className="shrink-0 text-xs tabular-nums text-mute">{relativeTime(note.updatedAt, now, locale)}</span>
       </span>
       {note.excerpt ? <span className={cn("text-sm text-mute", clamp === 1 ? "line-clamp-1" : "line-clamp-2")}>{note.excerpt}</span> : null}

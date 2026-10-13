@@ -5,7 +5,7 @@ import Form from "next/form";
 import { useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import useSWR from "swr";
-import type { SearchResponse } from "@/lib/types";
+import type { SearchHit, SearchResponse } from "@/lib/types";
 import { fetcher } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { formatDateTime } from "@/lib/i18n/format-date";
@@ -15,6 +15,9 @@ import { Button, EmptyState, Input, SkeletonLines, TagBadge } from "@/components
 import { SEARCH_COPY } from "./search-copy";
 import { highlightSegments, matchLabel, searchApiUrl, searchUrl } from "./search-model";
 import { sourceNoteUrl } from "./source-passage";
+import { displayNoteTitle } from "@/features/notes/display-title";
+import { isDayKey, monthOf } from "@/features/notes/daily-date";
+import { useDailyMonth } from "@/features/notes/daily-month";
 
 const PAGE = "mx-auto w-full max-w-6xl px-4 pb-12 pt-5 sm:px-6 lg:px-10 lg:pt-10";
 
@@ -32,6 +35,16 @@ function Highlighted({ text, query }: { text: string; query: string }) {
       segment.text
     ),
   );
+}
+
+/** Search DTOs keep their contract: confirm a date-title hit against existing daily metadata. */
+function SearchResultTitle({ hit, query }: { readonly hit: SearchHit; readonly query: string }) {
+  const { locale } = useLocale();
+  const copy = useCopy(SEARCH_COPY);
+  const { notes } = useDailyMonth(isDayKey(hit.title) ? monthOf(hit.title) : null);
+  const dailyDate = notes.get(hit.title) === hit.noteId ? hit.title : null;
+  const title = displayNoteTitle({ title: hit.title, dailyDate }, locale);
+  return title ? <Highlighted text={title} query={query} /> : copy.untitled;
 }
 
 export function SearchPage() {
@@ -96,7 +109,7 @@ export function SearchPage() {
                   <article key={hit.noteId} className="rounded-card border border-line bg-card p-4 shadow-card">
                     <Link className="block rounded-ctl focus-ring" href={sourceNoteUrl(hit.noteId, hit.passage, hit.updatedAt)} scroll={hit.passage ? false : undefined}>
                       <h2 className="text-lg font-medium text-ink">
-                        {hit.title ? <Highlighted text={hit.title} query={query} /> : copy.untitled}
+                        <SearchResultTitle hit={hit} query={query} />
                       </h2>
                       {hit.passage ? <p className="mt-1 text-xs text-accent">{copy.passage(hit.passage.heading, hit.passage.startLine, hit.passage.endLine)}</p> : null}
                       <p className="mt-2 whitespace-pre-wrap text-sm text-mute">

@@ -25,6 +25,7 @@ import { refreshNoteViews } from "./note-cache";
 import { mergeTaskToggle } from "./note-draft";
 import { PurgeNoteDialog } from "./trash-actions";
 import { ShareNoteDialog } from "./ShareNoteDialog";
+import { displayNoteTitle } from "./display-title";
 
 export function NoteDetail({ noteId }: { noteId: string }) {
   const copy = useCopy(NOTES_COPY);
@@ -81,6 +82,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   const [purgeOpen, setPurgeOpen] = useState(false);
   const { locale } = useLocale();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   // Bumped by a version restore: remounting the editor and fields drops their undo history and local field drafts.
   const [restoreEpoch, setRestoreEpoch] = useState(0);
   const refreshLists = () => refreshNoteViews({ cache, mutate: mutateAll });
@@ -169,7 +171,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
       <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
         <div className="mx-auto max-w-3xl">
           <Link href="/notes?view=trash" className="inline-flex min-h-touch items-center text-sm text-accent sm:min-h-0">{copy.detail.backToTrash}</Link>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">{note.title}</h1>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight">{displayNoteTitle(note, locale)}</h1>
           <div className="mt-4 rounded-card border border-line bg-warn-soft px-4 py-3">
             <div className="flex items-start gap-3">
               <Trash2 aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
@@ -207,7 +209,9 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
         </div>
         <input aria-label={copy.detail.titleLabel} placeholder={copy.detail.titleLabel}
           className="w-full min-w-0 rounded-ctl border border-transparent bg-transparent px-1 py-2 text-2xl font-semibold tracking-tight text-ink placeholder:text-mute hover:border-line focus:outline-none focus:shadow-[inset_0_-2px_0_var(--focus)]"
-          value={snapshot.title} onChange={(event) => controller.update({ title: event.target.value })} />
+          value={editingTitle ? snapshot.title : displayNoteTitle({ title: snapshot.title, dailyDate: note.dailyDate }, locale)}
+          onFocus={() => setEditingTitle(true)} onBlur={() => setEditingTitle(false)}
+          onChange={(event) => controller.update({ title: event.target.value })} />
         <div className="mt-2 grid gap-2 sm:grid-cols-2" key={restoreEpoch}>
           <CommaField label={copy.detail.tags} defaultValue={snapshot.tags.join(", ")} placeholder={copy.detail.tagsPlaceholder} onCommit={(tags) => controller.update({ tags })} />
           <CommaField label={copy.detail.aliases} defaultValue={snapshot.aliases.join(", ")} placeholder={copy.detail.aliasesPlaceholder} onCommit={(aliases) => controller.update({ aliases })} />

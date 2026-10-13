@@ -17,6 +17,7 @@ import { NOTES_COPY } from "./copy";
 import { calendarDaysAgo } from "./relative-day";
 import { TrashBar } from "./trash-actions";
 import { daysUntilPurge } from "./trash-retention";
+import { displayNoteTitle } from "./display-title";
 
 type NotesPage = { notes: NoteListItem[]; nextCursor: string | null };
 type View = "all" | "pinned" | "archived" | "trash";
@@ -28,6 +29,7 @@ export function NoteList({ selectedId }: { selectedId?: string }) {
   const { mutate: mutateAll, cache } = useSWRConfig();
   const { toast } = useToast();
   const copy = useCopy(NOTES_COPY);
+  const { locale } = useLocale();
   const q = params.get("q") ?? "";
   const tag = params.get("tag") ?? "";
   const rawView = params.get("view");
@@ -97,7 +99,7 @@ export function NoteList({ selectedId }: { selectedId?: string }) {
           {notes.map((note) => (
             <li key={note.id}>
               <Link href={`/notes/${note.id}${params.size ? `?${params}` : ""}`} aria-current={selectedId === note.id ? "page" : undefined} className={`block rounded-card border border-transparent px-3 py-3 transition-colors ${selectedId === note.id ? "bg-accent-soft" : "hover:border-line hover:bg-card"}`}>
-                <div className="flex items-start gap-2"><h2 className="min-w-0 flex-1 truncate font-medium">{note.title}</h2>{note.pinned ? <Pin aria-label={copy.list.pinned} className="size-3.5 shrink-0 text-accent" /> : null}</div>
+                <div className="flex items-start gap-2"><h2 className="min-w-0 flex-1 truncate font-medium">{displayNoteTitle(note, locale)}</h2>{note.pinned ? <Pin aria-label={copy.list.pinned} className="size-3.5 shrink-0 text-accent" /> : null}</div>
                 {note.excerpt ? <p className="mt-1 line-clamp-2 text-sm text-mute">{note.excerpt}</p> : null}
                 <div className="mt-2 flex items-center gap-1 overflow-hidden">{note.tags.slice(0, 2).map((item) => <TagBadge key={item} tag={item} />)}<ListDate note={note} trash={view === "trash"} /></div>
               </Link>

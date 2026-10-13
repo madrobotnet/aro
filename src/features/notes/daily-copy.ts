@@ -12,6 +12,7 @@ const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July
  */
 export const DAILY_COPY = defineCopy({
   ko: {
+    title: (day: string) => `${day} · 데일리 노트`,
     nav: {
       label: "데일리 노트 날짜 이동",
       previous: (day: string) => `전날 노트: ${day}`,
@@ -37,6 +38,7 @@ export const DAILY_COPY = defineCopy({
     },
   },
   en: {
+    title: (day) => `${day} · Daily note`,
     nav: {
       label: "Daily note dates",
       previous: (day) => `Previous day: ${day}`,
