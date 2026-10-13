@@ -53,25 +53,37 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const viewport = window.visualViewport;
     const element = dockRef.current;
+    const body = bodyRef.current;
     const pane = element?.closest("section");
     const dock = () => {
-      if (!element || !pane) return;
+      if (!element || !pane || !body) return;
       const bounds = pane.getBoundingClientRect();
+      const bodyBounds = body.getBoundingClientRect();
+      const top = Math.max(bounds.top, viewport?.offsetTop ?? 0);
+      const bottom = Math.min(bounds.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight);
       element.style.setProperty("--editor-left", `${bounds.left}px`);
       element.style.setProperty("--editor-width", `${bounds.width}px`);
       element.style.setProperty("--editor-bottom", `${Math.max(0, window.innerHeight - bounds.bottom)}px`);
+      element.style.setProperty("--editor-body-bottom", `${Math.max(0, window.innerHeight - bodyBounds.bottom)}px`);
       if (viewport) element.style.setProperty("--keyboard-offset", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
+      const toolbar = element.firstElementChild?.getBoundingClientRect();
+      element.style.visibility = toolbar && toolbar.top >= Math.max(bodyBounds.top, top) && toolbar.bottom <= Math.min(bodyBounds.bottom, bottom) ? "" : "hidden";
     };
     const resize = new ResizeObserver(dock);
     if (pane) resize.observe(pane);
+    if (body) resize.observe(body);
+    const intersection = new IntersectionObserver(dock, { root: pane });
+    if (body) intersection.observe(body);
     dock();
+    pane?.addEventListener("scroll", dock);
     window.addEventListener("resize", dock);
     viewport?.addEventListener("resize", dock);
     viewport?.addEventListener("scroll", dock);
-    return () => { resize.disconnect(); window.removeEventListener("resize", dock); viewport?.removeEventListener("resize", dock); viewport?.removeEventListener("scroll", dock); };
+    return () => { resize.disconnect(); intersection.disconnect(); pane?.removeEventListener("scroll", dock); window.removeEventListener("resize", dock); viewport?.removeEventListener("resize", dock); viewport?.removeEventListener("scroll", dock); };
   }, []);
   const [uploading, setUploading] = useState(false);
   // The failure itself, not its text, so a language switch re-renders the message.
@@ -87,7 +99,8 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "var(--text-read-size)", lineHeight: "var(--text-read-leading)" },
       // lineWrapping resets word-break; restore the global Korean rule so words never split mid-syllable.
       ".cm-content, .cm-lineWrapping": { wordBreak: "keep-all", overflowWrap: "anywhere" },
-      ".cm-content": { minHeight: "24rem", padding: "1rem 1.25rem 6rem", caretColor: "var(--accent)" },
+      ".cm-content": { minHeight: "24rem", padding: "1rem 0 6rem", caretColor: "var(--accent)" },
+      ".cm-line": { padding: "0" },
       ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
       "&.cm-focused": { outline: "none" },
     })),
@@ -154,7 +167,9 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
         />
       {uploadFailure ? <p role="alert" className="border-b border-line bg-danger-soft px-3 py-2 text-sm text-danger">{localizedApiError(uploadFailure.error, locale, copy.uploadFailed)}</p> : null}
       {/* Dark keeps One Dark's editor chrome (selection, panels, tooltips) but not its code-syntax colours. */}
-      <CodeMirror ref={editorRef} value={value} theme={resolvedTheme === "dark" ? oneDarkTheme : "light"} extensions={extensions} onChange={onChange} basicSetup={BASIC_SETUP} />
+      <div ref={bodyRef} className="px-1">
+        <CodeMirror ref={editorRef} value={value} theme={resolvedTheme === "dark" ? oneDarkTheme : "light"} extensions={extensions} onChange={onChange} basicSetup={BASIC_SETUP} />
+      </div>
       <div ref={dockRef} className="editor-format-dock pointer-events-none z-20 flex justify-center px-2">
         <div role="toolbar" aria-label={formatCopy.format} className="pointer-events-auto flex items-center gap-1 rounded-card border border-line bg-card p-1 shadow-card">
           {([

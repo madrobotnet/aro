@@ -44,7 +44,7 @@ export function Badge({ tone = "neutral", count, className, children, ...rest }:
 }
 
 /** `#tag` chip; renders the hash in muted ink so lists of tags stay scannable. */
-export function TagBadge({ tag, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { tag: string }) {
+export function TagBadge({ tag, className, children, ...rest }: HTMLAttributes<HTMLSpanElement> & { tag: string }) {
   return (
     <span
       className={cn(
@@ -57,6 +57,7 @@ export function TagBadge({ tag, className, ...rest }: HTMLAttributes<HTMLSpanEle
         #
       </span>
       {tag}
+      {children}
     </span>
   );
 }

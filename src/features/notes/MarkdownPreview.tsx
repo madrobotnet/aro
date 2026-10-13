@@ -5,7 +5,7 @@ import { createContext, createElement, useCallback, useContext, useEffect, useMe
 import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCopy } from "@/components/i18n";
-import { useToast } from "@/components/ui";
+import { cn, useToast } from "@/components/ui";
 import { sourceBlockAttributes, sourceBlockForLine, type SourceBlock } from "@/features/search/source-passage";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
@@ -137,10 +137,11 @@ function useTaskControls(body: string, tasks: PreviewTasks | undefined): TaskCon
   return useMemo(() => (enabled ? { tasks: parsed, pending, toggle } : null), [enabled, parsed, pending, toggle]);
 }
 
-export function MarkdownPreview({ body, tasks, source }: {
+export function MarkdownPreview({ body, tasks, source, inEditor = false }: {
   body: string;
   tasks?: PreviewTasks;
   source?: { readonly line: number; readonly updatedAt: string };
+  readonly inEditor?: boolean;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -172,7 +173,7 @@ export function MarkdownPreview({ body, tasks, source }: {
   }, [body, line, updatedAt]);
   const location = located && located.line === line && located.updatedAt === updatedAt ? located : null;
   return (
-    <div ref={preview} className="prose-ko min-h-80 max-w-none overflow-x-auto rounded-card border border-line bg-card p-5 text-ink [&_[data-source-start]]:scroll-mt-4 [&_[data-source-target]]:rounded-ctl [&_[data-source-target]]:bg-accent-soft [&_a]:text-accent [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-line-strong [&_blockquote]:pl-4 [&_code]:rounded [&_code]:bg-desk [&_code]:px-1 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-5 [&_h3]:text-lg [&_img]:max-w-full [&_li]:ml-5 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-card [&_pre]:bg-desk [&_pre]:p-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-line [&_td]:p-2 [&_th]:border [&_th]:border-line [&_th]:p-2 [&_ul]:list-disc">
+    <div ref={preview} className={cn("prose-ko min-h-80 max-w-none overflow-x-auto bg-card text-ink [&_[data-source-start]]:scroll-mt-4 [&_[data-source-target]]:rounded-ctl [&_[data-source-target]]:bg-accent-soft [&_a]:text-accent [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-line-strong [&_blockquote]:pl-4 [&_code]:rounded [&_code]:bg-desk [&_code]:px-1 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-5 [&_h3]:text-lg [&_img]:max-w-full [&_li]:ml-5 [&_ol]:list-decimal [&_p]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-card [&_pre]:bg-desk [&_pre]:p-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-line [&_td]:p-2 [&_th]:border [&_th]:border-line [&_th]:p-2 [&_ul]:list-disc", inEditor ? "px-1 py-4" : "rounded-card border border-line p-5")}>
       {source ? <p role="status" className="text-sm text-mute">{location
         ? location.block ? copy.detail.sourceLocated(source.line, location.block.startLine, location.block.endLine) : copy.detail.sourceNotRendered
         : copy.detail.sourceEvidence.checking}</p> : null}

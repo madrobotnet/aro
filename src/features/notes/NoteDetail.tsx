@@ -175,7 +175,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   const history = <RevisionHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} noteId={note.id}
     currentBody={note.deletedAt ? note.body : snapshot.body} readOnly={Boolean(note.deletedAt)} onRestore={restoreRevision} />;
   const modeControl = <div role="group" aria-label={copy.detail.modeLabel} className="flex shrink-0 rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line">{(["edit", "preview"] as const).map((value) => (
-    <button key={value} type="button" aria-pressed={mode === value} className={cn("min-h-touch min-w-touch shrink-0 whitespace-nowrap rounded-ctl px-1 py-1.5 text-xs transition-colors lg:min-h-0 lg:px-3", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => setView({ sourceKey, mode: value })}>{copy.detail[value]}</button>
+    <button key={value} type="button" aria-pressed={mode === value} className={cn("min-h-touch min-w-touch shrink-0 whitespace-nowrap rounded-ctl px-0.5 py-1.5 text-xs transition-colors lg:min-h-0 lg:px-3", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => setView({ sourceKey, mode: value })}>{copy.detail[value]}</button>
   ))}</div>;
 
   if (note.deletedAt) {
@@ -211,6 +211,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
       <div className="py-2 sm:px-4">
         <div className="flex min-w-0 items-center lg:gap-1">
           <Link href="/notes" aria-label={copy.detail.backToList} title={copy.detail.backToList} className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center text-sm text-mute hover:text-ink lg:hidden"><span aria-hidden>←</span></Link>
+          {note.dailyDate ? <DailyNav date={note.dailyDate} /> : null}
           {snapshot.state !== "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} /> : null}
           <div className="ml-auto">{modeControl}</div>
           <Button variant="ghost" iconOnly className="min-h-touch min-w-touch" aria-label={copy.detail.pin} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} onClick={() => void patchFlag({ pinned: !note.pinned })}><Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} /></Button>
@@ -223,7 +224,6 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
           ]} />
         </div>
         {snapshot.state === "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} /> : null}
-        {note.dailyDate ? <div className="mt-1"><DailyNav date={note.dailyDate} /></div> : null}
       </div>
       <div className="mx-auto max-w-3xl px-4 pt-3 sm:px-8 lg:pt-6">
         <input aria-label={copy.detail.titleLabel} placeholder={copy.detail.titleLabel}
@@ -231,11 +231,11 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
           value={editingTitle ? snapshot.title : displayNoteTitle({ title: snapshot.title, dailyDate: note.dailyDate }, locale)}
           onFocus={() => setEditingTitle(true)} onBlur={() => setEditingTitle(false)}
           onChange={(event) => controller.update({ title: event.target.value })} />
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2" key={restoreEpoch}>
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 px-1" key={restoreEpoch}>
           <TagEditor tags={snapshot.tags} onCommit={(tags) => controller.update({ tags })} />
           {snapshot.aliases.length ? <span className="text-xs text-mute">{headerCopy.aliases(snapshot.aliases.length)}</span> : null}
         </div>
-        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
+        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
           <span>{headerCopy.updated} <time dateTime={note.updatedAt}>{formatDateTime(note.updatedAt, locale)}</time></span>
           {links ? <><span>{headerCopy.outgoing(links.outgoing.length)}</span><span>{headerCopy.backlinks(links.backlinks.length)}</span></> : null}
         </p>
@@ -252,7 +252,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
           void controller.flush().then((saved) => {
             if (!saved) toast(textInEveryLocale((locale) => NOTES_COPY[locale].detail.attachmentLinkFailed), { tone: "danger", durationMs: 0 });
           });
-        }} /> : <MarkdownPreview body={snapshot.body} source={evidence.state === "ready" ? evidence : undefined} tasks={note.archived ? undefined : {
+        }} /> : <MarkdownPreview inEditor body={snapshot.body} source={evidence.state === "ready" ? evidence : undefined} tasks={note.archived ? undefined : {
           noteId: note.id,
           // Line numbers are only the server's while the draft matches what it saved.
           editable: snapshot.state === "saved",
@@ -291,9 +291,10 @@ function SaveIndicator({ state, error, retry, compact = false }: { state: string
   </div>;
   const saving = state === "saving" || state === "dirty";
   // One live region whose text changes, so screen readers hear each save state.
-  return <span role="status" className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-mute">
+  return <span role="status" aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
+    className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs", saving ? "text-warn" : "text-mute")}>
     {saving ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : <Check aria-hidden className="size-3.5" />}
     {/* A daily note's header also holds the date control, so on phones the state is its icon. */}
-    <span className={compact ? "sr-only sm:not-sr-only" : undefined}>{saving ? copy.detail.saving : copy.detail.saved}</span>
+    <span className={compact ? "sr-only sm:not-sr-only" : "max-[375px]:sr-only"}>{saving ? copy.detail.saving : copy.detail.saved}</span>
   </span>;
 }
