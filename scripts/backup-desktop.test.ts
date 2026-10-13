@@ -182,9 +182,16 @@ test.each(["data", "database", "attachments", "wal", "runtime", "ancestor", "out
       case "attachments":
         await symlink(join(f.data, "attachments", key), join(f.data, "attachments", "linked"));
         break;
-      case "wal":
+      case "wal": {
+        if (process.platform === "darwin") {
+          // Darwin SQLite can retain a closed fixture's WAL. Checkpoint it before
+          // replacing this owned test sidecar with the malicious symlink.
+          using checkpoint = new Database(join(f.data, "aro.sqlite"));
+          checkpoint.run("PRAGMA journal_mode=DELETE");
+        }
         await symlink(join(f.data, "aro.sqlite"), join(f.data, "aro.sqlite-wal"));
         break;
+      }
       case "runtime":
         await symlink(join(f.data, "aro.sqlite"), join(f.data, "runtime.lock.sqlite"));
         break;
