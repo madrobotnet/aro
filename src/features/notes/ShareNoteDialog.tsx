@@ -47,9 +47,9 @@ export function ShareNoteDialog({ noteId, beforeCreate }: {
   const { ref, onClose, onBackdropClick } = useModalDialog(open, setOpen);
   const titleId = useId();
   return <>
-    <Button size="sm" className="min-h-touch min-w-touch sm:min-h-0 sm:min-w-0" title={copy.open}
-      leading={<Share2 aria-hidden className="size-4" />} onClick={() => setOpen(true)}>
-      <span className="sr-only sm:not-sr-only">{copy.open}</span>
+    <Button iconOnly variant="ghost" className="min-h-touch min-w-touch" title={copy.open} aria-label={copy.open}
+      onClick={() => setOpen(true)}>
+      <Share2 aria-hidden className="size-4" />
     </Button>
     <dialog ref={ref} onClose={onClose} onClick={busy ? undefined : onBackdropClick}
       onCancel={(event) => { if (busy) event.preventDefault(); }} aria-labelledby={titleId}

@@ -1,19 +1,19 @@
 "use client";
 
-import { Archive, Check, History, LoaderCircle, Pin, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, Check, History, LoaderCircle, Pin, RotateCcw, Trash2, Tags } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useCopy, useLocale } from "@/components/i18n";
-import { Button, cn, EmptyState, Input, SkeletonLines, useToast } from "@/components/ui";
+import { Button, cn, EmptyState, Input, Sheet, SkeletonLines, useToast } from "@/components/ui";
 import { sourceEvidence } from "@/features/search/source-passage";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
-import { formatDate } from "@/lib/i18n/format-date";
+import { formatDate, formatDateTime } from "@/lib/i18n/format-date";
 import type { TaskToggle } from "@/lib/tasks";
-import type { Note } from "@/lib/types";
+import type { Note, NoteLinks } from "@/lib/types";
 import { DailyNav } from "./DailyNav";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -26,6 +26,10 @@ import { mergeTaskToggle } from "./note-draft";
 import { PurgeNoteDialog } from "./trash-actions";
 import { ShareNoteDialog } from "./ShareNoteDialog";
 import { displayNoteTitle } from "./display-title";
+import { EDITOR_HEADER_COPY } from "./editor-header-copy";
+import { NoteMoreMenu } from "./NoteMoreMenu";
+import { TagEditor } from "./TagEditor";
+import { mergeCommaItems } from "./comma-items";
 
 export function NoteDetail({ noteId }: { noteId: string }) {
   const copy = useCopy(NOTES_COPY);
@@ -83,6 +87,12 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   const { locale } = useLocale();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [aliasesOpen, setAliasesOpen] = useState(false);
+  const headerCopy = useCopy(EDITOR_HEADER_COPY);
+  // Subscribe to the existing connections cache; this header never starts a request.
+  const links = useSWR<NoteLinks>(`/api/notes/${note.id}/links`, {
+    revalidateOnMount: false, revalidateOnFocus: false, revalidateOnReconnect: false,
+  }).data;
   // Bumped by a version restore: remounting the editor and fields drops their undo history and local field drafts.
   const [restoreEpoch, setRestoreEpoch] = useState(0);
   const refreshLists = () => refreshNoteViews({ cache, mutate: mutateAll });
@@ -164,6 +174,9 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   };
   const history = <RevisionHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} noteId={note.id}
     currentBody={note.deletedAt ? note.body : snapshot.body} readOnly={Boolean(note.deletedAt)} onRestore={restoreRevision} />;
+  const modeControl = <div role="group" aria-label={copy.detail.modeLabel} className="flex shrink-0 rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line">{(["edit", "preview"] as const).map((value) => (
+    <button key={value} type="button" aria-pressed={mode === value} className={cn("min-h-touch min-w-touch shrink-0 whitespace-nowrap rounded-ctl px-1 py-1.5 text-xs transition-colors lg:min-h-0 lg:px-3", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => setView({ sourceKey, mode: value })}>{copy.detail[value]}</button>
+  ))}</div>;
 
   if (note.deletedAt) {
     const purgeDate = note.purgeAt ? formatDate(note.purgeAt, locale) : "";
@@ -194,35 +207,42 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
   }
 
   return (
-    <section className="min-w-0 flex-1 overflow-y-auto bg-canvas p-3 pb-24 sm:p-6 lg:pb-6 scrollbar-thin">
-      <div className="mx-auto max-w-5xl">
-        <div className={cn("mb-3 flex flex-wrap items-center gap-2", note.dailyDate && "max-sm:gap-1")}>
-          <Link href="/notes" className="mr-auto inline-flex min-h-touch items-center text-sm text-mute hover:text-ink lg:hidden">{copy.detail.backToList}</Link>
-          {note.dailyDate ? <DailyNav date={note.dailyDate} /> : null}
-          <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} />
+    <section className="relative min-w-0 flex-1 overflow-y-auto bg-card pb-36 scrollbar-thin">
+      <div className="py-2 sm:px-4">
+        <div className="flex min-w-0 items-center lg:gap-1">
+          <Link href="/notes" aria-label={copy.detail.backToList} title={copy.detail.backToList} className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center text-sm text-mute hover:text-ink lg:hidden"><span aria-hidden>←</span></Link>
+          {snapshot.state !== "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} /> : null}
+          <div className="ml-auto">{modeControl}</div>
+          <Button variant="ghost" iconOnly className="min-h-touch min-w-touch" aria-label={copy.detail.pin} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} onClick={() => void patchFlag({ pinned: !note.pinned })}><Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} /></Button>
           {!note.archived ? <ShareNoteDialog noteId={note.id} beforeCreate={() => controller.flush()} /> : null}
-          {/* Below `sm` the labels become screen-reader text, so the row stays one line on a 390px phone. */}
-          <Button size="sm" className={TOOLBAR_BUTTON} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} leading={<Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} />} onClick={() => void patchFlag({ pinned: !note.pinned })}><span className="sr-only sm:not-sr-only">{copy.detail.pin}</span></Button>
-          <Button size="sm" className={TOOLBAR_BUTTON} title={note.archived ? copy.detail.unarchive : copy.detail.archive} disabled={actionBusy} leading={<Archive aria-hidden className="size-4" />} onClick={() => void patchFlag({ archived: !note.archived })}><span className="sr-only sm:not-sr-only">{note.archived ? copy.detail.unarchive : copy.detail.archive}</span></Button>
-          <Button size="sm" className={TOOLBAR_BUTTON} title={copy.history.open} disabled={actionBusy} leading={<History aria-hidden className="size-4" />} onClick={() => setHistoryOpen(true)}><span className="sr-only sm:not-sr-only">{copy.history.open}</span></Button>
-          <Button size="sm" className={TOOLBAR_BUTTON} variant="danger" disabled={actionBusy} iconOnly aria-label={copy.detail.moveToTrash} title={copy.detail.moveToTrash} onClick={() => void trash()}><Trash2 aria-hidden className="size-4" /></Button>
+          <NoteMoreMenu disabled={actionBusy} actions={[
+            { label: note.archived ? copy.detail.unarchive : copy.detail.archive, icon: <Archive aria-hidden className="size-4" />, run: () => void patchFlag({ archived: !note.archived }) },
+            { label: copy.history.open, icon: <History aria-hidden className="size-4" />, run: () => setHistoryOpen(true) },
+            { label: copy.detail.aliases, icon: <Tags aria-hidden className="size-4" />, run: () => setAliasesOpen(true) },
+            { label: copy.detail.moveToTrash, icon: <Trash2 aria-hidden className="size-4" />, danger: true, run: () => void trash() },
+          ]} />
         </div>
+        {snapshot.state === "failed" ? <SaveIndicator state={snapshot.state} error={snapshot.error} retry={() => void controller.retry()} /> : null}
+        {note.dailyDate ? <div className="mt-1"><DailyNav date={note.dailyDate} /></div> : null}
+      </div>
+      <div className="mx-auto max-w-3xl px-4 pt-3 sm:px-8 lg:pt-6">
         <input aria-label={copy.detail.titleLabel} placeholder={copy.detail.titleLabel}
           className="w-full min-w-0 rounded-ctl border border-transparent bg-transparent px-1 py-2 text-2xl font-semibold tracking-tight text-ink placeholder:text-mute hover:border-line focus:outline-none focus:shadow-[inset_0_-2px_0_var(--focus)]"
           value={editingTitle ? snapshot.title : displayNoteTitle({ title: snapshot.title, dailyDate: note.dailyDate }, locale)}
           onFocus={() => setEditingTitle(true)} onBlur={() => setEditingTitle(false)}
           onChange={(event) => controller.update({ title: event.target.value })} />
-        <div className="mt-2 grid gap-2 sm:grid-cols-2" key={restoreEpoch}>
-          <CommaField label={copy.detail.tags} defaultValue={snapshot.tags.join(", ")} placeholder={copy.detail.tagsPlaceholder} onCommit={(tags) => controller.update({ tags })} />
-          <CommaField label={copy.detail.aliases} defaultValue={snapshot.aliases.join(", ")} placeholder={copy.detail.aliasesPlaceholder} onCommit={(aliases) => controller.update({ aliases })} />
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2" key={restoreEpoch}>
+          <TagEditor tags={snapshot.tags} onCommit={(tags) => controller.update({ tags })} />
+          {snapshot.aliases.length ? <span className="text-xs text-mute">{headerCopy.aliases(snapshot.aliases.length)}</span> : null}
         </div>
+        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
+          <span>{headerCopy.updated} <time dateTime={note.updatedAt}>{formatDateTime(note.updatedAt, locale)}</time></span>
+          {links ? <><span>{headerCopy.outgoing(links.outgoing.length)}</span><span>{headerCopy.backlinks(links.backlinks.length)}</span></> : null}
+        </p>
         {note.sourceUrl ? <p className="mt-2 flex min-w-0 items-center gap-2 text-sm">
           <span className="shrink-0 text-mute">{copy.detail.source}</span>
           <a href={note.sourceUrl} target="_blank" rel="noreferrer noopener" className="min-w-0 truncate text-accent underline underline-offset-2 focus-ring">{note.sourceUrl}</a>
         </p> : null}
-        <div role="group" aria-label={copy.detail.modeLabel} className="mt-4 flex rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line sm:w-fit">{(["edit", "preview"] as const).map((value) => (
-          <button key={value} type="button" aria-pressed={mode === value} className={cn("min-h-touch flex-1 rounded-ctl px-4 py-1.5 text-sm transition-colors sm:min-h-0 sm:flex-none", mode === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink")} onClick={() => setView({ sourceKey, mode: value })}>{copy.detail[value]}</button>
-        ))}</div>
         {evidence.state !== "none" && evidence.state !== "ready" ? (
           <p role="status" className={cn("mt-3 rounded-ctl px-3 py-2 text-sm", evidence.state === "checking" ? "bg-desk text-mute" : "bg-warn-soft text-warn")}>{copy.detail.sourceEvidence[evidence.state]}</p>
         ) : null}
@@ -242,11 +262,12 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
         <NoteConnections noteId={note.id} />
       </div>
       {history}
+      <Sheet open={aliasesOpen} onOpenChange={setAliasesOpen} title={copy.detail.aliases} bodyClassName="px-4 py-3">
+        <CommaField key={restoreEpoch} label={copy.detail.aliases} defaultValue={snapshot.aliases.join(", ")} placeholder={copy.detail.aliasesPlaceholder} onCommit={(aliases) => controller.update({ aliases })} />
+      </Sheet>
     </section>
   );
 }
-
-const TOOLBAR_BUTTON = "min-h-touch min-w-touch sm:min-h-0 sm:min-w-0";
 
 function CommaField({ label, defaultValue, placeholder, onCommit }: { label: string; defaultValue: string; placeholder: string; onCommit: (items: string[]) => void }) {
   const [draft, setDraft] = useState({ base: defaultValue, value: defaultValue });
@@ -255,11 +276,7 @@ function CommaField({ label, defaultValue, placeholder, onCommit }: { label: str
   }
   return <Input label={label} value={draft.value} placeholder={placeholder}
     onChange={(event) => setDraft({ ...draft, value: event.target.value })} onBlur={(event) => {
-    const parse = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
-    const base = new Set(parse(draft.base));
-    // Retain aliases/inline tags added by an acknowledgement while this field was edited.
-    const incoming = parse(defaultValue).filter((item) => !base.has(item));
-    const values = [...new Set([...parse(event.target.value), ...incoming])];
+    const values = mergeCommaItems(event.target.value, draft.base, defaultValue);
     setDraft({ base: values.join(", "), value: values.join(", ") });
     if (values.join(", ") !== defaultValue) onCommit(values);
   }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />;
@@ -274,7 +291,7 @@ function SaveIndicator({ state, error, retry, compact = false }: { state: string
   </div>;
   const saving = state === "saving" || state === "dirty";
   // One live region whose text changes, so screen readers hear each save state.
-  return <span role="status" className="inline-flex items-center gap-1 text-xs text-mute">
+  return <span role="status" className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-mute">
     {saving ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : <Check aria-hidden className="size-3.5" />}
     {/* A daily note's header also holds the date control, so on phones the state is its icon. */}
     <span className={compact ? "sr-only sm:not-sr-only" : undefined}>{saving ? copy.detail.saving : copy.detail.saved}</span>

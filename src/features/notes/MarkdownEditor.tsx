@@ -1,13 +1,14 @@
 "use client";
 
 import { markdown } from "@codemirror/lang-markdown";
+import { startCompletion } from "@codemirror/autocomplete";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState, Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import CodeMirror, { oneDarkTheme, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { Paperclip } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Paperclip, Heading, List, ListTodo, Code, Link2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 import { useCopy, useLocale } from "@/components/i18n";
 import { Button, useToast } from "@/components/ui";
@@ -20,7 +21,9 @@ import { NOTES_COPY } from "./copy";
 import { LINKS_COPY } from "./links-copy";
 import { attachmentMarkdownAt } from "./markdown";
 import { refreshNoteViews } from "./note-cache";
-import { wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "./wikilink-autocomplete";
+import { isComposing, wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "./wikilink-autocomplete";
+import { formatTransaction, type FormatAction } from "./editor-format";
+import { EDITOR_HEADER_COPY } from "./editor-header-copy";
 
 const writingHighlight = HighlightStyle.define([
   { tag: tags.heading1, fontSize: "1.375em", fontWeight: "700" },
@@ -43,11 +46,33 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   const { resolvedTheme } = useTheme();
   const { locale } = useLocale();
   const copy = useCopy(NOTES_COPY).editor;
+  const formatCopy = useCopy(EDITOR_HEADER_COPY);
   const linksCopy = useCopy(LINKS_COPY).completion;
   const { cache, mutate } = useSWRConfig();
   const { toast } = useToast();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const element = dockRef.current;
+    const pane = element?.closest("section");
+    const dock = () => {
+      if (!element || !pane) return;
+      const bounds = pane.getBoundingClientRect();
+      element.style.setProperty("--editor-left", `${bounds.left}px`);
+      element.style.setProperty("--editor-width", `${bounds.width}px`);
+      element.style.setProperty("--editor-bottom", `${Math.max(0, window.innerHeight - bounds.bottom)}px`);
+      if (viewport) element.style.setProperty("--keyboard-offset", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
+    };
+    const resize = new ResizeObserver(dock);
+    if (pane) resize.observe(pane);
+    dock();
+    window.addEventListener("resize", dock);
+    viewport?.addEventListener("resize", dock);
+    viewport?.addEventListener("scroll", dock);
+    return () => { resize.disconnect(); window.removeEventListener("resize", dock); viewport?.removeEventListener("resize", dock); viewport?.removeEventListener("scroll", dock); };
+  }, []);
   const [uploading, setUploading] = useState(false);
   // The failure itself, not its text, so a language switch re-renders the message.
   const [uploadFailure, setUploadFailure] = useState<{ error: unknown } | null>(null);
@@ -62,7 +87,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "var(--text-read-size)", lineHeight: "var(--text-read-leading)" },
       // lineWrapping resets word-break; restore the global Korean rule so words never split mid-syllable.
       ".cm-content, .cm-lineWrapping": { wordBreak: "keep-all", overflowWrap: "anywhere" },
-      ".cm-content": { minHeight: "24rem", padding: "1rem 1.25rem", caretColor: "var(--accent)" },
+      ".cm-content": { minHeight: "24rem", padding: "1rem 1.25rem 6rem", caretColor: "var(--accent)" },
       ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
       "&.cm-focused": { outline: "none" },
     })),
@@ -86,6 +111,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   ], [baseExtensions, copy, linksCopy, createLinkedNote]);
 
   const upload = async (file: File) => {
+    if (isComposing(editorRef.current?.view)) return;
     setUploading(true);
     setUploadFailure(null);
     try {
@@ -95,6 +121,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       const attachment = await api<{ markdown: string }>("/api/attachments", { method: "POST", body: form });
       const view = editorRef.current?.view;
       if (view) {
+        if (isComposing(view)) return;
         const at = view.state.selection.main.head;
         view.dispatch({ changes: { from: at, insert: attachmentMarkdownAt(view.state.doc.toString(), at, attachment.markdown) } });
         view.focus();
@@ -108,14 +135,16 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       if (fileRef.current) fileRef.current.value = "";
     }
   };
+  const format = (action: FormatAction) => {
+    const view = editorRef.current?.view;
+    if (!view || isComposing(view)) return;
+    view.dispatch(formatTransaction(view.state, action));
+    view.focus();
+    if (action === "wiki") startCompletion(view);
+  };
 
   return (
-    <div className="overflow-hidden rounded-card border border-line bg-card focus-within:ring-2 focus-within:ring-accent/30">
-      <div className="flex items-center justify-between border-b border-line bg-desk px-3 py-2">
-        <span className="text-xs text-mute">{copy.hint}</span>
-        <Button size="sm" className="min-h-touch sm:min-h-0" variant="ghost" loading={uploading} leading={<Paperclip aria-hidden className="size-4" />} onClick={() => fileRef.current?.click()}>
-          {copy.attach}
-        </Button>
+    <div className="bg-card">
         <input
           ref={fileRef}
           className="sr-only"
@@ -123,10 +152,19 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
           aria-label={copy.attachLabel}
           onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}
         />
-      </div>
       {uploadFailure ? <p role="alert" className="border-b border-line bg-danger-soft px-3 py-2 text-sm text-danger">{localizedApiError(uploadFailure.error, locale, copy.uploadFailed)}</p> : null}
       {/* Dark keeps One Dark's editor chrome (selection, panels, tooltips) but not its code-syntax colours. */}
       <CodeMirror ref={editorRef} value={value} theme={resolvedTheme === "dark" ? oneDarkTheme : "light"} extensions={extensions} onChange={onChange} basicSetup={BASIC_SETUP} />
+      <div ref={dockRef} className="editor-format-dock pointer-events-none z-20 flex justify-center px-2">
+        <div role="toolbar" aria-label={formatCopy.format} className="pointer-events-auto flex items-center gap-1 rounded-card border border-line bg-card p-1 shadow-card">
+          {([
+            ["heading", Heading], ["bullet", List], ["task", ListTodo], ["code", Code], ["wiki", Link2],
+          ] as const).map(([action, Icon]) => <Button key={action} iconOnly variant="ghost" className="min-h-touch min-w-touch" aria-label={formatCopy[action]} title={formatCopy[action]}
+            onPointerDown={(event) => event.preventDefault()} onClick={() => format(action)}><Icon aria-hidden className="size-4" /></Button>)}
+          <Button iconOnly variant="ghost" className="min-h-touch min-w-touch" loading={uploading} aria-label={copy.attachLabel} title={copy.attachLabel}
+            onPointerDown={(event) => event.preventDefault()} onClick={() => { if (!isComposing(editorRef.current?.view)) fileRef.current?.click(); }}><Paperclip aria-hidden className="size-4" /></Button>
+        </div>
+      </div>
     </div>
   );
 }

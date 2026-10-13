@@ -103,6 +103,23 @@
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+.editor-format-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: max(
+    calc(var(--bottomnav-h) + env(safe-area-inset-bottom, 0px) + var(--spacing) * 2),
+    calc(var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px) + var(--spacing) * 2)
+  );
+}
+@media (min-width: 1024px) {
+  .editor-format-dock {
+    left: var(--editor-left);
+    right: auto;
+    width: var(--editor-width);
+    bottom: calc(var(--editor-bottom, 0px) + var(--spacing) * 4);
+  }
+}
 /* <html data-rail="open"> = desktop rail expanded (persisted, applied pre-hydration). */
 @custom-variant rail-open (&:where([data-rail="open"] *));
 
