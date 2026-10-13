@@ -1,16 +1,18 @@
 import { syntaxTree } from "@codemirror/language";
-import { StateEffect, type EditorState, type Range } from "@codemirror/state";
+import { EditorSelection, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { parseInlineTags } from "@/lib/wikilinks";
+import { parseTasks, toggleTask } from "@/lib/tasks";
+import { compositionSettled, deferEdit, sourceChange } from "./composition-edits";
+import { isComposing } from "./wikilink-autocomplete";
 
 type Window = { readonly from: number; readonly to: number };
 export type LiveRange =
   | { readonly kind: "hide"; readonly from: number; readonly to: number; readonly syntax: string }
   | { readonly kind: "mark"; readonly from: number; readonly to: number; readonly className: string }
   | { readonly kind: "line"; readonly from: number; readonly className: string }
-  | { readonly kind: "bullet"; readonly from: number; readonly to: number };
-
-const refreshLive = StateEffect.define<null>();
+  | { readonly kind: "bullet"; readonly from: number; readonly to: number }
+  | { readonly kind: "task"; readonly from: number; readonly to: number; readonly done: boolean; readonly label: string };
 
 /** Line-aligned visible windows plus four lines; never stringify the whole document. */
 export function liveWindows(state: EditorState, visible: readonly Window[]): Window[] {
@@ -45,6 +47,20 @@ export function liveRanges(state: EditorState, windows: readonly Window[]): Live
       enter(node) {
         if (node.name === "FencedCode" || node.name === "CodeBlock" || node.name === "Table") return false;
         const line = state.doc.lineAt(node.from);
+        if (node.name === "ListItem") {
+          const marker = node.node.getChild("ListMark");
+          const taskMarker = node.node.getChild("Task")?.getChild("TaskMarker");
+          let parent = node.node.parent;
+          let quoted = false;
+          while (parent) { if (parent.name === "Blockquote") quoted = true; parent = parent.parent; }
+          // Lezer supplies container/code context. The shared scanner supplies
+          // the exact task recognition/text contract, on this bounded item line.
+          const task = marker && taskMarker && !quoted ? parseTasks(state.sliceDoc(marker.from, line.to))[0] : undefined;
+          if (marker && taskMarker && task) {
+            if (task.done) add({ kind: "mark", from: taskMarker.to, to: line.to, className: "cm-live-done" });
+            if (!activeLine(state, node.from)) add({ kind: "task", from: marker.from, to: taskMarker.to, done: task.done, label: task.text });
+          }
+        }
         if (/^ATXHeading[1-6]$/.test(node.name)) add({ kind: "line", from: line.from, className: `cm-live-h${node.name.slice(-1)}` });
         if (node.name === "QuoteMark") add({ kind: "line", from: line.from, className: "cm-live-quote" });
         const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? "cm-live-em" : node.name === "InlineCode" ? "cm-live-code" : null;
@@ -53,7 +69,7 @@ export function liveRanges(state: EditorState, windows: readonly Window[]): Live
           if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark"].includes(node.name)) {
             add({ kind: "hide", from: node.from, to: node.to, syntax: node.name });
           }
-          if (node.name === "ListMark" && /^[-*+]$/.test(state.sliceDoc(node.from, node.to))) {
+          if (node.name === "ListMark" && !node.node.parent?.getChild("Task") && /^[-*+]$/.test(state.sliceDoc(node.from, node.to))) {
             add({ kind: "bullet", from: node.from, to: node.to });
           }
         }
@@ -89,11 +105,45 @@ class BulletWidget extends WidgetType {
   }
 }
 
+export function taskChange(state: EditorState, at: number) {
+  const body = state.doc.toString();
+  const task = parseTasks(body).find((item) => item.line === state.doc.lineAt(at).number);
+  if (!task) return null;
+  const result = toggleTask(body, { line: task.line, expectedText: task.text, done: !task.done });
+  return result.ok && result.changed ? sourceChange(body, result.body) : null;
+}
+
+class TaskWidget extends WidgetType {
+  constructor(readonly done: boolean, readonly label: string) { super(); }
+  eq(other: TaskWidget) { return this.done === other.done && this.label === other.label; }
+  toDOM(view: EditorView) {
+    const label = document.createElement("label");
+    label.className = "cm-live-task";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = this.done;
+    input.setAttribute("aria-label", this.label);
+    label.append(input);
+    label.addEventListener("mousedown", (event) => event.preventDefault());
+    input.addEventListener("click", (event) => {
+      event.preventDefault();
+      const anchor = view.posAtDOM(label);
+      deferEdit(view, { kind: "command", selection: EditorSelection.single(anchor), run(current, selection) {
+        const changes = taskChange(current.state, selection.main.head);
+        if (changes) current.dispatch({ changes, userEvent: "input.task" });
+      } });
+    });
+    return label;
+  }
+  ignoreEvent() { return true; }
+}
+
 export function liveDecorations(state: EditorState, windows: readonly Window[]): DecorationSet {
   const ranges: Range<Decoration>[] = liveRanges(state, windows).map((range) => {
     switch (range.kind) {
       case "hide": return Decoration.replace({}).range(range.from, range.to);
       case "bullet": return Decoration.replace({ widget: new BulletWidget() }).range(range.from, range.to);
+      case "task": return Decoration.replace({ widget: new TaskWidget(range.done, range.label) }).range(range.from, range.to);
       case "line": return Decoration.line({ class: range.className }).range(range.from);
       case "mark": return Decoration.mark({ class: range.className }).range(range.from, range.to);
     }
@@ -107,8 +157,8 @@ const livePlugin = ViewPlugin.fromClass(class {
   update(update: ViewUpdate) {
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
-    if (update.view.composing) { this.decorations = this.decorations.map(update.changes); return; }
-    if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(refreshLive)))) {
+    if (isComposing(update.view)) { this.decorations = this.decorations.map(update.changes); return; }
+    if (update.docChanged || update.selectionSet || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state) || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(compositionSettled)))) {
       this.decorations = liveDecorations(update.state, liveWindows(update.state, update.view.visibleRanges));
     }
   }
@@ -124,15 +174,11 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-tag": { color: "var(--accent)", backgroundColor: "var(--accent-soft)", borderRadius: "var(--radius-pill)" },
   ".cm-live-quote": { borderLeft: "2px solid var(--line-strong)", paddingLeft: "1rem", color: "var(--mute)" },
   ".cm-live-bullet": { color: "var(--mute)" },
+  ".cm-live-task": { display: "inline-flex", alignItems: "center", minHeight: "var(--text-read-leading)", verticalAlign: "middle", marginRight: "0.5rem" },
+  ".cm-live-task input": { width: "1rem", height: "1rem", margin: "0", accentColor: "var(--accent)", cursor: "pointer" },
+  ".cm-live-done": { color: "var(--mute)", textDecoration: "line-through" },
 });
 
 export function liveMarkdown() {
-  return [
-    livePlugin, liveTheme,
-    EditorView.domEventHandlers({
-      compositionend(_event, view) {
-        requestAnimationFrame(() => { if (!view.composing) view.dispatch({ effects: refreshLive.of(null) }); });
-      },
-    }),
-  ];
+  return [livePlugin, liveTheme];
 }

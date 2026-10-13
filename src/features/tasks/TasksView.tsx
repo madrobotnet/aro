@@ -9,6 +9,7 @@ import { useCopy, useLocale } from "@/components/i18n";
 import { DocumentTitle } from "@/components/i18n/DocumentTitle";
 import { Badge, Button, EmptyState, SkeletonLines, useToast } from "@/components/ui";
 import { refreshNoteViews } from "@/features/notes/note-cache";
+import { applySavedTaskToggle } from "@/features/notes/draft-store";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
@@ -72,6 +73,7 @@ export function TasksView() {
         method: "POST",
         json: { noteId: task.noteId, line: task.line, expectedText: task.text, done },
       });
+      void applySavedTaskToggle(result.note, { line: task.line, expectedText: task.text, done });
       if (!fitsTaskFilter(done, state) && document.activeElement?.getAttribute("data-task-key") === key) {
         focusAfter.current = neighbourTaskKey(groups.flatMap((group) => group.tasks), task);
       }

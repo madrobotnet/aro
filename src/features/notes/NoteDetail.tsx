@@ -285,13 +285,13 @@ function CommaField({ label, defaultValue, placeholder, onCommit }: { label: str
 function SaveIndicator({ state, error, retry, compact = false }: { state: string; error: unknown; retry: () => void; compact?: boolean }) {
   const { locale } = useLocale();
   const copy = useCopy(NOTES_COPY);
-  if (state === "failed") return <div role="alert" className="order-last w-full rounded-ctl border border-danger/30 bg-danger-soft px-3 py-2 text-sm">
+  if (state === "failed") return <div role="alert" data-save-state={state} className="order-last w-full rounded-ctl border border-danger/30 bg-danger-soft px-3 py-2 text-sm">
     <div className="flex items-center justify-between gap-2"><span className="font-medium text-danger">{copy.detail.saveFailed}</span><Button size="sm" className="min-h-touch sm:min-h-0" variant="ghost" onClick={retry}>{copy.retry}</Button></div>
     <p>{localizedApiError(error, locale, copy.detail.saveFailedDetail)}</p>
   </div>;
   const saving = state === "saving" || state === "dirty";
   // One live region whose text changes, so screen readers hear each save state.
-  return <span role="status" aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
+  return <span role="status" data-save-state={state} aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
     className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs", saving ? "text-warn" : "text-mute")}>
     {saving ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : <Check aria-hidden className="size-3.5" />}
     {/* A daily note's header also holds the date control, so on phones the state is its icon. */}

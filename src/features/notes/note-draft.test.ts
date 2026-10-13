@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Note } from "@/lib/types";
 import { mergeTaskToggle, NoteDraftController, type EditableNote } from "./note-draft";
-import { forgetNoteDraft, getNoteDraft, hasUnsavedNoteDrafts } from "./draft-store";
+import { applySavedTaskToggle, forgetNoteDraft, getNoteDraft, hasUnsavedNoteDrafts } from "./draft-store";
 
 const note = (body = "old"): Note => ({
   id: "00000000-0000-4000-8000-000000000001",
@@ -30,6 +30,27 @@ function deferred<T>() {
 }
 
 describe("NoteDraftController", () => {
+  test("merges a tasks-page toggle into a dirty retained draft during an in-flight save", async () => {
+    // Given
+    const saving = deferred<Note>();
+    const sent: string[] = [];
+    const controller = getNoteDraft(note("- [ ] 작업"), async (_id, value) => {
+      sent.push(value.body);
+      return sent.length === 1 ? saving.promise : note(value.body);
+    });
+    controller.update({ body: "- [ ] 작업\n한글 입력" });
+    const inFlight = controller.flush();
+    // When
+    const merged = applySavedTaskToggle(note("- [x] 작업"), { line: 1, expectedText: "작업", done: true });
+    controller.update({ body: controller.getSnapshot().body + " 계속" });
+    saving.resolve(note(sent[0]));
+    await Promise.all([inFlight, merged]);
+    // Then
+    expect(sent).toEqual(["- [ ] 작업\n한글 입력", "- [x] 작업\n한글 입력 계속"]);
+    expect(controller.getSnapshot().body).toBe("- [x] 작업\n한글 입력 계속");
+    expect(controller.getSnapshot().state).toBe("saved");
+  });
+
   test("retains an unsaved draft when the same note is reopened", () => {
     const first = getNoteDraft(note(), async () => note());
     first.update({ body: "local draft" });

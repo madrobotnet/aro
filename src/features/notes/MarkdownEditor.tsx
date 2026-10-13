@@ -25,11 +25,11 @@ import { isComposing, wikiLinkCompletion, wikiLinkEnv, type FetchTitles } from "
 import { formatTransaction, type FormatAction } from "./editor-format";
 import { EDITOR_HEADER_COPY } from "./editor-header-copy";
 import { liveMarkdown } from "./live-markdown";
+import { compositionEdits, deferEdit, sourceChange } from "./composition-edits";
 
 const writingHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.375em", fontWeight: "700" },
-  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "700" },
-  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontSize: "1.05em", fontWeight: "600" },
+  { tag: [tags.heading1, tags.heading2], fontWeight: "700" },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: "600" },
   { tag: tags.strong, fontWeight: "700" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: [tags.link, tags.url], color: "var(--accent)" },
@@ -52,6 +52,20 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   const { cache, mutate } = useSWRConfig();
   const { toast } = useToast();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const [initialValue] = useState(value);
+  const reportedValue = useRef(value);
+  const changeHandler = useRef(onChange);
+  useEffect(() => { changeHandler.current = onChange; }, [onChange]);
+  const reportChange = useCallback((body: string) => {
+    reportedValue.current = body;
+    changeHandler.current(body);
+  }, []);
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (!view || value === reportedValue.current) return;
+    reportedValue.current = value;
+    deferEdit(view, { kind: "change", changes: sourceChange(view.state.doc.toString(), value) });
+  }, [value]);
   const fileRef = useRef<HTMLInputElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -91,6 +105,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   const [uploadFailure, setUploadFailure] = useState<{ error: unknown } | null>(null);
   const baseExtensions = useMemo(() => [
     markdown({ base: markdownLanguage }),
+    ...compositionEdits,
     ...liveMarkdown(),
     ...wikiLinkCompletion(fetchNoteTitles),
     EditorView.lineWrapping,
@@ -126,7 +141,6 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   ], [baseExtensions, copy, linksCopy, createLinkedNote]);
 
   const upload = async (file: File) => {
-    if (isComposing(editorRef.current?.view)) return;
     setUploading(true);
     setUploadFailure(null);
     try {
@@ -136,10 +150,11 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       const attachment = await api<{ markdown: string }>("/api/attachments", { method: "POST", body: form });
       const view = editorRef.current?.view;
       if (view) {
-        if (isComposing(view)) return;
-        const at = view.state.selection.main.head;
-        view.dispatch({ changes: { from: at, insert: attachmentMarkdownAt(view.state.doc.toString(), at, attachment.markdown) } });
-        view.focus();
+        deferEdit(view, { kind: "command", selection: view.state.selection, run(current, selection) {
+          const at = selection.main.head;
+          current.dispatch({ changes: { from: at, insert: attachmentMarkdownAt(current.state.doc.toString(), at, attachment.markdown) } });
+          current.focus();
+        } });
       } else {
         onAppend(attachment.markdown);
       }
@@ -152,10 +167,12 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
   };
   const format = (action: FormatAction) => {
     const view = editorRef.current?.view;
-    if (!view || isComposing(view)) return;
-    view.dispatch(formatTransaction(view.state, action));
-    view.focus();
-    if (action === "wiki") startCompletion(view);
+    if (!view) return;
+    deferEdit(view, { kind: "command", selection: view.state.selection, run(current, selection) {
+      current.dispatch(formatTransaction(current.state.update({ selection }).state, action));
+      current.focus();
+      if (action === "wiki") startCompletion(current);
+    } });
   };
 
   return (
@@ -170,7 +187,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend }: { noteId: 
       {uploadFailure ? <p role="alert" className="border-b border-line bg-danger-soft px-3 py-2 text-sm text-danger">{localizedApiError(uploadFailure.error, locale, copy.uploadFailed)}</p> : null}
       {/* Dark keeps One Dark's editor chrome (selection, panels, tooltips) but not its code-syntax colours. */}
       <div ref={bodyRef} className="px-1">
-        <CodeMirror ref={editorRef} value={value} theme={resolvedTheme === "dark" ? oneDarkTheme : "light"} extensions={extensions} onChange={onChange} basicSetup={BASIC_SETUP} />
+        <CodeMirror ref={editorRef} value={initialValue} theme={resolvedTheme === "dark" ? oneDarkTheme : "light"} extensions={extensions} onChange={reportChange} basicSetup={BASIC_SETUP} />
       </div>
       <div ref={dockRef} className="editor-format-dock pointer-events-none z-20 flex justify-center px-2">
         <div role="toolbar" aria-label={formatCopy.format} className="pointer-events-auto flex items-center gap-1 rounded-card border border-line bg-card p-1 shadow-card">

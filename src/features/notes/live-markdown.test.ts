@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
-import { liveRanges, liveWindows } from "./live-markdown";
+import { liveRanges, liveWindows, taskChange } from "./live-markdown";
 
 function state(doc: string, anchor = doc.length) {
   return EditorState.create({ doc, selection: { anchor }, extensions: [markdown({ base: markdownLanguage })] });
@@ -57,4 +57,22 @@ test("bounds work to the viewport and updates syntax after a local edit", () => 
   const ranges = liveRanges(changed, liveWindows(changed, [visible]));
   expect(ranges.length).toBeLessThan(100);
   expect(ranges.some((range) => range.kind === "line" && range.from === visible.from && range.className === "cm-live-h2")).toBe(true);
+});
+
+test("recognizes nested tasks with the shared scanner and skips quoted/code tasks", () => {
+  const doc = "- [ ] 부모\n  - [x] 자식\n    - [ ] 깊은 자식\n\n> - [ ] 인용\n\n    - [ ] 코드\n\n~~~md\n- [ ] 펜스\n~~~\n끝";
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  expect(ranges.flatMap((range) => range.kind === "task" ? [range.label] : [])).toEqual(["부모", "자식", "깊은 자식"]);
+  expect(liveRanges(state(doc, 3), [{ from: 0, to: doc.length }]).flatMap((range) => range.kind === "task" ? [range.label] : [])).toEqual(["자식", "깊은 자식"]);
+});
+
+test("checkbox toggles only one character through the shared task scanner", () => {
+  const doc = "# 제목\n- [ ] 한글 **작업**\n끝";
+  const before = state(doc);
+  const changes = taskChange(before, doc.indexOf("-"));
+  expect(changes).not.toBeNull();
+  if (!changes) return;
+  expect(changes.apply(before.doc).toString()).toBe(doc.replace("[ ]", "[x]"));
+  expect(changes.desc.toString()).toContain("1:1");
+  expect(taskChange(state("```\n- [ ] 코드\n```"), 5)).toBeNull();
 });
