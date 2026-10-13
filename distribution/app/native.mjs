@@ -1,6 +1,7 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, resolve, posix } from "node:path";
 import { createHash } from "node:crypto";
+import { fetchRetry } from "../release/fetch-retry.mjs";
 
 const revision = "ebb95f8add54eee8bed840e3fb587e4cbec857d7";
 const digest = text => createHash("sha256").update(text).digest("hex");
@@ -65,7 +66,7 @@ export async function prepareNative({ root, out, save, download, architecture })
         if (JSON.stringify(JSON.parse(local)) !== JSON.stringify(componentVersions)) throw new Error("Installed native manifest changed");
       } catch (error) { if (error.code !== "ENOENT") throw error; }
       const bytes = await readFile(resolve(root, `@img/sharp-libvips-${platform}/lib/libvips-cpp.so.8.18.7`));
-      const response = await fetch(registry.dist.tarball, { signal: AbortSignal.timeout(120000) });
+      const response = await fetchRetry(registry.dist.tarball, () => ({ signal: AbortSignal.timeout(120000) }));
       if (!response.ok) throw new Error(`Published libvips archive HTTP ${response.status}`);
       const archiveBytes = Buffer.from(await response.arrayBuffer());
       const [algorithm, expected] = registry.dist.integrity.split("-");

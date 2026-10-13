@@ -8,6 +8,7 @@ import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareNative } from "../distribution/app/native.mjs";
 import { assetPrefix, digest, safe, sha } from "../distribution/release/assets.mjs";
+import { fetchRetry } from "../distribution/release/fetch-retry.mjs";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const originalWidth = "2672ae17e3d91c246546bf3d56e78c95570eec79381ec143f41d45ec498bccab";
@@ -120,7 +121,7 @@ async function materialIO(out, records) {
     assert.equal(new URL(url).protocol, "https:", "Sources require HTTPS");
     const destination = resolve(out, path);
     await mkdir(dirname(destination), { recursive: true });
-    const response = await fetch(url, { signal: AbortSignal.timeout(600000) });
+    const response = await fetchRetry(url, () => ({ signal: AbortSignal.timeout(600000) }));
     assert(response.ok, `HTTP ${response.status}: ${url}`);
     await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { flags: "wx" }));
     const actual = await digest(destination);

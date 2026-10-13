@@ -4,6 +4,7 @@ import { createReadStream } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { replaceWidth, archiveTree, assertNoOriginalWidth } from "./prepare-release-materials.mjs";
+import { fetchRetry } from "../distribution/release/fetch-retry.mjs";
 
 // Preparation, not publication. Measured native Linux inputs; never infer
 // third-party permission from the application's license or missing directories.
@@ -74,7 +75,7 @@ async function download(item) {
   if (cached && await cached.exists()) {
     bytes = Buffer.from(await cached.arrayBuffer());
   } else {
-    const response = await fetch(item.url, { signal: AbortSignal.timeout(300000) });
+    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(300000) }));
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
     bytes = Buffer.from(await response.arrayBuffer());
   }
@@ -331,7 +332,7 @@ console.log(JSON.stringify({platform:process.platform,arch:process.arch,bun:{ver
     manifest.components.push(component);
   }
   for (const item of history.texts) {
-    const response = await fetch(item.url, { signal: AbortSignal.timeout(120000) });
+    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }));
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     verify(bytes, item, item.file);
@@ -352,7 +353,7 @@ console.log(JSON.stringify({platform:process.platform,arch:process.arch,bun:{ver
   }
   manifest.notices.push({ component: "runtime-preparation", kind: "distributor-component-attribution", ...await save("notices/RUNTIME-NOTICE.md", await readFile(resolve(support, "NOTICE.md"))) });
   for (const item of JSON.parse(await readFile(resolve(support, "texts.lock.json"), "utf8"))) {
-    const response = await fetch(item.url, { signal: AbortSignal.timeout(120000) });
+    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }));
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     verify(bytes, item, item.url);
