@@ -1,6 +1,7 @@
 # Desktop backup and restore verification
 
-These commands require Linux, Bun 1.4.2, and a **stopped desktop application**.
+These commands are verified on Linux arm64 and real Windows 11 x64 with Bun 1.4.2
+and require a **stopped desktop application**. macOS is unverified.
 They are separate from the PostgreSQL/server backup commands. Run from the
 repository root, as the desktop data directory's owner:
 
@@ -50,6 +51,36 @@ unreadable files, and directories without owner read/execute permissions are
 refused. The source root, output parent, backup root, and temporary parent must
 be private. Paths must be canonical absolute paths; existing output paths and
 output inside the data directory are refused.
+
+On Windows, backups use **format version 2**, with `platform: "win32"` and
+`permissionModel: "windows-acl"`. No POSIX mode fields are recorded or synthesized.
+Content inventory, bounded copying, SQLite checks, sizes, and checksums remain
+the same. Source/output roots, output parents, backup roots, and restored sandboxes
+must pass the SID-based privacy check in [DESKTOP.md](DESKTOP.md). Paths must be
+canonical and free of symlinks/reparse-point redirection. Windows verification
+checks content identity and root/sandbox privacy instead of POSIX mode equality;
+it does not preserve or restore individual NTFS ACLs or certify effective access
+for every possible Windows principal.
+
+Linux readers accept v1 only; Windows readers accept v2 only. The other platform
+family is refused before creating a restore sandbox, and a v2 manifest containing
+POSIX mode fields is malformed. Moving notes between machines uses Markdown/ZIP
+export and import, not a cross-platform desktop backup.
+
+In PowerShell, use absolute paths and private parent directories:
+
+```powershell
+bun --no-env-file scripts/backup-desktop.ts `
+  --data-dir "$env:USERPROFILE\aro-data" `
+  --output "$env:USERPROFILE\aro-backups\stopped-snapshot"
+bun --no-env-file scripts/restore-desktop-check.ts `
+  --backup "$env:USERPROFILE\aro-backups\stopped-snapshot" `
+  --temp-parent "$env:USERPROFILE\aro-verification"
+```
+
+Create `aro-backups` and `aro-verification` first. No ACL is relaxed automatically.
+Local model management, server/Docker tooling, official chat CLI providers, and
+desktop packaging/updates are not Windows-supported workflows.
 
 File copies and hashes use 1 MiB buffers, including for large databases and
 attachments. Manifests are limited to 16 MiB and 100,000 entries. The manifest is

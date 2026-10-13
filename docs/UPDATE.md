@@ -1,6 +1,9 @@
 # Bounded operator updates (development)
 
 Run the reviewed checkout's `scripts/update.mjs` with Linux Bun 1.4.2+.
+Windows desktop packaging and updates explicitly refuse execution and remain
+unverified in this round. Windows checkout launch and stopped v2 backup/restore
+verification are documented separately in DESKTOP.md and BACKUP-DESKTOP.md.
 Server backup also needs Node 22+, local Docker and Compose 5.1.0+.
 No hosted updater URL, new public release or native package is claimed.
 Obtain a real archive and trusted SHA-256 independently. Desktop artifacts must

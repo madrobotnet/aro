@@ -60,7 +60,12 @@ automatic backups.
 The development checkout adds [Markdown/ZIP import](docs/IMPORT.md) with preview,
 explicit confirmation, conflict blocking and local attachment preservation.
 It also includes an experimental [local SQLite runtime](docs/DESKTOP.md) and
-[desktop backup verification](docs/BACKUP-DESKTOP.md). Desktop/server movement is explicit note
+[desktop backup verification](docs/BACKUP-DESKTOP.md), verified on real Windows 11
+x64 and Linux arm64 with Bun 1.4.2 for owner initialization, production start,
+login, notes/attachments, restart persistence, duplicate-start refusal, stopped
+backup verification and Ctrl+C shutdown. macOS is unverified. Windows model
+management, server/Docker tooling, official chat CLI providers and desktop
+packaging/updates are unsupported. Desktop/server movement is explicit note
 export/import, not simultaneous synchronization or a full-account migration.
 The development version also adds [owner-controlled MCP access](docs/AGENT-ACCESS.md):
 separate revocable tokens, inbox-only captures, and reviewed note-change proposals.
@@ -78,7 +83,7 @@ that can reject a valid configuration. You don't need Bun or Node on the host.
 The supported image platforms are **linux/amd64** and **linux/arm64**. Check the
 selected release's workflow receipts for native image, private-pull, and
 persistence verification on both platforms; see the [release guide](docs/RELEASING.md).
-The commands use a POSIX shell; macOS and Windows haven't been tested.
+These server deployment commands use a POSIX shell and are Linux-only.
 
 ### Released installation archive
 
