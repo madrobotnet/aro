@@ -113,6 +113,10 @@
     calc(var(--editor-body-bottom, 0px) + var(--spacing) * 4)
   );
 }
+.editor-format-dock[data-keyboard="open"] {
+  top: calc(var(--dock-top, 0px) + var(--spacing) * 2);
+  bottom: auto;
+}
 @media (min-width: 1024px) {
   .editor-format-dock {
     left: var(--editor-left);

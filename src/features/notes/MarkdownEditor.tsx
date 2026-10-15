@@ -87,9 +87,20 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend, raw = false 
       element.style.setProperty("--editor-width", `${bounds.width}px`);
       element.style.setProperty("--editor-bottom", `${Math.max(0, window.innerHeight - bounds.bottom)}px`);
       element.style.setProperty("--editor-body-bottom", `${Math.max(0, window.innerHeight - bodyBounds.bottom)}px`);
-      if (viewport) element.style.setProperty("--keyboard-offset", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
+      const keyboard = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+      element.style.setProperty("--keyboard-offset", `${keyboard}px`);
+      // iOS Safari draws its form bar above the keyboard without reporting its height,
+      // so with a phone keyboard open the dock moves to the top of the visible area,
+      // under the note header while that header is on screen.
+      const keyboardOpen = keyboard > 120 && !window.matchMedia("(min-width: 1024px)").matches;
+      element.dataset.keyboard = keyboardOpen ? "open" : "closed";
+      if (keyboardOpen) {
+        const header = pane.firstElementChild?.getBoundingClientRect();
+        element.style.setProperty("--dock-top", `${header && header.bottom > top ? Math.min(header.bottom, bottom) : top}px`);
+      }
       const toolbar = element.firstElementChild?.getBoundingClientRect();
-      element.style.visibility = toolbar && toolbar.top >= Math.max(bodyBounds.top, top) && toolbar.bottom <= Math.min(bodyBounds.bottom, bottom) ? "" : "hidden";
+      const within = toolbar && toolbar.top >= top && toolbar.bottom <= bottom;
+      element.style.visibility = within && (keyboardOpen || (toolbar.top >= bodyBounds.top && toolbar.bottom <= bodyBounds.bottom)) ? "" : "hidden";
     };
     const resize = new ResizeObserver(dock);
     if (pane) resize.observe(pane);
