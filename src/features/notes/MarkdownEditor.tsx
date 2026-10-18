@@ -1,6 +1,5 @@
 "use client";
 
-import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { startCompletion } from "@codemirror/autocomplete";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState, Prec } from "@codemirror/state";
@@ -28,6 +27,7 @@ import { liveLabels, liveMarkdown, liveRaw } from "./live-markdown";
 import { compositionEdits, deferEdit, sourceChange } from "./composition-edits";
 import { LIVE_EDITOR_COPY } from "./live-editor-copy";
 import { liveTables } from "./live-tables";
+import { editorLanguage } from "./editor-language";
 
 const writingHighlight = HighlightStyle.define([
   { tag: [tags.heading1, tags.heading2], fontWeight: "700" },
@@ -118,7 +118,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend, raw = false 
   // The failure itself, not its text, so a language switch re-renders the message.
   const [uploadFailure, setUploadFailure] = useState<{ error: unknown } | null>(null);
   const baseExtensions = useMemo(() => [
-    markdown({ base: markdownLanguage }),
+    editorLanguage(),
     ...compositionEdits,
     ...liveMarkdown(),
     ...liveTables(),
