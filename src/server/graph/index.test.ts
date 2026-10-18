@@ -34,6 +34,15 @@ beforeEach(resetData);
 afterAll(closeDb);
 
 describe("getGraph", () => {
+  test("includes daily metadata in global and focused projections without rewriting the title", async () => {
+    await addNote(IDS.a, "2026-10-13");
+    await query("UPDATE notes SET daily_date='2026-10-13' WHERE id=$1", [IDS.a]);
+    for (const options of [{}, { focusId: IDS.a }]) {
+      expect((await getGraph(options)).nodes.find(node => node.id === IDS.a)).toMatchObject({
+        label: "2026-10-13", dailyDate: "2026-10-13",
+      });
+    }
+  });
   test("projects active notes, tags, unresolved targets, and visible-edge degrees deterministically", async () => {
     await addNote(IDS.a, "Alpha", { tags: ["alpha", "common"] });
     await addNote(IDS.b, "Beta", { tags: ["common"] });

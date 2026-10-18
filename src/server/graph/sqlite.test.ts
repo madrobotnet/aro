@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { closeSQLiteStore } from "@/server/db/backend";
-import { createNote, updateNote } from "@/server/notes/service";
+import { createNote, getOrCreateDaily, updateNote } from "@/server/notes/service";
 import { getGraph } from "./index";
 
 test("SQLite graphs retain edges, ghosts, tags and bounded focus depth", async () => {
@@ -16,6 +16,12 @@ test("SQLite graphs retain edges, ghosts, tags and bounded focus depth", async (
     const b = await createNote({ title: "B", body: "[[C]]", tags: ["work"] });
     const c = await createNote({ title: "C", body: "", tags: ["work"] });
     const orphan = await createNote({ title: "Orphan" });
+    const daily = await getOrCreateDaily("2026-10-13");
+    for (const options of [{}, { focusId: daily.id }]) {
+      expect((await getGraph(options)).nodes.find(node => node.id === daily.id)).toMatchObject({
+        label: "2026-10-13", dailyDate: "2026-10-13",
+      });
+    }
     const graph = await getGraph({ focusId: a.id.toUpperCase(), depth: 1, includeTags: true });
     expect(graph.nodes.map(node => node.id)).toContain(b.id);
     expect(graph.nodes.map(node => node.id)).not.toContain(c.id);

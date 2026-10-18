@@ -19,6 +19,7 @@ export type GraphOptions = {
 type NoteRow = {
   id: string;
   title: string;
+  daily_date: string | null;
   tags: string[];
   updated_at: Date;
   distance?: number;
@@ -66,7 +67,7 @@ async function loadNotes(options: GraphOptions): Promise<NoteRow[]> {
   const tag = options.tag ? normalizeTag(options.tag) : null;
   if (databaseBackend() === "sqlite") {
     const store = await sqliteStore();
-    type SQLiteNote = { id: string; title: string; tags: string; updated_at: string; distance?: bigint };
+    type SQLiteNote = { id: string; title: string; daily_date: string | null; tags: string; updated_at: string; distance?: bigint };
     let rows: SQLiteNote[];
     if (options.focusId) {
       const focus = options.focusId.toLowerCase();
@@ -82,23 +83,23 @@ async function loadNotes(options: GraphOptions): Promise<NoteRow[]> {
           WHERE walk.distance<? AND n.deleted_at IS NULL AND n.status<>'archived'
             AND (? IS NULL OR EXISTS(SELECT 1 FROM json_each(n.tags) WHERE value=?))
         ), nearest AS (SELECT id,min(distance) AS distance FROM walk GROUP BY id)
-        SELECT n.id,n.title,n.tags,n.updated_at,nearest.distance FROM nearest JOIN notes n ON n.id=nearest.id
+        SELECT n.id,n.title,n.daily_date,n.tags,n.updated_at,nearest.distance FROM nearest JOIN notes n ON n.id=nearest.id
         ORDER BY nearest.distance,lower(n.title),n.id LIMIT ?`,
         [focus, options.depth ?? 1, tag, tag, GRAPH_NODE_LIMIT + 1],
       );
     } else {
       rows = store.all<SQLiteNote>(
-        `SELECT id,title,tags,updated_at FROM notes WHERE deleted_at IS NULL AND status<>'archived'
+        `SELECT id,title,daily_date,tags,updated_at FROM notes WHERE deleted_at IS NULL AND status<>'archived'
          AND (? IS NULL OR EXISTS(SELECT 1 FROM json_each(notes.tags) WHERE value=?))
          ORDER BY lower(title),id LIMIT ?`, [tag, tag, GRAPH_NODE_LIMIT + 1],
       );
     }
-    return rows.map(row => ({ id: row.id, title: row.title, tags: readSQLiteStringArray(row.tags), updated_at: new Date(row.updated_at),
+    return rows.map(row => ({ id: row.id, title: row.title, daily_date: row.daily_date, tags: readSQLiteStringArray(row.tags), updated_at: new Date(row.updated_at),
       ...(row.distance === undefined ? {} : { distance: readSQLiteNumber(row.distance) }) }));
   }
   if (!options.focusId) {
     return query<NoteRow>(
-      `SELECT id, title, tags, updated_at
+      `SELECT id, title, daily_date::text, tags, updated_at
          FROM notes
         WHERE deleted_at IS NULL
           AND status <> 'archived'
@@ -132,7 +133,7 @@ async function loadNotes(options: GraphOptions): Promise<NoteRow[]> {
      ), nearest AS (
        SELECT id, min(distance) AS distance FROM walk GROUP BY id
      )
-     SELECT n.id, n.title, n.tags, n.updated_at, nearest.distance
+     SELECT n.id, n.title, n.daily_date::text, n.tags, n.updated_at, nearest.distance
        FROM nearest
        JOIN notes n ON n.id = nearest.id
       ORDER BY nearest.distance, lower(n.title), n.id
@@ -255,6 +256,7 @@ export async function getGraph(options: GraphOptions = {}): Promise<GraphData> {
       id: note.id,
       kind: "note" as const,
       label: note.title,
+      ...(note.daily_date ? { dailyDate: note.daily_date } : {}),
       tags: note.tags,
       degree: degree.get(note.id) ?? 0,
       updatedAt: note.updated_at.toISOString(),

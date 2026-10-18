@@ -15,7 +15,7 @@ import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import type { GraphData, GraphNode, NoteRef, TagCount } from "@/lib/types";
 import { GRAPH_COPY } from "./graph-copy";
-import { graphKey, stablePaletteIndex, visibleLegendTags } from "./graph-model";
+import { displayGraphData, graphKey, stablePaletteIndex, visibleLegendTags } from "./graph-model";
 import type { GraphCanvasHandle } from "./ForceGraphCanvas";
 
 const ForceGraphCanvas = dynamic(() => import("./ForceGraphCanvas").then((module) => module.ForceGraphCanvas), {
@@ -46,7 +46,8 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
   const [actionError, setActionError] = useState<{ cause: unknown } | null>(null);
   const filters = { focusId, depth, includeTags, includeOrphans, tag };
   const key = graphKey(filters);
-  const { data, error, isLoading, mutate } = useSWR<GraphData>(key, { keepPreviousData: true, shouldRetryOnError: false });
+  const { data: wireData, error, isLoading, mutate } = useSWR<GraphData>(key, { keepPreviousData: true, shouldRetryOnError: false });
+  const data = useMemo(() => wireData ? displayGraphData(wireData, locale) : undefined, [wireData, locale]);
   const { data: tagData } = useSWR<{ tags: TagCount[] }>(compact ? null : "/api/tags", { shouldRetryOnError: false });
   const selected = data?.nodes.find((node) => node.id === selectedId) ?? null;
   const selectedNodeId = selected?.id;

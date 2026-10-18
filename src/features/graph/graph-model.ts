@@ -1,6 +1,20 @@
 import type { Locale } from "@/lib/i18n/locale";
 import type { GraphData, GraphLink, GraphNode } from "@/lib/types";
 import { GRAPH_COPY } from "./graph-copy";
+import { displayNoteTitle } from "@/features/notes/display-title";
+
+/** Localize display labels together so the canvas, inspector and accessible list agree. */
+export function displayGraphData(data: GraphData, locale: Locale): GraphData {
+  return {
+    ...data,
+    nodes: data.nodes.map((node) => ({
+      ...node,
+      label: node.kind === "note"
+        ? displayNoteTitle({ title: node.label, dailyDate: node.dailyDate ?? null }, locale)
+        : node.label,
+    })),
+  };
+}
 
 export type GraphFilters = {
   focusId: string | null;

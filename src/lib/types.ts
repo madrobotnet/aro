@@ -105,6 +105,7 @@ export type GraphNode = {
   id: string; // note id, "tag:<name>", or "ghost:<title>"
   kind: GraphNodeKind;
   label: string;
+  dailyDate?: string;
   tags: string[];
   degree: number;
   updatedAt: string | null;

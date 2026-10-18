@@ -3,7 +3,8 @@ import { copyParityIssues } from "@/lib/i18n/copy";
 import { LOCALES } from "@/lib/i18n/locale";
 import type { GraphData } from "@/lib/types";
 import { GRAPH_COPY } from "./graph-copy";
-import { cloneGraphData, graphKey, graphTooltip, neighborIds, showGraphLabel, stablePaletteIndex, visibleLegendTags } from "./graph-model";
+import { displayNoteTitle } from "@/features/notes/display-title";
+import { cloneGraphData, displayGraphData, graphKey, graphTooltip, neighborIds, showGraphLabel, stablePaletteIndex, visibleLegendTags } from "./graph-model";
 
 const data: GraphData = {
   nodes: [
@@ -16,6 +17,21 @@ const data: GraphData = {
 };
 
 describe("graph model", () => {
+  test("localizes generated daily labels without changing titles or link identities", () => {
+    const daily = { ...data.nodes[0]!, label: "2026-10-13", dailyDate: "2026-10-13" };
+    const custom = { ...daily, id: "custom", label: "My day" };
+    const ordinary = { ...data.nodes[1]!, label: daily.label };
+    const wire = { ...data, nodes: [daily, custom, ordinary] };
+    for (const locale of LOCALES) {
+      const displayed = displayGraphData(wire, locale);
+      expect(displayed.nodes.map(node => node.label)).toEqual([
+        displayNoteTitle({ title: daily.label, dailyDate: daily.dailyDate }, locale), custom.label, ordinary.label,
+      ]);
+      expect(displayed.links).toEqual(wire.links);
+      expect(displayed.nodes.map(node => node.id)).toEqual(wire.nodes.map(node => node.id));
+    }
+    expect(wire.nodes[0]?.label).toBe("2026-10-13");
+  });
   test("selection preserves every overview label in a small graph", () => {
     const neighbors = new Set(["a", "b"]);
     for (const id of ["a", "b", "c"]) {
