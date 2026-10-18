@@ -231,7 +231,7 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
       case "bullet": return Decoration.replace({ widget: new BulletWidget() }).range(range.from, range.to);
       case "task": return Decoration.replace({ widget: new TaskWidget(range.done, range.label) }).range(range.from, range.to);
       case "wiki": return Decoration.mark({ class: "cm-live-wiki", attributes: { role: "button", tabindex: "0", contenteditable: "false", title: range.target, "aria-label": state.facet(liveLabels).wikiLabel(range.label, range.target) } }).range(range.from, range.to);
-      case "link": return Decoration.mark({ tagName: range.url ? "a" : "span", class: "cm-live-link", attributes: { role: "link", tabindex: "0", contenteditable: "false", ...(range.url ? { href: range.url, target: "_blank", rel: "noopener noreferrer" } : {}), title: range.url, "aria-label": `${range.label}, ${range.url}` } }).range(range.from, range.to);
+      case "link": return Decoration.mark({ tagName: range.url ? "a" : "span", class: "cm-live-link", attributes: { role: "link", tabindex: "0", ...(range.url ? { href: range.url, target: "_blank", rel: "noopener noreferrer" } : {}), title: range.url, "aria-label": `${range.label}, ${range.url}` } }).range(range.from, range.to);
       case "line": return Decoration.line({ class: range.className }).range(range.from);
       case "mark": return Decoration.mark({ class: range.className }).range(range.from, range.to);
     }
