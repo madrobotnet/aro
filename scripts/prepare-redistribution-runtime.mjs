@@ -74,12 +74,17 @@ async function download(item) {
   let bytes;
   if (cached && await cached.exists()) {
     bytes = Buffer.from(await cached.arrayBuffer());
+    verify(bytes, item, item.id);
   } else {
-    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(300000) }));
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
-    bytes = Buffer.from(await response.arrayBuffer());
+    bytes = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(300000) }), {
+      consume: async response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        verify(bytes, item, item.id);
+        return bytes;
+      },
+    });
   }
-  verify(bytes, item, item.id);
   let retained;
   if (cached && await cached.exists()) {
     await mkdir(resolve(out, "sources"), { recursive: true });
@@ -332,10 +337,14 @@ console.log(JSON.stringify({platform:process.platform,arch:process.arch,bun:{ver
     manifest.components.push(component);
   }
   for (const item of history.texts) {
-    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }));
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    verify(bytes, item, item.file);
+    const bytes = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }), {
+      consume: async response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        verify(bytes, item, item.file);
+        return bytes;
+      },
+    });
     manifest.notices.push({ component: item.component, version: item.version,
       sourceUrl: item.url, kind: "historical-permission-material",
       ...await save(`notices/history/${item.id}.txt`, bytes) });
@@ -353,10 +362,14 @@ console.log(JSON.stringify({platform:process.platform,arch:process.arch,bun:{ver
   }
   manifest.notices.push({ component: "runtime-preparation", kind: "distributor-component-attribution", ...await save("notices/RUNTIME-NOTICE.md", await readFile(resolve(support, "NOTICE.md"))) });
   for (const item of JSON.parse(await readFile(resolve(support, "texts.lock.json"), "utf8"))) {
-    const response = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }));
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    verify(bytes, item, item.url);
+    const bytes = await fetchRetry(item.url, () => ({ signal: AbortSignal.timeout(120000) }), {
+      consume: async response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${item.url}`);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        verify(bytes, item, item.url);
+        return bytes;
+      },
+    });
     manifest.notices.push({
       component: item.component, version: item.version, sourceUrl: item.url,
       relation: item.relation, kind: "full-upstream-text",

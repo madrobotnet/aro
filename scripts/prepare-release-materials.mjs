@@ -106,7 +106,7 @@ export async function archiveTree(tree, output) {
   assert.equal(results[1], 0, results[3]); assert.equal(results[2], 0, results[4]);
 }
 
-async function materialIO(out, records) {
+export async function materialIO(out, records) {
   const save = async (path, bytes, metadata = {}) => {
     safe(path);
     const destination = resolve(out, path);
@@ -121,18 +121,30 @@ async function materialIO(out, records) {
     assert.equal(new URL(url).protocol, "https:", "Sources require HTTPS");
     const destination = resolve(out, path);
     await mkdir(dirname(destination), { recursive: true });
-    const response = await fetchRetry(url, () => ({ signal: AbortSignal.timeout(600000) }));
-    assert(response.ok, `HTTP ${response.status}: ${url}`);
-    await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { flags: "wx" }));
-    const actual = await digest(destination);
-    if (metadata.sha256) assert.equal(actual.sha256, metadata.sha256, `Source checksum mismatch: ${url}`);
-    if (metadata.bytes !== undefined) assert.equal(actual.bytes, metadata.bytes, `Source size mismatch: ${url}`);
-    if (metadata.integrity) {
-      const [algorithm, expected] = metadata.integrity.split("-");
-      const hash = createHash(algorithm);
-      for await (const chunk of createReadStream(destination)) hash.update(chunk);
-      assert.equal(hash.digest("base64"), expected, `Source integrity mismatch: ${url}`);
-    }
+    const actual = await fetchRetry(url, () => ({ signal: AbortSignal.timeout(600000) }), {
+      consume: async response => {
+        assert(response.ok, `HTTP ${response.status}: ${url}`);
+        const file = await open(destination, "wx");
+        try {
+          await pipeline(Readable.fromWeb(response.body), file.createWriteStream());
+          const actual = await digest(destination);
+          if (metadata.sha256) assert.equal(actual.sha256, metadata.sha256, `Source checksum mismatch: ${url}`);
+          if (metadata.bytes !== undefined) assert.equal(actual.bytes, metadata.bytes, `Source size mismatch: ${url}`);
+          if (metadata.integrity) {
+            const [algorithm, expected] = metadata.integrity.split("-");
+            const hash = createHash(algorithm);
+            for await (const chunk of createReadStream(destination)) hash.update(chunk);
+            assert.equal(hash.digest("base64"), expected, `Source integrity mismatch: ${url}`);
+          }
+          return actual;
+        } catch (error) {
+          // Only remove a file this attempt exclusively created.
+          await file.close();
+          await rm(destination);
+          throw error;
+        }
+      },
+    });
     const row = { ...metadata, url, path, ...actual };
     records.push(row);
     return row;

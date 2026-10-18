@@ -66,11 +66,15 @@ export async function prepareNative({ root, out, save, download, architecture })
         if (JSON.stringify(JSON.parse(local)) !== JSON.stringify(componentVersions)) throw new Error("Installed native manifest changed");
       } catch (error) { if (error.code !== "ENOENT") throw error; }
       const bytes = await readFile(resolve(root, `@img/sharp-libvips-${platform}/lib/libvips-cpp.so.8.18.7`));
-      const response = await fetchRetry(registry.dist.tarball, () => ({ signal: AbortSignal.timeout(120000) }));
-      if (!response.ok) throw new Error(`Published libvips archive HTTP ${response.status}`);
-      const archiveBytes = Buffer.from(await response.arrayBuffer());
-      const [algorithm, expected] = registry.dist.integrity.split("-");
-      if (createHash(algorithm).update(archiveBytes).digest("base64") !== expected) throw new Error("Published libvips archive integrity mismatch");
+      const archiveBytes = await fetchRetry(registry.dist.tarball, () => ({ signal: AbortSignal.timeout(120000) }), {
+        consume: async response => {
+          if (!response.ok) throw new Error(`Published libvips archive HTTP ${response.status}`);
+          const archiveBytes = Buffer.from(await response.arrayBuffer());
+          const [algorithm, expected] = registry.dist.integrity.split("-");
+          if (createHash(algorithm).update(archiveBytes).digest("base64") !== expected) throw new Error("Published libvips archive integrity mismatch");
+          return archiveBytes;
+        },
+      });
       const archive = resolve(out, `.published-${platform}.tgz`);
       await writeFile(archive, archiveBytes, { flag: "wx" });
       try {
