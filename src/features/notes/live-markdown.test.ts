@@ -171,3 +171,41 @@ test.each(["1. [ ] 한글 작업", "2) [x] 완료한 작업", "  12. [X] 중첩 
   expect(change?.apply(before.doc).toString()).toBe(doc.replace(/\[[ xX]\]/, item.includes("[ ]") ? "[x]" : "[ ]"));
   expect(liveRanges(state(doc, item.length), [{ from: 0, to: doc.length }]).some((range) => range.kind === "task")).toBe(false);
 });
+
+test.each(["한글 링크", "English text", "**중요** 링크"])("only hides inline link syntax around %s", (label) => {
+  // Given
+  const doc = `[${label}](https://example.com/path "제목") 그리고 ~~취소한 글~~\n\n끝`;
+  // When
+  const off = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  const on = liveRanges(state(doc, 1), [{ from: 0, to: doc.length }]);
+  // Then
+  expect(off).toContainEqual({ kind: "link", from: 1, to: label.length + 1, label, url: "https://example.com/path" });
+  for (const range of off.filter((range) => range.kind === "hide").filter((range) => range.syntax === "LinkSyntax")) {
+    expect(range.to <= 1 || range.from >= label.length + 1).toBe(true);
+  }
+  expect(off.filter((range) => range.kind === "hide").filter((range) => range.syntax === "StrikethroughMark").map((range) => doc.slice(range.from, range.to))).toEqual(["~~", "~~"]);
+  expect(off.some((range) => range.kind === "mark" && range.className === "cm-live-strike")).toBe(true);
+  expect(on.filter((range) => range.kind === "hide" || range.kind === "link")).toEqual([]);
+});
+
+test("leaves non-link brackets and code visible and never enables unsafe URL schemes", () => {
+  // Given
+  const doc = '[그냥 글] [참조][없는참조] [대괄호 [내용]](url) `~~코드~~ [코드](url)` [안전하지 않음](javascript:alert)\n\n끝';
+  // When
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  // Then
+  expect(ranges.filter((range) => range.kind === "link")).toEqual([{ kind: "link", from: doc.indexOf("안전하지"), to: doc.indexOf("](javascript"), label: "안전하지 않음", url: "" }]);
+  expect(ranges.filter((range) => range.kind === "hide").filter((range) => range.syntax === "LinkSyntax").map((range) => doc.slice(range.from, range.to))).toEqual(["[", "](javascript:alert)"]);
+  expect(ranges.some((range) => range.kind === "mark" && range.className === "cm-live-strike")).toBe(false);
+});
+
+test("multiline links keep all label text and avoid replacements spanning line breaks", () => {
+  // Given
+  const doc = "[첫 줄\n다음 줄](\nhttps://example.com\n)\n\n끝";
+  // When
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  // Then
+  expect(ranges.find((range) => range.kind === "link")).toMatchObject({ label: "첫 줄\n다음 줄", url: "https://example.com" });
+  expect(ranges.filter((range) => range.kind === "hide").every((range) => !doc.slice(range.from, range.to).includes("\n"))).toBe(true);
+  expect(liveRanges(state(doc, doc.indexOf("다음")), [{ from: 0, to: doc.length }]).some((range) => range.kind === "link")).toBe(false);
+});

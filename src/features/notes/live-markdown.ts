@@ -5,6 +5,7 @@ import { parseInlineTags, parseWikiLinks } from "@/lib/wikilinks";
 import { parseTasks, toggleTask } from "@/lib/tasks";
 import { compositionActive, compositionSettled, deferEdit, sourceChange } from "./composition-edits";
 import { isComposing } from "./wikilink-autocomplete";
+import { defaultUrlTransform } from "react-markdown";
 
 export type LiveWindow = { readonly from: number; readonly to: number };
 export const liveRaw = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
@@ -14,6 +15,7 @@ export type LiveRange =
   | { readonly kind: "line"; readonly from: number; readonly className: string }
   | { readonly kind: "bullet"; readonly from: number; readonly to: number }
   | { readonly kind: "task"; readonly from: number; readonly to: number; readonly done: boolean; readonly label: string }
+  | { readonly kind: "link"; readonly from: number; readonly to: number; readonly label: string; readonly url: string }
   | { readonly kind: "wiki"; readonly from: number; readonly to: number; readonly label: string; readonly target: string };
 
 type LiveLabels = { readonly editSource: (text: string) => string; readonly wikiLabel: (label: string, target: string) => string };
@@ -66,6 +68,23 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
         }
         if (node.name === "Table") return false;
         const line = state.doc.lineAt(node.from);
+        if (node.name === "Link" && !state.selection.ranges.some((range) => state.doc.lineAt(range.from).number <= state.doc.lineAt(node.to).number && state.doc.lineAt(range.to).number >= line.number)) {
+          const url = node.node.getChild("URL");
+          const [open, close] = node.node.getChildren("LinkMark");
+          // Reference-like brackets and images are not inline link syntax.
+          if (url && open && close) {
+            const target = state.sliceDoc(url.from, url.to).replace(/^<|>$/g, "").replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, "$1");
+            const from = Math.max(open.to, window.from), to = Math.min(close.from, window.to);
+            if (from < to) add({ kind: "link", from, to, label: state.sliceDoc(open.to, close.from), url: defaultUrlTransform(target) });
+            for (const syntax of [{ from: node.from, to: open.to }, { from: close.from, to: node.to }]) {
+              for (let number = state.doc.lineAt(Math.max(syntax.from, window.from)).number; number <= state.doc.lineAt(Math.min(syntax.to, window.to)).number; number++) {
+                const part = state.doc.line(number);
+                const from = Math.max(part.from, syntax.from, window.from), to = Math.min(part.to, syntax.to, window.to);
+                if (from < to) add({ kind: "hide", from, to, syntax: "LinkSyntax" });
+              }
+            }
+          }
+        }
         if (node.name === "ListItem") {
           const marker = node.node.getChild("ListMark");
           const taskMarker = node.node.getChild("Task")?.getChild("TaskMarker");
@@ -95,10 +114,10 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
           }
         }
         if (node.name === "QuoteMark") add({ kind: "line", from: line.from, className: "cm-live-quote" });
-        const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? "cm-live-em" : node.name === "InlineCode" ? "cm-live-code" : null;
+        const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? "cm-live-em" : node.name === "InlineCode" ? "cm-live-code" : node.name === "Strikethrough" ? "cm-live-strike" : null;
         if (className) add({ kind: "mark", from: node.from, to: node.to, className });
         if (!activeLine(state, node.from)) {
-          if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark"].includes(node.name)) {
+          if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "StrikethroughMark"].includes(node.name)) {
             const heading = node.name === "HeaderMark" && /^SetextHeading/.test(node.node.parent?.name ?? "") ? node.node.parent : null;
             // Either half of a Setext heading exposes its underline for editing.
             if (heading && state.selection.ranges.some((range) => state.doc.lineAt(range.from).number <= line.number && state.doc.lineAt(range.to).number >= state.doc.lineAt(heading.from).number)) return;
@@ -211,6 +230,7 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
       case "bullet": return Decoration.replace({ widget: new BulletWidget() }).range(range.from, range.to);
       case "task": return Decoration.replace({ widget: new TaskWidget(range.done, range.label) }).range(range.from, range.to);
       case "wiki": return Decoration.mark({ class: "cm-live-wiki", attributes: { role: "button", tabindex: "0", contenteditable: "false", title: range.target, "aria-label": state.facet(liveLabels).wikiLabel(range.label, range.target) } }).range(range.from, range.to);
+      case "link": return Decoration.mark({ tagName: range.url ? "a" : "span", class: "cm-live-link", attributes: { role: "link", tabindex: "0", contenteditable: "false", ...(range.url ? { href: range.url, target: "_blank", rel: "noopener noreferrer" } : {}), title: range.url, "aria-label": `${range.label}, ${range.url}` } }).range(range.from, range.to);
       case "line": return Decoration.line({ class: range.className }).range(range.from);
       case "mark": return Decoration.mark({ class: range.className }).range(range.from, range.to);
     }
@@ -220,8 +240,26 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
 
 const livePlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet;
+  readonly linkClick = (event: MouseEvent) => {
+    if (isComposing(this.view) || !(event.target instanceof Element)) return;
+    const link = event.target.closest<HTMLAnchorElement>(".cm-live-link");
+    if (!link) return;
+    if (event.type === "mousedown" && !(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    if (!(event.ctrlKey || event.metaKey) || !link.getAttribute("href")) return;
+    event.stopPropagation();
+    if (event.type === "click") window.open(link.href, "_blank", "noopener,noreferrer");
+  };
   readonly chipKey = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || event.isComposing || isComposing(this.view) || !(event.target instanceof HTMLElement) || !event.target.classList.contains("cm-live-wiki")) return;
+    if (event.key !== "Enter" || event.isComposing || isComposing(this.view) || !(event.target instanceof HTMLElement)) return;
+    const link = event.target.closest<HTMLAnchorElement>(".cm-live-link");
+    if (link) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (link.getAttribute("href")) window.open(link.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!event.target.classList.contains("cm-live-wiki")) return;
     // A focused chip is a control, not an IME text target. Handle its activation
     // before CM's keydown forceFlush recycles the marked span into source text.
     event.preventDefault();
@@ -232,8 +270,14 @@ const livePlugin = ViewPlugin.fromClass(class {
   constructor(readonly view: EditorView) {
     this.decorations = liveDecorations(view.state, liveWindows(view.state, view.visibleRanges));
     view.contentDOM.addEventListener("keydown", this.chipKey, true);
+    view.contentDOM.addEventListener("click", this.linkClick, true);
+    view.contentDOM.addEventListener("mousedown", this.linkClick, true);
   }
-  destroy() { this.view.contentDOM.removeEventListener("keydown", this.chipKey, true); }
+  destroy() {
+    this.view.contentDOM.removeEventListener("keydown", this.chipKey, true);
+    this.view.contentDOM.removeEventListener("click", this.linkClick, true);
+    this.view.contentDOM.removeEventListener("mousedown", this.linkClick, true);
+  }
   update(update: ViewUpdate) {
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
@@ -250,6 +294,9 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-h3, .cm-live-h4, .cm-live-h5, .cm-live-h6": { fontSize: "var(--text-lg)", fontWeight: "600" },
   ".cm-live-strong": { fontWeight: "700" },
   ".cm-live-em": { fontStyle: "italic" },
+  ".cm-live-strike": { textDecoration: "line-through" },
+  ".cm-live-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "0.15em", cursor: "pointer" },
+  ".cm-live-link:focus-visible": { outline: "2px solid var(--focus)", outlineOffset: "2px" },
   ".cm-live-code": { fontFamily: "var(--font-mono)", backgroundColor: "var(--desk)", borderRadius: "var(--radius-ctl)" },
   ".cm-live-tag": { color: "var(--accent)", backgroundColor: "var(--accent-soft)", borderRadius: "var(--radius-pill)" },
   ".cm-live-quote": { borderLeft: "2px solid var(--line-strong)", paddingLeft: "1rem", color: "var(--mute)" },
