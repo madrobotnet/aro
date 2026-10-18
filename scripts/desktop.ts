@@ -8,8 +8,20 @@ import { openSQLite, sqliteTimestamp } from "../src/server/db/sqlite";
 import { startConfiguredModel } from "./model-management";
 import { windowsPrivatePath } from "../src/server/desktop/windows-private-path";
 import { stopWindowsApp } from "./desktop-process";
+import { desktopLock, ownDesktopServer } from "../src/server/desktop/runtime";
 
 const root = resolve(import.meta.dir, "..");
+
+// Preload this same source/bundle, so installed packages need no extra entrypoint.
+if (!import.meta.main && process.env.ARO_DESKTOP_PRELOAD) {
+  const directory = process.env.ARO_DESKTOP_PRELOAD;
+  delete process.env.ARO_DESKTOP_PRELOAD; // Next dev workers get their own runtime lock.
+  try { ownDesktopServer(directory); }
+  catch (error) {
+    console.error(error instanceof Error ? error.message : "Desktop runtime unavailable");
+    process.exit(1);
+  }
+}
 
 class DesktopInitializationConflict extends Error {
   readonly code = "conflict";
@@ -110,9 +122,10 @@ async function main(): Promise<void> {
   if (passwordStdin) throw new Error("--password-stdin is only valid for init");
   await desktopDirectory(directory);
   await access(join(directory, "aro.sqlite"), constants.R_OK | constants.W_OK);
-  using lock = new Database(join(directory, "runtime.lock.sqlite"), { create: true });
-  lock.run("PRAGMA busy_timeout=0");
-  lock.run("BEGIN IMMEDIATE");
+  // Always take the entry lock first, so a losing launcher cannot interrupt a
+  // winning child's runtime acquisition between preload and instrumentation.
+  using server = desktopLock(directory, "server.lock.sqlite");
+  using lock = desktopLock(directory);
   {
     using store = openSQLite({ filename: join(directory, "aro.sqlite") });
     if (!store.get("SELECT owner_id FROM installation_settings WHERE singleton=1 AND setup_completed=1")) {
@@ -141,10 +154,11 @@ async function main(): Promise<void> {
     TRUSTED_PROXY_HOPS: "0", NEXT_TELEMETRY_DISABLED: "1",
     HOSTNAME: "127.0.0.1", PORT: String(port),
     ARO_DESKTOP_DATA_DIR: directory,
+    ARO_DESKTOP_PRELOAD: directory,
   });
   const commandLine = !development && existsSync(join(root, "server.js"))
-    ? [process.execPath, "--no-env-file", join(root, "server.js")]
-    : [process.execPath, "--no-env-file", "--bun", "next",
+    ? [process.execPath, "--no-env-file", "--preload", import.meta.path, join(root, "server.js")]
+    : [process.execPath, "--no-env-file", "--preload", import.meta.path, join(root, "node_modules/next/dist/bin/next"),
       development ? "dev" : "start", ...(development ? ["--webpack"] : []),
       "--hostname", "127.0.0.1", "--port", String(port)];
   const controller = new AbortController();
@@ -174,6 +188,7 @@ async function main(): Promise<void> {
     // Hand ownership to server instrumentation before it opens the app database.
     // Concurrent starts can race here, but only one server can acquire the lock.
     lock.run("ROLLBACK");
+    server.run("ROLLBACK");
     child = Bun.spawn(commandLine,
       { cwd: root, env, stdin: "pipe", stdout: "inherit", stderr: "inherit" });
     process.exitCode = await child.exited;

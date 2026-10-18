@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { migrateSQLite } from "../src/server/db/sqlite/migrate";
 import { SQLITE_MIGRATIONS } from "../src/server/db/sqlite/migrations";
-import { mkdtemp, rm, chmod, symlink, realpath, readFile } from "node:fs/promises";
+import { access, mkdtemp, rm, chmod, symlink, realpath, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import argon2 from "argon2";
@@ -42,6 +42,36 @@ function launch(directory: string, port: number) {
   });
 }
 
+for (const name of ["server.lock.sqlite", "runtime.lock.sqlite"]) {
+  test(`server preload refuses held ${name} before binding or opening the app database`, async () => {
+    // Given: another child won the handoff, or only an orphaned worker remains.
+    const directory = await mkdtemp(join(temporaryParent, "aro-desktop-handoff-"));
+    const reservation = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
+    try {
+      using lock = new Database(join(directory, name));
+      lock.run("BEGIN IMMEDIATE");
+      // Bypass launcher preflight deliberately: this is the child side of the race.
+      // An occupied port would report EADDRINUSE if Next reached its bind call.
+      const child = Bun.spawn([process.execPath, "--no-env-file", "--preload", join(import.meta.dir, "desktop.ts"),
+        join(import.meta.dir, "../node_modules/next/dist/bin/next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(reservation.port)], {
+        cwd: join(import.meta.dir, ".."),
+        env: { ...process.env, ARO_DESKTOP_PRELOAD: directory, ARO_DESKTOP_DATA_DIR: directory,
+          ARO_DATABASE_MODE: "sqlite", ARO_SQLITE_PATH: join(directory, "aro.sqlite") },
+        stdin: "pipe", stdout: "pipe", stderr: "pipe",
+      });
+      // When / Then: fail before the Next entrypoint, with no raw SQLite stack.
+      const stderr = await bounded(new Response(child.stderr).text());
+      expect(await bounded(child.exited)).toBe(1);
+      expect(stderr.trim()).toBe("Desktop already running for this data directory (database is locked)");
+      expect(await new Response(child.stdout).text()).toBe("");
+      await expect(access(join(directory, "aro.sqlite"))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      reservation.stop(true);
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 test.skipIf(process.platform !== "linux")("SIGKILLed launcher cannot duplicate a live server and a stale runtime lock recovers", async () => {
   // Given: a real Next server, suspended so parent-death cleanup cannot hide duplicate ownership.
   const directory = await mkdtemp(join(temporaryParent, "aro-desktop-crash-"));
@@ -68,6 +98,8 @@ test.skipIf(process.platform !== "linux")("SIGKILLed launcher cannot duplicate a
     if (!serverPid) throw new Error("No Next server process");
     expect((await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(60_000) })).ok).toBe(true);
     process.kill(serverPid, "SIGSTOP");
+    // Also pause Next's supervisor so its EOF cleanup cannot kill the stopped worker.
+    process.kill(cliPid, "SIGSTOP");
     // When: the launcher dies without running its cleanup.
     first.kill("SIGKILL");
     await bounded(first.exited);
@@ -76,16 +108,31 @@ test.skipIf(process.platform !== "linux")("SIGKILLed launcher cannot duplicate a
     // Then: the live server, not the launcher, owns the data directory.
     expect(await bounded(second.exited)).toBe(1);
     expect(failure).toContain("database is locked");
+    expect(failure).toContain("Desktop already running");
     await expect(initializeDesktop(directory, "a-replacement-password")).rejects.toThrow("database is locked");
     // Closing the actual server releases ownership, including after an unclean exit.
     const closed = bounded(first.stdout.pipeTo(new WritableStream()));
     process.kill(serverPid, "SIGKILL");
     serverPid = undefined;
+    process.kill(cliPid, "SIGCONT");
     await closed;
     cliPid = undefined;
     recovered = launch(directory, port);
     await ready(recovered);
     expect((await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(60_000) })).ok).toBe(true);
+    // Ordinary launcher signals must release ownership before an immediate restart.
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      const stopped = bounded(recovered.stdout.pipeTo(new WritableStream()));
+      recovered.kill(signal);
+      await bounded(recovered.exited);
+      await stopped;
+      {
+        using released = new Database(join(directory, "runtime.lock.sqlite"));
+        expect(() => released.run("BEGIN IMMEDIATE")).not.toThrow();
+      }
+      recovered = launch(directory, port);
+      await ready(recovered);
+    }
     // Without suspension, EOF also stops the server when its launcher is killed.
     const parentDeath = bounded(recovered.stdout.pipeTo(new WritableStream()));
     recovered.kill("SIGKILL");
@@ -95,7 +142,10 @@ test.skipIf(process.platform !== "linux")("SIGKILLed launcher cannot duplicate a
     expect(() => released.run("BEGIN IMMEDIATE")).not.toThrow();
   } finally {
     if (serverPid) process.kill(serverPid, "SIGKILL");
-    if (cliPid) process.kill(cliPid, "SIGTERM");
+    if (cliPid) {
+      process.kill(cliPid, "SIGTERM");
+      process.kill(cliPid, "SIGCONT");
+    }
     for (const child of [first, second, recovered]) {
       if (child && child.exitCode === null) child.kill("SIGTERM");
       if (child) await bounded(child.exited);
