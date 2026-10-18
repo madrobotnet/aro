@@ -3,7 +3,7 @@ import { request as requestHttp } from "node:http";
 import { request as requestHttps } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
 import { Readable } from "node:stream";
-import { parse } from "node-html-parser";
+import { htmlText } from "@/lib/html-text";
 
 export const URL_FETCH_TIMEOUT_MS = 10_000;
 export const URL_FETCH_BYTE_LIMIT = 262_144;
@@ -218,14 +218,7 @@ async function readBounded(response: Response): Promise<string | null> {
 }
 
 function toText(raw: string, html: boolean): string {
-  let value = raw;
-  if (html) {
-    // A document declaration is not capture text.
-    const document = parse(raw.replace(/<!doctype(?:[^>"']|"[^"]*"|'[^']*')*>/gi, ""));
-    for (const element of document.querySelectorAll("head,script,style,nav,noscript")) element.remove();
-    // structuredText separates blocks and decodes character references exactly once.
-    value = document.structuredText;
-  }
+  const value = html ? htmlText(raw) : raw;
   return value.replace(/\s+/g, " ").trim().slice(0, 20_000);
 }
 
