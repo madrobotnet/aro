@@ -140,6 +140,7 @@ async function main(): Promise<void> {
     ATTACHMENTS_DIR: join(directory, "attachments"), INSECURE_COOKIES: "1",
     TRUSTED_PROXY_HOPS: "0", NEXT_TELEMETRY_DISABLED: "1",
     HOSTNAME: "127.0.0.1", PORT: String(port),
+    ARO_DESKTOP_DATA_DIR: directory,
   });
   const commandLine = !development && existsSync(join(root, "server.js"))
     ? [process.execPath, "--no-env-file", join(root, "server.js")]
@@ -170,8 +171,11 @@ async function main(): Promise<void> {
       console.error(`Optional local model unavailable; continuing lexical-only: ${error instanceof Error ? error.message : "startup failed"}`);
     }
     if (controller.signal.aborted) return;
+    // Hand ownership to server instrumentation before it opens the app database.
+    // Concurrent starts can race here, but only one server can acquire the lock.
+    lock.run("ROLLBACK");
     child = Bun.spawn(commandLine,
-      { cwd: root, env, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+      { cwd: root, env, stdin: "pipe", stdout: "inherit", stderr: "inherit" });
     process.exitCode = await child.exited;
   }
   finally {
@@ -182,7 +186,6 @@ async function main(): Promise<void> {
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
     if (process.platform === "win32") process.off("SIGBREAK", stop);
-    lock.run("ROLLBACK");
   }
 }
 
