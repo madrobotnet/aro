@@ -78,7 +78,10 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
           if (marker && taskMarker && task) {
             const textStart = taskMarker.to + (/^[ \t]+/.exec(state.sliceDoc(taskMarker.to, line.to))?.[0].length ?? 0);
             if (task.done) add({ kind: "mark", from: textStart, to: line.to, className: "cm-live-done" });
-            if (!activeLine(state, node.from)) add({ kind: "task", from: marker.from, to: textStart, done: task.done, label: task.text });
+            if (!activeLine(state, node.from)) {
+              const ordered = /^\d+[.)]$/.test(state.sliceDoc(marker.from, marker.to));
+              add({ kind: "task", from: ordered ? taskMarker.from : marker.from, to: ordered ? taskMarker.to : textStart, done: task.done, label: task.text });
+            }
           }
         }
         if (/^ATXHeading[1-6]$/.test(node.name)) add({ kind: "line", from: line.from, className: `cm-live-h${node.name.slice(-1)}` });

@@ -156,3 +156,18 @@ test("Setext styling is bounded when a multiline heading crosses a visible windo
   // Then
   expect(ranges.filter((range) => range.kind === "line")).toEqual([{ kind: "line", from: before.doc.line(2).from, className: "cm-live-h1" }]);
 });
+
+test.each(["1. [ ] 한글 작업", "2) [x] 완료한 작업", "  12. [X] 중첩 작업"])("keeps the number and gaps of ordered task %s", (item) => {
+  // Given
+  const doc = `${item}\n\n끝`;
+  const before = state(doc);
+  // When
+  const ranges = liveRanges(before, [{ from: 0, to: doc.length }]);
+  const task = ranges.find((range) => range.kind === "task");
+  const change = task && taskChange(before, task.from);
+  // Then
+  expect(task && doc.slice(task.from, task.to)).toBe(item.match(/\[[ xX]\]/)?.[0]);
+  expect(ranges.some((range) => range.kind === "hide" && range.from < doc.indexOf("["))).toBe(false);
+  expect(change?.apply(before.doc).toString()).toBe(doc.replace(/\[[ xX]\]/, item.includes("[ ]") ? "[x]" : "[ ]"));
+  expect(liveRanges(state(doc, item.length), [{ from: 0, to: doc.length }]).some((range) => range.kind === "task")).toBe(false);
+});
