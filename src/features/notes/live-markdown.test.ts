@@ -131,3 +131,28 @@ test("done styling begins at the first non-space character, not the checkbox gap
   const task = ranges.find((range) => range.kind === "task");
   expect(task && task.kind === "task" && task.to).toBe(doc.indexOf("이름"));
 });
+
+test.each([["===", "cm-live-h1"], ["---", "cm-live-h2"]])("styles Setext %s text and reveals its underline from either line", (underline, className) => {
+  // Given
+  const doc = `한글 제목\n${underline}\n\n끝`;
+  const window = [{ from: 0, to: doc.length }];
+  // When
+  const off = liveRanges(state(doc), window);
+  const onText = liveRanges(state(doc, 2), window);
+  const onUnderline = liveRanges(state(doc, doc.indexOf(underline) + 1), window);
+  // Then
+  expect(off).toContainEqual({ kind: "line", from: 0, className });
+  expect(off.filter((range) => range.kind === "hide")).toEqual([{ kind: "hide", from: doc.indexOf(underline), to: doc.indexOf(underline) + underline.length, syntax: "SetextMark" }]);
+  for (const ranges of [onText, onUnderline]) expect(ranges.filter((range) => range.kind === "hide")).toEqual([]);
+});
+
+test("Setext styling is bounded when a multiline heading crosses a visible window", () => {
+  // Given
+  const doc = "첫 줄\n둘째 줄\n셋째 줄\n===\n\n끝";
+  const before = state(doc);
+  const window = [{ from: before.doc.line(2).from, to: before.doc.line(2).to }];
+  // When
+  const ranges = liveRanges(before, window);
+  // Then
+  expect(ranges.filter((range) => range.kind === "line")).toEqual([{ kind: "line", from: before.doc.line(2).from, className: "cm-live-h1" }]);
+});

@@ -82,13 +82,25 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
           }
         }
         if (/^ATXHeading[1-6]$/.test(node.name)) add({ kind: "line", from: line.from, className: `cm-live-h${node.name.slice(-1)}` });
+        if (/^SetextHeading[12]$/.test(node.name)) {
+          const underline = node.node.getChild("HeaderMark");
+          if (underline) {
+            const last = state.doc.lineAt(underline.from).number;
+            for (let number = Math.max(line.number, state.doc.lineAt(window.from).number); number < last && number <= state.doc.lineAt(window.to).number; number++) {
+              add({ kind: "line", from: state.doc.line(number).from, className: `cm-live-h${node.name.slice(-1)}` });
+            }
+          }
+        }
         if (node.name === "QuoteMark") add({ kind: "line", from: line.from, className: "cm-live-quote" });
         const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? "cm-live-em" : node.name === "InlineCode" ? "cm-live-code" : null;
         if (className) add({ kind: "mark", from: node.from, to: node.to, className });
         if (!activeLine(state, node.from)) {
           if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark"].includes(node.name)) {
+            const heading = node.name === "HeaderMark" && /^SetextHeading/.test(node.node.parent?.name ?? "") ? node.node.parent : null;
+            // Either half of a Setext heading exposes its underline for editing.
+            if (heading && state.selection.ranges.some((range) => state.doc.lineAt(range.from).number <= line.number && state.doc.lineAt(range.to).number >= state.doc.lineAt(heading.from).number)) return;
             const to = node.name === "HeaderMark" ? node.to + (/^[ \t]+/.exec(state.sliceDoc(node.to, line.to))?.[0].length ?? 0) : node.to;
-            add({ kind: "hide", from: node.from, to, syntax: node.name });
+            add({ kind: "hide", from: node.from, to, syntax: heading ? "SetextMark" : node.name });
           }
           if (node.name === "ListMark" && !node.node.parent?.getChild("Task") && /^[-*+]$/.test(state.sliceDoc(node.from, node.to))) {
             add({ kind: "bullet", from: node.from, to: node.to });
