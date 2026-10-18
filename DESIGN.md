@@ -59,6 +59,11 @@ the same pair. Korean labels are never uppercase or letter-spaced, and no
 visible label is smaller than 12px. Korean text wraps at word boundaries;
 long URLs may break anywhere rather than widen the viewport.
 
+Live Markdown emphasis keeps italic for Latin. Emphasis containing Hangul also
+uses a dotted underline in `--mute` at a `0.2em` offset, since Pretendard's
+synthetic Hangul italic alone is hard to distinguish. Link underlines remain
+solid in `--accent`; emphasis is not an action.
+
 ## 4. Space and scroll ownership
 
 Use the existing Tailwind spacing scale and `rounded-ctl` (8px),

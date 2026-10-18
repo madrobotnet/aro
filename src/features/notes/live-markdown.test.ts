@@ -209,3 +209,14 @@ test("multiline links keep all label text and avoid replacements spanning line b
   expect(ranges.filter((range) => range.kind === "hide").every((range) => !doc.slice(range.from, range.to).includes("\n"))).toBe(true);
   expect(liveRanges(state(doc, doc.indexOf("다음")), [{ from: 0, to: doc.length }]).some((range) => range.kind === "link")).toBe(false);
 });
+
+test("distinguishes Hangul emphasis without changing Latin-only emphasis", () => {
+  // Given
+  const doc = "*천천히 읽기* *Latin italic* _한글 English_ **굵은 글씨**\n\n끝";
+  // When
+  const ranges = liveRanges(state(doc), [{ from: 0, to: doc.length }]);
+  // Then
+  expect(ranges.flatMap((range) => range.kind === "mark" && range.className === "cm-live-em cm-live-em-ko" ? [doc.slice(range.from, range.to)] : [])).toEqual(["*천천히 읽기*", "_한글 English_"]);
+  expect(ranges.flatMap((range) => range.kind === "mark" && range.className === "cm-live-em" ? [doc.slice(range.from, range.to)] : [])).toEqual(["*Latin italic*"]);
+  expect(ranges.flatMap((range) => range.kind === "mark" && range.className === "cm-live-strong" ? [doc.slice(range.from, range.to)] : [])).toEqual(["**굵은 글씨**"]);
+});

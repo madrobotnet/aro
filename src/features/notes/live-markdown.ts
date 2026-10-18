@@ -114,7 +114,8 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
           }
         }
         if (node.name === "QuoteMark") add({ kind: "line", from: line.from, className: "cm-live-quote" });
-        const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? "cm-live-em" : node.name === "InlineCode" ? "cm-live-code" : node.name === "Strikethrough" ? "cm-live-strike" : null;
+        const emphasisClass = node.name === "Emphasis" && /\p{Script=Hangul}/u.test(state.sliceDoc(Math.max(node.from, window.from), Math.min(node.to, window.to))) ? "cm-live-em cm-live-em-ko" : "cm-live-em";
+        const className = node.name === "StrongEmphasis" ? "cm-live-strong" : node.name === "Emphasis" ? emphasisClass : node.name === "InlineCode" ? "cm-live-code" : node.name === "Strikethrough" ? "cm-live-strike" : null;
         if (className) add({ kind: "mark", from: node.from, to: node.to, className });
         if (!activeLine(state, node.from)) {
           if (["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "StrikethroughMark"].includes(node.name)) {
@@ -294,6 +295,7 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-h3, .cm-live-h4, .cm-live-h5, .cm-live-h6": { fontSize: "var(--text-lg)", fontWeight: "600" },
   ".cm-live-strong": { fontWeight: "700" },
   ".cm-live-em": { fontStyle: "italic" },
+  ".cm-live-em-ko": { textDecoration: "underline dotted var(--mute)", textUnderlineOffset: "0.2em" },
   ".cm-live-strike": { textDecoration: "line-through" },
   ".cm-live-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "0.15em", cursor: "pointer" },
   ".cm-live-link:focus-visible": { outline: "2px solid var(--focus)", outlineOffset: "2px" },
