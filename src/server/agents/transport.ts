@@ -5,6 +5,8 @@ import {
 import { ApiError } from "@/server/http";
 import { TOOL_SCOPES } from "./common";
 import { authenticate, callTool } from "./service";
+import { mcpChallenge, validateMcpOrigin } from "./origin";
+export { validateMcpOrigin } from "./origin";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MAX_AGENT_BODY_BYTES = 96 * 1024;
@@ -57,35 +59,6 @@ function rpcError(id: string | number | null, code: number, message: string, sta
   return response({ jsonrpc: "2.0", id, error: { code, message } }, status);
 }
 
-/** The authority allowlist is independent of user-supplied Host/Origin/forwarded headers. */
-export function validateMcpOrigin(request: Request): void {
-  const url = new URL(request.url);
-  const authority = request.headers.get("host") ?? url.host;
-  let parsed: URL;
-  try { parsed = new URL(`${url.protocol}//${authority}`); }
-  catch { throw new ApiError("forbidden", "Invalid MCP authority"); }
-  if (parsed.host !== authority.toLowerCase() || parsed.username || parsed.password ||
-      parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new ApiError("forbidden", "Invalid MCP authority");
-  }
-  const explicit = (process.env.ARO_MCP_ALLOWED_HOSTS ?? "").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
-  const allowed = explicit.length
-    ? explicit.includes(parsed.host)
-    : ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
-  if (!allowed || request.headers.get("sec-fetch-site") === "cross-site") {
-    throw new ApiError("forbidden", "MCP host or origin is not allowed");
-  }
-  const origin = request.headers.get("origin");
-  if (origin !== null) {
-    let source: URL;
-    try { source = new URL(origin); }
-    catch { throw new ApiError("forbidden", "Invalid MCP origin"); }
-    if (!["http:", "https:"].includes(source.protocol) || source.host !== parsed.host ||
-        source.username || source.password || source.origin !== origin) {
-      throw new ApiError("forbidden", "MCP origin is not allowed");
-    }
-  }
-}
 function accepts(request: Request, type: string): boolean {
   return (request.headers.get("accept") ?? "").split(",").some((item) => {
     const [media, ...parameters] = item.trim().toLowerCase().split(";");
@@ -211,18 +184,24 @@ export async function mcpPost(request: Request): Promise<Response> {
       const statuses: Partial<Record<ApiError["code"], number>> = { unauthorized: 401, forbidden: 403, payload_too_large: 413 };
       const status = statuses[error.code] ?? 400;
       const rejected = rpcError(id, error.code === "validation" && stage === "body" ? -32700 : -32600, error.message, status);
-      if (status === 401) rejected.headers.set("www-authenticate", "Bearer");
+      if (status === 401) rejected.headers.set("www-authenticate", mcpChallenge(request));
       return rejected;
     }
     // Never log untrusted input, token hashes, SQL error details, note bodies or secrets.
     return rpcError(id, -32603, "Internal agent-access error", 500);
   }
 }
-export function mcpNoStream(request: Request): Response {
+export async function mcpNoStream(request: Request): Promise<Response> {
   try {
     validateMcpOrigin(request);
+    await authenticate(bearer(request));
     return new Response(null, { status: 405, headers: { allow: "POST", "cache-control": "private, no-store" } });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "unauthorized") {
+      const rejected = rpcError(null, -32600, error.message, 401);
+      rejected.headers.set("www-authenticate", mcpChallenge(request));
+      return rejected;
+    }
     return rpcError(null, -32600, "MCP host or origin is not allowed", 403);
   }
 }

@@ -42,6 +42,9 @@ export function proxy(request: NextRequest) {
     });
   }
   if (pathname === "/setup" || pathname === "/api/setup" || pathname === "/connect/complete"
+    || ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/mcp",
+      "/.well-known/oauth-authorization-server", "/oauth/authorize", "/oauth/authorize/decision",
+      "/oauth/register", "/oauth/token", "/oauth/revoke"].includes(pathname)
     || pathname === "/api/mcp" // This exact route performs independent scoped bearer authentication.
     || pathname === "/api/webhooks/capture" // Shares scoped agent authorization; never browser-cookie auth.
     || pathname === "/api/ai/auth" || pathname.startsWith("/api/ai/auth/")

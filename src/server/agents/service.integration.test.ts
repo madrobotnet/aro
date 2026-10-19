@@ -430,7 +430,7 @@ describe("MCP Streamable HTTP boundaries", () => {
     request.headers.set("cookie", `sb_session=${token.secret}`);
     const output = await mcpPost(request);
     expect(output.status).toBe(401);
-    expect(output.headers.get("www-authenticate")).toBe("Bearer");
+    expect(output.headers.get("www-authenticate")).toBe('Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp"');
   });
   test("loopback CLI requests need no Origin; malicious and rebound authorities fail", () => {
     expect(() => validateMcpOrigin(new Request("http://localhost:3000/api/mcp"))).not.toThrow();
@@ -445,9 +445,11 @@ describe("MCP Streamable HTTP boundaries", () => {
     expect(() => validateMcpOrigin(new Request("https://aro.example/api/mcp", { headers: { origin: "https://aro.example" } }))).not.toThrow();
     expect(() => validateMcpOrigin(new Request("https://aro.example.evil/api/mcp"))).toThrow();
   });
-  test("no SSE is advertised and GET validates origin before 405", () => {
-    expect(mcpNoStream(new Request("http://localhost:3000/api/mcp")).status).toBe(405);
-    expect(mcpNoStream(new Request("http://localhost:3000/api/mcp", { headers: { origin: "https://evil.example" } })).status).toBe(403);
+  test("no SSE is advertised and GET challenges before an authenticated 405", async () => {
+    const token = await reader();
+    expect((await mcpNoStream(new Request("http://localhost:3000/api/mcp"))).status).toBe(401);
+    expect((await mcpNoStream(new Request("http://localhost:3000/api/mcp", { headers: { authorization: `Bearer ${token.secret}` } }))).status).toBe(405);
+    expect((await mcpNoStream(new Request("http://localhost:3000/api/mcp", { headers: { origin: "https://evil.example" } }))).status).toBe(403);
   });
   test("streamed bodies are bounded even with missing or forged Content-Length", async () => {
     const token = await reader();
