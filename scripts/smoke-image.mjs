@@ -205,7 +205,9 @@ async function fixture(project, legacy) {
   await mkdir(directory);
   const composeDocument = Bun.YAML.parse(await readFile(path.join(source, "compose.yml"), "utf8"));
   for (const service of Object.values(composeDocument.services)) service.labels = { ...service.labels, "aro.qa.owner": "aro-id-release" };
-  for (const volume of Object.values(composeDocument.volumes)) volume.labels = { ...volume.labels, "aro.qa.owner": "aro-id-release" };
+  for (const [name, volume] of Object.entries(composeDocument.volumes)) {
+    composeDocument.volumes[name] = { ...volume, labels: { ...volume?.labels, "aro.qa.owner": "aro-id-release" } };
+  }
   composeDocument.networks = { default: { labels: { "aro.qa.owner": "aro-id-release" } } };
   await writeFile(path.join(directory, "compose.yml"), Bun.YAML.stringify(composeDocument));
   await cp(path.join(source, "docker/postgres/production"), path.join(directory, "docker/postgres/production"), { recursive: true });
