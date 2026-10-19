@@ -40,7 +40,7 @@ export function Sidebar() {
           href="/"
           className={cn("flex h-9 items-center gap-2.5 rounded-ctl px-1.5 text-rail-ink focus-ring", expanded ? "min-w-0 flex-1" : "justify-center")}
         >
-          <BrandMark />
+          <BrandMark className="text-rail-accent" />
           {expanded ? <span className="truncate text-md font-semibold tracking-tight">{brand}</span> : <span className="sr-only">{brand}</span>}
         </Link>
       </div>
