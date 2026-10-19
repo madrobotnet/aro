@@ -232,5 +232,22 @@ test("ordinary link text inherits editability while wiki chips remain source con
   // Then
   expect(attributes.get("cm-live-link")?.contenteditable).toBeUndefined();
   expect(attributes.get("cm-live-link")?.href).toBe("https://example.com");
+  expect(attributes.get("cm-live-link")?.["aria-haspopup"]).toBe("dialog");
+  expect(attributes.get("cm-live-link")?.tabindex).toBe("0");
   expect(attributes.get("cm-live-wiki")?.contenteditable).toBe("false");
+  expect(attributes.get("cm-live-wiki")?.["aria-haspopup"]).toBeUndefined();
+});
+
+test.each(["javascript:alert", ""])("live links with target %s remain reachable without unsafe navigation", (target) => {
+  // Given
+  const doc = `[수정 가능](${target})\n\n끝`;
+  const links: Record<string, string>[] = [];
+  // When
+  liveDecorations(state(doc), [{ from: 0, to: doc.length }]).between(0, doc.length, (_from, _to, decoration) => {
+    if (decoration.spec.class === "cm-live-link") links.push(decoration.spec.attributes);
+  });
+  // Then
+  expect(links).toHaveLength(1);
+  expect(links[0]).toMatchObject({ tabindex: "0", "aria-haspopup": "dialog" });
+  expect(links[0]?.href).toBeUndefined();
 });

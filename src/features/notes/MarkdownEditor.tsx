@@ -151,7 +151,7 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend, raw = false 
     ...baseExtensions,
     liveRaw.of(raw),
     ...(raw ? [] : [syntaxHighlighting(writingHighlight)]),
-    liveLabels.of({ editSource: liveCopy.editSource, wikiLabel: liveCopy.wikiLabel }),
+    liveLabels.of(liveCopy),
     EditorState.phrases.of(copy.phrases),
     EditorView.contentAttributes.of({ "aria-label": copy.bodyLabel }),
     wikiLinkEnv.of({ createLabel: linksCopy.create, onCreate: (title) => void createLinkedNote(title) }),

@@ -6,6 +6,7 @@ import { parseTasks, toggleTask } from "@/lib/tasks";
 import { compositionActive, compositionSettled, deferEdit, sourceChange } from "./composition-edits";
 import { isComposing } from "./wikilink-autocomplete";
 import { defaultUrlTransform } from "react-markdown";
+import { LIVE_EDITOR_COPY } from "./live-editor-copy";
 
 export type LiveWindow = { readonly from: number; readonly to: number };
 export const liveRaw = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
@@ -18,9 +19,15 @@ export type LiveRange =
   | { readonly kind: "link"; readonly from: number; readonly to: number; readonly label: string; readonly url: string }
   | { readonly kind: "wiki"; readonly from: number; readonly to: number; readonly label: string; readonly target: string };
 
-type LiveLabels = { readonly editSource: (text: string) => string; readonly wikiLabel: (label: string, target: string) => string };
+type LiveLabels = {
+  readonly editSource: (text: string) => string;
+  readonly wikiLabel: (label: string, target: string) => string;
+  readonly linkActions: string;
+  readonly openLink: string;
+  readonly editLink: string;
+};
 export const liveLabels = Facet.define<LiveLabels, LiveLabels>({
-  combine: (values) => values[0] ?? { editSource: (text) => text, wikiLabel: (label, target) => `${label}, ${target}` },
+  combine: (values) => values[0] ?? LIVE_EDITOR_COPY.en,
 });
 
 /** Line-aligned visible windows plus four lines; never stringify the whole document. */
@@ -70,10 +77,10 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
         const line = state.doc.lineAt(node.from);
         if (node.name === "Link" && !state.selection.ranges.some((range) => state.doc.lineAt(range.from).number <= state.doc.lineAt(node.to).number && state.doc.lineAt(range.to).number >= line.number)) {
           const url = node.node.getChild("URL");
-          const [open, close] = node.node.getChildren("LinkMark");
+          const [open, close, destination] = node.node.getChildren("LinkMark");
           // Reference-like brackets and images are not inline link syntax.
-          if (url && open && close) {
-            const target = state.sliceDoc(url.from, url.to).replace(/^<|>$/g, "").replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, "$1");
+          if (open && close && destination && state.sliceDoc(destination.from, destination.to) === "(") {
+            const target = url ? state.sliceDoc(url.from, url.to).replace(/^<|>$/g, "").replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, "$1") : "";
             const from = Math.max(open.to, window.from), to = Math.min(close.from, window.to);
             if (from < to) add({ kind: "link", from, to, label: state.sliceDoc(open.to, close.from), url: defaultUrlTransform(target) });
             for (const syntax of [{ from: node.from, to: open.to }, { from: close.from, to: node.to }]) {
@@ -231,7 +238,7 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
       case "bullet": return Decoration.replace({ widget: new BulletWidget() }).range(range.from, range.to);
       case "task": return Decoration.replace({ widget: new TaskWidget(range.done, range.label) }).range(range.from, range.to);
       case "wiki": return Decoration.mark({ class: "cm-live-wiki", attributes: { role: "button", tabindex: "0", contenteditable: "false", title: range.target, "aria-label": state.facet(liveLabels).wikiLabel(range.label, range.target) } }).range(range.from, range.to);
-      case "link": return Decoration.mark({ tagName: range.url ? "a" : "span", class: "cm-live-link", attributes: { role: "link", tabindex: "0", ...(range.url ? { href: range.url, target: "_blank", rel: "noopener noreferrer" } : {}), title: range.url, "aria-label": `${range.label}, ${range.url}` } }).range(range.from, range.to);
+      case "link": return Decoration.mark({ tagName: range.url ? "a" : "span", class: "cm-live-link", attributes: { role: "link", tabindex: "0", "aria-haspopup": "dialog", ...(range.url ? { href: range.url, target: "_blank", rel: "noopener noreferrer" } : {}), title: range.url, "aria-label": `${range.label}, ${range.url}` } }).range(range.from, range.to);
       case "line": return Decoration.line({ class: range.className }).range(range.from);
       case "mark": return Decoration.mark({ class: range.className }).range(range.from, range.to);
     }
@@ -241,19 +248,102 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
 
 const livePlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet;
+  popover: HTMLElement | null = null;
+  readonly closePopover = () => {
+    if (!this.popover) return;
+    this.popover.remove();
+    this.popover = null;
+    this.view.focus();
+  };
+  readonly outsidePress = (event: Event) => {
+    if (event.target instanceof Node && !this.popover?.contains(event.target)) this.closePopover();
+  };
+  readonly dismissKey = (event: KeyboardEvent) => {
+    if (!this.popover) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.closePopover();
+    } else if (!event.ctrlKey && !event.metaKey && (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete")) {
+      // Space activates a focused action like any other native button.
+      if (event.key !== " ") this.closePopover();
+    }
+  };
+  showPopover(link: HTMLElement) {
+    if (isComposing(this.view) || this.view.state.field(compositionActive, false)) return;
+    this.closePopover();
+    const anchor = this.view.posAtDOM(link, 0);
+    const copy = this.view.state.facet(liveLabels);
+    const panel = document.createElement("div");
+    panel.className = "cm-link-popover surface-card shadow-pop p-1 text-sm text-ink";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", copy.linkActions);
+    panel.contentEditable = "false";
+    panel.popover = "manual";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = copy.openLink;
+    open.className = "min-h-11 min-w-11 rounded-ctl px-4 hover:bg-canvas disabled:opacity-50";
+    const url = link.getAttribute("href");
+    open.disabled = !url;
+    open.addEventListener("click", () => {
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      this.closePopover();
+    });
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = copy.editLink;
+    edit.className = open.className;
+    edit.addEventListener("click", () => {
+      this.closePopover();
+      this.view.dispatch({ selection: { anchor }, scrollIntoView: true });
+      this.view.focus();
+    });
+    panel.append(open, edit);
+    this.view.dom.append(panel);
+    this.popover = panel;
+    panel.showPopover();
+    // The top layer avoids editor clipping. Bound it to the visual viewport,
+    // excluding the dock whether it is at the bottom or under the phone header.
+    const rect = link.getBoundingClientRect(), size = panel.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const left = (viewport?.offsetLeft ?? 0) + 8;
+    const right = left + (viewport?.width ?? window.innerWidth) - 16;
+    let top = (viewport?.offsetTop ?? 0) + 8;
+    let bottom = top + (viewport?.height ?? window.innerHeight) - 16;
+    const dock = this.view.dom.closest("section")?.querySelector(".editor-format-dock");
+    const toolbar = dock?.firstElementChild;
+    if (toolbar && getComputedStyle(toolbar).visibility !== "hidden") {
+      const bounds = toolbar.getBoundingClientRect();
+      if (dock?.getAttribute("data-keyboard") === "open") top = Math.max(top, bounds.bottom + 8);
+      else bottom = Math.min(bottom, bounds.top - 8);
+    }
+    panel.style.left = `${Math.max(left, Math.min(rect.left, right - size.width))}px`;
+    panel.style.top = `${Math.max(top, Math.min(rect.bottom + 6 + size.height <= bottom ? rect.bottom + 6 : rect.top - size.height - 6, bottom - size.height))}px`;
+    (open.disabled ? edit : open).focus({ preventScroll: true });
+  }
   readonly linkClick = (event: MouseEvent) => {
-    if (isComposing(this.view) || !(event.target instanceof Element)) return;
+    if (!(event.target instanceof Element) || event.button !== 0) return;
     const link = event.target.closest<HTMLAnchorElement>(".cm-live-link");
     if (!link) return;
-    if (event.type === "mousedown" && !(event.ctrlKey || event.metaKey)) return;
     event.preventDefault();
-    if (!(event.ctrlKey || event.metaKey) || !link.getAttribute("href")) return;
     event.stopPropagation();
-    if (event.type === "click") window.open(link.href, "_blank", "noopener,noreferrer");
+    if (isComposing(this.view) || this.view.state.field(compositionActive, false) || event.type !== "click") return;
+    if (event.ctrlKey || event.metaKey) {
+      this.closePopover();
+      if (link.getAttribute("href")) window.open(link.href, "_blank", "noopener,noreferrer");
+    } else this.showPopover(link);
   };
   readonly chipKey = (event: KeyboardEvent) => {
-    if (event.key !== "Enter" || event.isComposing || isComposing(this.view) || !(event.target instanceof HTMLElement)) return;
+    if (event.isComposing || isComposing(this.view) || this.view.state.field(compositionActive, false) || !(event.target instanceof HTMLElement)) return;
     const link = event.target.closest<HTMLAnchorElement>(".cm-live-link");
+    if (link && (event.key === "ArrowDown" || event.key === " ")) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.showPopover(link);
+      return;
+    }
+    if (event.key !== "Enter") return;
     if (link) {
       event.preventDefault();
       event.stopPropagation();
@@ -273,13 +363,33 @@ const livePlugin = ViewPlugin.fromClass(class {
     view.contentDOM.addEventListener("keydown", this.chipKey, true);
     view.contentDOM.addEventListener("click", this.linkClick, true);
     view.contentDOM.addEventListener("mousedown", this.linkClick, true);
+    view.contentDOM.addEventListener("pointerdown", this.linkClick, true);
+    document.addEventListener("pointerdown", this.outsidePress, true);
+    document.addEventListener("keydown", this.dismissKey, true);
+    document.addEventListener("compositionstart", this.closePopover, true);
+    document.addEventListener("beforeinput", this.closePopover, true);
+    document.addEventListener("scroll", this.closePopover, true);
+    window.addEventListener("resize", this.closePopover);
+    window.visualViewport?.addEventListener("resize", this.closePopover);
+    window.visualViewport?.addEventListener("scroll", this.closePopover);
   }
   destroy() {
+    this.popover?.remove();
     this.view.contentDOM.removeEventListener("keydown", this.chipKey, true);
     this.view.contentDOM.removeEventListener("click", this.linkClick, true);
     this.view.contentDOM.removeEventListener("mousedown", this.linkClick, true);
+    this.view.contentDOM.removeEventListener("pointerdown", this.linkClick, true);
+    document.removeEventListener("pointerdown", this.outsidePress, true);
+    document.removeEventListener("keydown", this.dismissKey, true);
+    document.removeEventListener("compositionstart", this.closePopover, true);
+    document.removeEventListener("beforeinput", this.closePopover, true);
+    document.removeEventListener("scroll", this.closePopover, true);
+    window.removeEventListener("resize", this.closePopover);
+    window.visualViewport?.removeEventListener("resize", this.closePopover);
+    window.visualViewport?.removeEventListener("scroll", this.closePopover);
   }
   update(update: ViewUpdate) {
+    if (update.docChanged || update.selectionSet || update.startState.facet(liveRaw) !== update.state.facet(liveRaw) || update.startState.facet(liveLabels) !== update.state.facet(liveLabels)) this.closePopover();
     // Mapping preserves the composing DOM. The incremental Lezer tree is reused
     // on ordinary edits; only the visible windows are visited to build decorations.
     if (isComposing(update.view) || update.state.field(compositionActive, false)) { this.decorations = this.decorations.map(update.changes); return; }
@@ -299,6 +409,7 @@ const liveTheme = EditorView.baseTheme({
   ".cm-live-strike": { textDecoration: "line-through" },
   ".cm-live-link": { color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "0.15em", cursor: "pointer" },
   ".cm-live-link:focus-visible": { outline: "2px solid var(--focus)", outlineOffset: "2px" },
+  ".cm-link-popover": { position: "fixed", inset: "auto", margin: "0", maxWidth: "calc(100vw - 16px)", fontFamily: "var(--font-sans)" },
   ".cm-live-code": { fontFamily: "var(--font-mono)", backgroundColor: "var(--desk)", borderRadius: "var(--radius-ctl)" },
   ".cm-live-tag": { color: "var(--accent)", backgroundColor: "var(--accent-soft)", borderRadius: "var(--radius-pill)" },
   ".cm-live-quote": { borderLeft: "2px solid var(--line-strong)", paddingLeft: "1rem", color: "var(--mute)" },
