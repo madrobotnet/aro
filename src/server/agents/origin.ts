@@ -38,6 +38,6 @@ export function validateMcpOrigin(request: Request): void {
 }
 
 export function mcpChallenge(request: Request): string {
-  return `Bearer resource_metadata="${mcpOrigin(request)}/.well-known/oauth-protected-resource/api/mcp"${
+  return `Bearer resource_metadata="${mcpOrigin(request)}/.well-known/oauth-protected-resource/api/mcp", scope="read capture"${
     request.headers.has("authorization") ? ', error="invalid_token"' : ""}`;
 }

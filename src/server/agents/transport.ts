@@ -5,11 +5,12 @@ import {
 import { ApiError } from "@/server/http";
 import { TOOL_SCOPES } from "./common";
 import { authenticate, callTool } from "./service";
-import { mcpChallenge, validateMcpOrigin } from "./origin";
+import { mcpChallenge, mcpOrigin, validateMcpOrigin } from "./origin";
 export { validateMcpOrigin } from "./origin";
+import { readAgentJson } from "./body";
+export { readAgentJson, MAX_AGENT_BODY_BYTES } from "./body";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
-export const MAX_AGENT_BODY_BYTES = 96 * 1024;
 const RpcId = z.union([z.string().max(200), z.int()]);
 const Meta = z.record(z.string(), z.unknown()).optional();
 const EmptyParams = z.object({ _meta: Meta }).strict();
@@ -66,36 +67,6 @@ function accepts(request: Request, type: string): boolean {
     return media === type && (!quality || Number(quality.trim().slice(2)) > 0);
   });
 }
-export async function readAgentJson(request: Request): Promise<unknown> {
-  if (request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/json") {
-    throw new ApiError("validation", "Content-Type application/json is required");
-  }
-  const length = request.headers.get("content-length");
-  if (length !== null && (!/^\d+$/.test(length) || Number(length) > MAX_AGENT_BODY_BYTES)) {
-    throw new ApiError("payload_too_large", "Agent request exceeds 96 KiB");
-  }
-  if (!request.body) throw new ApiError("validation", "JSON body is required");
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      size += chunk.value.byteLength;
-      if (size > MAX_AGENT_BODY_BYTES) {
-        await reader.cancel();
-        throw new ApiError("payload_too_large", "Agent request exceeds 96 KiB");
-      }
-      chunks.push(chunk.value);
-    }
-  } finally { reader.releaseLock(); }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-  catch { throw new ApiError("validation", "Invalid UTF-8 JSON body"); }
-}
 function bearer(request: Request): string {
   const match = /^Bearer (aro_agent_[A-Za-z0-9_-]{43})$/i.exec(request.headers.get("authorization") ?? "");
   if (!match?.[1]) throw new ApiError("unauthorized", "Agent bearer token required");
@@ -108,6 +79,9 @@ export async function mcpPost(request: Request): Promise<Response> {
     validateMcpOrigin(request);
     const secret = bearer(request);
     const token = await authenticate(secret);
+    if (token.resource !== null && token.resource !== `${mcpOrigin(request)}/api/mcp`) {
+      throw new ApiError("unauthorized", "Agent token is not valid for this resource");
+    }
     if (!accepts(request, "application/json") || !accepts(request, "text/event-stream")) {
       return rpcError(null, -32600, "Accept must include application/json and text/event-stream", 406);
     }
@@ -147,7 +121,7 @@ export async function mcpPost(request: Request): Promise<Response> {
         result = {
           protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "aro-agent-access", version: "1.0.0" },
-          instructions: "Owner-created static bearer access. Writes capture into inbox or queue owner-reviewed proposals. No OAuth, implicit enrichment, or direct note creation.",
+          instructions: "Scoped access via OAuth or owner-created bearer tokens. Writes capture into inbox or queue owner-reviewed proposals. No implicit enrichment or direct note creation.",
         };
         break;
       case "ping":
@@ -194,7 +168,10 @@ export async function mcpPost(request: Request): Promise<Response> {
 export async function mcpNoStream(request: Request): Promise<Response> {
   try {
     validateMcpOrigin(request);
-    await authenticate(bearer(request));
+    const token = await authenticate(bearer(request));
+    if (token.resource !== null && token.resource !== `${mcpOrigin(request)}/api/mcp`) {
+      throw new ApiError("unauthorized", "Agent token is not valid for this resource");
+    }
     return new Response(null, { status: 405, headers: { allow: "POST", "cache-control": "private, no-store" } });
   } catch (error) {
     if (error instanceof ApiError && error.code === "unauthorized") {

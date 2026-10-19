@@ -430,7 +430,7 @@ describe("MCP Streamable HTTP boundaries", () => {
     request.headers.set("cookie", `sb_session=${token.secret}`);
     const output = await mcpPost(request);
     expect(output.status).toBe(401);
-    expect(output.headers.get("www-authenticate")).toBe('Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp"');
+    expect(output.headers.get("www-authenticate")).toBe('Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp", scope="read capture"');
   });
   test("loopback CLI requests need no Origin; malicious and rebound authorities fail", () => {
     expect(() => validateMcpOrigin(new Request("http://localhost:3000/api/mcp"))).not.toThrow();

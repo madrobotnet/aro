@@ -13,7 +13,8 @@ export async function POST(request: Request): Promise<Response> {
     validateMcpOrigin(request);
     const bearer = request.headers.get("authorization")?.match(/^Bearer (aro_agent_[A-Za-z0-9_-]{43})$/i)?.[1];
     if (!bearer) throw new ApiError("unauthorized", "Agent bearer token required");
-    await authenticate(bearer);
+    const token = await authenticate(bearer);
+    if (token.resource !== null) throw new ApiError("unauthorized", "OAuth tokens are bound to the MCP resource");
     const args = AgentToolSchemas.capture_inbox.parse(await readAgentJson(request));
     const result = await callTool(bearer, { name: "capture_inbox", arguments: args });
     return new Response(JSON.stringify(result), { status: 202, headers });

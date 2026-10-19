@@ -48,16 +48,25 @@ export async function createToken(input: CreateAgentTokenInput) {
 }
 export async function listTokens() {
   const q = await db();
-  return (await q.query<TokenRow>("SELECT * FROM agent_tokens WHERE owner_id=$1 ORDER BY created_at DESC,id DESC", [await owner(q)])).rows.map(tokenDto);
+  return (await q.query<TokenRow>("SELECT * FROM agent_tokens WHERE owner_id=$1 AND oauth_grant_id IS NULL ORDER BY created_at DESC,id DESC", [await owner(q)])).rows.map(tokenDto);
 }
 export async function revokeToken(id: string): Promise<void> {
   const q = await db();
+  const ownerId = await owner(q);
+  const found = (await q.query<TokenRow>("SELECT * FROM agent_tokens WHERE id=$1 AND owner_id=$2", [id, ownerId])).rows[0];
+  if (found?.oauth_grant_id) {
+    const { revokeConnection } = await import("@/server/oauth/postgres");
+    return revokeConnection(found.oauth_grant_id, ownerId);
+  }
   const result = await q.query("UPDATE agent_tokens SET revoked_at=coalesce(revoked_at,now()) WHERE id=$1 AND owner_id=$2",
-    [id, await owner(q)]);
+    [id, ownerId]);
   if (!result.rowCount) throw new ApiError("not_found", "Agent token not found");
 }
 export async function authenticate(secret: string) {
-  return tokenDto(requireToken(await findToken(await db(), digest(secret))));
+  const q = await db();
+  const token = requireToken(await findToken(q, digest(secret)));
+  await q.query("UPDATE agent_tokens SET last_used_at=now() WHERE id=$1", [token.id]);
+  return tokenDto(token);
 }
 export async function listActivity(limit: number) {
   const q = await db();
@@ -103,6 +112,7 @@ export async function callTool(secret: string, call: AgentToolCall): Promise<unk
       const found = await findToken(q, digest(secret), true);
       tokenId = found?.id ?? null;
       const token = requireToken(found);
+      await q.query("UPDATE agent_tokens SET last_used_at=now() WHERE id=$1", [token.id]);
       requireScope(token, TOOL_SCOPES[call.name], callTarget(call) ?? undefined);
       const recent = await q.query<{ total: string }>(
         "SELECT count(*) AS total FROM agent_activity WHERE token_id=$1 AND created_at>=now()-interval '1 minute'", [token.id]);

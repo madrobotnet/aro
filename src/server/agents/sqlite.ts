@@ -41,17 +41,28 @@ export async function createToken(input: CreateAgentTokenInput) {
 }
 export async function listTokens() {
   const q = await sqliteStore();
-  return q.all<TokenRow>("SELECT * FROM agent_tokens WHERE owner_id=? ORDER BY created_at DESC,id DESC", [owner(q)]).map(tokenDto);
+  return q.all<TokenRow>("SELECT * FROM agent_tokens WHERE owner_id=? AND oauth_grant_id IS NULL ORDER BY created_at DESC,id DESC", [owner(q)]).map(tokenDto);
 }
 export async function revokeToken(id: string): Promise<void> {
-  (await sqliteStore()).transaction((q) => {
+  const store = await sqliteStore();
+  const ownerId = owner(store);
+  const found = store.get<TokenRow>("SELECT * FROM agent_tokens WHERE id=? AND owner_id=?", [id, ownerId]);
+  if (found?.oauth_grant_id) {
+    const { revokeConnection } = await import("@/server/oauth/sqlite");
+    return revokeConnection(found.oauth_grant_id, ownerId);
+  }
+  store.transaction((q) => {
     const row = q.get<TokenRow>("SELECT * FROM agent_tokens WHERE id=? AND owner_id=?", [id, owner(q)]);
     if (!row) throw new ApiError("not_found", "Agent token not found");
     q.run("UPDATE agent_tokens SET revoked_at=coalesce(revoked_at,?) WHERE id=?", [sqliteTimestamp(new Date()), id]);
   });
 }
 export async function authenticate(secret: string) {
-  return tokenDto(requireToken(findToken(await sqliteStore(), digest(secret))));
+  return (await sqliteStore()).transaction(q => {
+    const token = requireToken(findToken(q, digest(secret)));
+    q.run("UPDATE agent_tokens SET last_used_at=? WHERE id=?", [sqliteTimestamp(new Date()), token.id]);
+    return tokenDto(token);
+  });
 }
 export async function listActivity(limit: number) {
   const q = await sqliteStore();
@@ -91,6 +102,7 @@ export async function callTool(secret: string, call: AgentToolCall): Promise<unk
       const found = findToken(q, digest(secret));
       tokenId = found?.id ?? null;
       const token = requireToken(found);
+      q.run("UPDATE agent_tokens SET last_used_at=? WHERE id=?", [sqliteTimestamp(new Date()), token.id]);
       requireScope(token, TOOL_SCOPES[call.name], callTarget(call) ?? undefined);
       const recent = q.get<{ total: bigint }>(
         "SELECT count(*) AS total FROM agent_activity WHERE token_id=? AND created_at>=?",

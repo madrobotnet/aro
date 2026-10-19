@@ -7,6 +7,7 @@ import { Button, Input } from "@/components/ui";
 import { api, fetcher } from "@/lib/api-client";
 import type { AgentScope as Scope, AgentTokenDto as Token, AgentProposalDto as Proposal, AgentActivityDto as Activity } from "@/lib/agent-access";
 import { Section } from "./SettingsSection";
+import { OAuthConnections } from "./OAuthConnections";
 
 export function AgentsSection() {
   const { locale } = useLocale();
@@ -42,8 +43,8 @@ export function AgentsSection() {
       description={ko ? "필요한 권한만 주고 언제든 회수하세요. 노트 수정은 직접 승인해야 적용돼요." : "Grant only needed access. Revoke it anytime. Note changes require your approval."}>
       <div className="space-y-6">
         <p className="text-sm text-mute">{ko
-          ? "MCP 연결 주소는 /api/mcp예요. 별도 Bearer 토큰을 사용하며 로그인 쿠키나 계정 비밀번호를 공유하지 않아요."
-          : "Connect MCP clients to /api/mcp with a separate Bearer token. Never share your login cookie or password."}</p>
+          ? "Claude나 ChatGPT에 /api/mcp 주소를 추가하고 Aro에서 권한을 승인하세요. 직접 만든 Bearer 토큰도 계속 사용할 수 있어요. 로그인 쿠키나 비밀번호는 공유하지 마세요."
+          : "Add /api/mcp in Claude or ChatGPT and approve access in Aro. Owner-created Bearer tokens also work. Never share your login cookie or password."}</p>
         <Input aria-label={ko ? "MCP 연결 주소" : "MCP endpoint"} readOnly value="/api/mcp" />
         <form className="space-y-4" onSubmit={event => {
           event.preventDefault();
@@ -99,6 +100,7 @@ export function AgentsSection() {
         </div>}
         {(error || loadError) && <p role="alert" className="text-sm text-danger">{error || (ko ? "접근 설정을 불러오지 못했어요." : "Could not load access settings.")}</p>}
         {notice && <p role="status" className="text-sm">{notice}</p>}
+        <OAuthConnections />
         <div className="border-t border-line pt-5">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-sm font-medium">{ko ? "연결된 에이전트" : "Agent connections"}</h4>

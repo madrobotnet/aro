@@ -31,7 +31,9 @@ test("server discovery advertises public PKCE endpoints behind TLS termination",
     token_endpoint: "https://aro.example/oauth/token", registration_endpoint: "https://aro.example/oauth/register",
     revocation_endpoint: "https://aro.example/oauth/revoke", response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"],
-    token_endpoint_auth_methods_supported: ["none"], revocation_endpoint_auth_methods_supported: ["none"],
+    token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
+    client_id_metadata_document_supported: true,
+    revocation_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
     scopes_supported: ["read", "capture", "propose-write"],
   });
   expect(response.headers.get("cache-control")).toBe("no-store");
@@ -61,7 +63,7 @@ test("metadata permits credential-free browser discovery and preflight", () => {
 test("challenge differentiates missing credentials from a presented invalid token", () => {
   delete process.env.ARO_MCP_ALLOWED_HOSTS;
   const request = new Request("http://localhost:3000/api/mcp");
-  expect(mcpChallenge(request)).toBe('Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp"');
+  expect(mcpChallenge(request)).toBe('Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp", scope="read capture"');
   request.headers.set("authorization", "Bearer invalid");
   expect(mcpChallenge(request)).toEndWith(', error="invalid_token"');
 });

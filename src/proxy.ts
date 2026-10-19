@@ -6,6 +6,12 @@ const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/health", "/manifest.
 
 function pageResponse(request: NextRequest): NextResponse {
   const response = NextResponse.next();
+  if (["/oauth/authorize", "/oauth/consent", "/oauth/authorize/decision"].includes(request.nextUrl.pathname)) {
+    response.headers.set("cache-control", "private, no-store");
+    response.headers.set("referrer-policy", "no-referrer");
+    response.headers.set("content-security-policy", "frame-ancestors 'none'");
+    response.headers.set("x-frame-options", "DENY");
+  }
   if (request.method === "GET" && ["/setup", "/settings"].includes(request.nextUrl.pathname)
     && !/^[a-f0-9]{64}$/.test(request.cookies.get(AI_AUTH_COOKIE)?.value ?? "")) {
     // Establish one browser identity before chat and Jev can start logins together.
@@ -43,7 +49,7 @@ export function proxy(request: NextRequest) {
   }
   if (pathname === "/setup" || pathname === "/api/setup" || pathname === "/connect/complete"
     || ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/mcp",
-      "/.well-known/oauth-authorization-server", "/oauth/authorize", "/oauth/authorize/decision",
+      "/.well-known/oauth-authorization-server", "/oauth/authorize", "/oauth/consent", "/oauth/authorize/decision",
       "/oauth/register", "/oauth/token", "/oauth/revoke"].includes(pathname)
     || pathname === "/api/mcp" // This exact route performs independent scoped bearer authentication.
     || pathname === "/api/webhooks/capture" // Shares scoped agent authorization; never browser-cookie auth.

@@ -6,6 +6,7 @@ export type TokenRow = {
   readonly id: string; readonly owner_id: string; readonly name: string; readonly prefix: string;
   readonly scopes: string; readonly allowed_note_ids: string;
   readonly created_at: string | Date; readonly revoked_at: string | Date | null;
+  readonly expires_at: string | Date | null; readonly oauth_grant_id: string | null; readonly resource: string | null;
 };
 export type ProposalRow = {
   readonly id: string; readonly token_id: string; readonly note_id: string; readonly expected_version: string;
@@ -29,7 +30,8 @@ export const instant = (value: string | Date): string => new Date(value).toISOSt
 export function tokenDto(row: TokenRow): AgentTokenDto {
   return { id: row.id, name: row.name, prefix: row.prefix, scopes: JSON.parse(row.scopes),
     allowedNoteIds: JSON.parse(row.allowed_note_ids), createdAt: instant(row.created_at),
-    revokedAt: row.revoked_at ? instant(row.revoked_at) : null };
+    revokedAt: row.revoked_at ? instant(row.revoked_at) : null,
+    expiresAt: row.expires_at ? instant(row.expires_at) : null, resource: row.resource };
 }
 export function proposalDto(row: ProposalRow): AgentProposalDto {
   return { id: row.id, tokenId: row.token_id, noteId: row.note_id, expectedVersion: row.expected_version,
@@ -45,16 +47,18 @@ export function newToken(input: CreateAgentTokenInput, ownerId: string): { row: 
   return { secret, hash: digest(secret), row: {
     id: randomUUID(), owner_id: ownerId, name: input.name, prefix: secret.slice(0, 18),
     scopes: JSON.stringify(input.scopes), allowed_note_ids: JSON.stringify(input.allowedNoteIds),
-    created_at: new Date().toISOString(), revoked_at: null,
+    created_at: new Date().toISOString(), revoked_at: null, expires_at: null, oauth_grant_id: null, resource: null,
   } };
 }
 export function requireToken(row: TokenRow | null): TokenRow {
-  if (!row || row.revoked_at) throw new ApiError("unauthorized", "Agent token is invalid or revoked");
+  if (!row || row.revoked_at || (row.expires_at && new Date(row.expires_at).getTime() <= Date.now())) {
+    throw new ApiError("unauthorized", "Agent token is invalid, expired or revoked");
+  }
   return row;
 }
 export function requireScope(row: TokenRow, scope: AgentScope, noteId?: string): void {
   const token = tokenDto(row);
-  if (row.revoked_at || !token.scopes.includes(scope) ||
+  if (row.revoked_at || (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) || !token.scopes.includes(scope) ||
       (scope === "propose-write" && noteId !== undefined && !token.allowedNoteIds.includes(noteId))) {
     throw new ApiError("forbidden", "Agent token does not grant this operation");
   }

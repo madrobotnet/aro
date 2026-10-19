@@ -21,6 +21,11 @@ export type AgentTokenDto = {
   readonly id: string; readonly name: string; readonly prefix: string;
   readonly scopes: AgentScope[]; readonly allowedNoteIds: string[];
   readonly createdAt: string; readonly revokedAt: string | null;
+  readonly expiresAt: string | null; readonly resource: string | null;
+};
+export type OAuthConnectionDto = {
+  readonly id: string; readonly clientName: string; readonly scopes: AgentScope[]; readonly allowedNoteIds: string[];
+  readonly createdAt: string; readonly revokedAt: string | null; readonly lastUsedAt: string | null;
 };
 export type AgentActivityDto = {
   readonly id: string; readonly tokenId: string; readonly tool: string;
