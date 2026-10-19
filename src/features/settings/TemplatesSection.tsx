@@ -151,7 +151,7 @@ function TemplateRow({ template, creating, onCreate, onEdit, onDelete }: {
     <li className="flex flex-col gap-3 px-4 py-4 sm:px-5">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 id={nameId} className="min-w-0 text-md font-medium">{template.name}</h3>
+          <h4 id={nameId} className="min-w-0 text-md font-medium">{template.name}</h4>
           {template.isDailyDefault ? (
             <Badge tone="accent"><CalendarDays aria-hidden className="size-3.5" />{copy.dailyBadge}</Badge>
           ) : null}

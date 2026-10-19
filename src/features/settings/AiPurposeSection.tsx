@@ -45,7 +45,7 @@ export function AiPurposeSection({
   return (
     <section aria-labelledby={`${purpose}-connections-title`} className="rounded-card border border-line p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 id={`${purpose}-connections-title`} className="text-md font-semibold">{title}</h3>
+        <h4 id={`${purpose}-connections-title`} className="text-md font-semibold">{title}</h4>
         <Button size="lg" disabled={disabled} leading={<Plus aria-hidden className="size-4" />} onClick={onAddAction}>{copy.add}</Button>
       </div>
       <div className="mt-4 flex flex-col gap-1.5">

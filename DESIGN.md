@@ -98,6 +98,11 @@ The public component contracts are documented in `src/components/ui/README.md`.
 Reuse Button, Input/Textarea, Dialog/Sheet, EmptyState, Badge/TagBadge, Toast,
 Skeleton and the shared shell rather than adding parallel implementations.
 
+Settings reuse purpose groups (h2) and section rows (h3): account/security,
+display/language, capture/notes, AI/models, data, then one separated danger zone.
+Groups use `space-y-10`; rows use `py-6` and the same label/help-left,
+control-right grid on desktop, stacked with `gap-4` on mobile.
+
 `BrandMark` is a rounded tile with 아 from the Korean name 아로 knocked out.
 App icons show the glyph in cream on terracotta. The mark uses the existing accent token
 and a 20px default; caller size/color utilities override it. Pair the decorative

@@ -15,8 +15,8 @@ import { ExportSection } from "./ExportSection";
 import { ImportSection } from "./ImportSection";
 import { AgentsSection } from "./AgentsSection";
 import { DiagnosticsSection } from "./DiagnosticsSection";
-import { Section } from "./SettingsSection";
-import { SessionSection } from "./SettingsSession";
+import { Section, SettingsGroup } from "./SettingsSection";
+import { SessionDangerSection, SessionSection } from "./SettingsSession";
 import { SETTINGS_COPY } from "./settings-copy";
 import { TemplatesSection } from "./TemplatesSection";
 
@@ -29,19 +29,32 @@ export function SettingsView() {
         <h1 className="text-2xl font-semibold tracking-tight lg:text-3xl">{copy.title}</h1>
         <p className="mt-1 text-sm text-mute">{copy.lead}</p>
       </header>
-      <div className="divide-y divide-line">
-        <ThemeSection />
-        <LanguageSection />
-        <SessionSection />
-        <AiConnections />
+      <div className="mt-8 space-y-10">
+        <SettingsGroup id="settings-account-group" title={copy.groups.account}>
+          <SessionSection />
           <AgentsSection />
-        <TemplatesSection />
-        <InstallSection />
-        <DataSection />
-        <ExportSection />
-        <ImportSection />
+        </SettingsGroup>
+        <SettingsGroup id="settings-display-group" title={copy.groups.display}>
+          <ThemeSection />
+          <LanguageSection />
+          <InstallSection />
+        </SettingsGroup>
+        <SettingsGroup id="settings-notes-group" title={copy.groups.notes}>
+          <TemplatesSection />
+          <ShortcutSection />
+        </SettingsGroup>
+        <SettingsGroup id="settings-ai-group" title={copy.groups.ai}>
+          <AiConnections />
+        </SettingsGroup>
+        <SettingsGroup id="settings-data-group" title={copy.groups.data}>
+          <DataSection />
+          <ExportSection />
+          <ImportSection />
           <DiagnosticsSection />
-        <ShortcutSection />
+        </SettingsGroup>
+        <SettingsGroup id="settings-danger-group" title={copy.groups.danger} danger>
+          <SessionDangerSection />
+        </SettingsGroup>
       </div>
     </div>
   );

@@ -241,11 +241,11 @@ export function ImportSection() {
 
         {preview ? (
           <div className="mt-4 space-y-4 border-t border-line pt-4">
-            <h3 className="text-md font-medium">{copy.previewTitle}</h3>
+            <h4 className="text-md font-medium">{copy.previewTitle}</h4>
             <ImportCounts notes={preview.notes.length} attachments={preview.attachments} />
             {preview.notes.length === 0 ? <p className="text-sm text-mute">{copy.noNotes}</p> : (
               <div>
-                <h4 id={`${id}-notes`} className="mb-2 text-sm font-medium">{copy.noteList}</h4>
+                <h5 id={`${id}-notes`} className="mb-2 text-sm font-medium">{copy.noteList}</h5>
                 <div role="region" aria-labelledby={`${id}-notes`} tabIndex={0} className="max-h-48 overflow-y-auto overscroll-contain rounded-ctl border border-line px-3 py-2">
                   <ul className="space-y-3">
                     {preview.notes.map((note, index) => (
@@ -265,7 +265,7 @@ export function ImportSection() {
             ) : null}
             {preview.conflicts.length > 0 ? (
               <div>
-                <h4 id={`${id}-conflicts`} className="mb-2 text-md font-medium text-danger">{copy.conflicts(preview.conflicts.length)}</h4>
+                <h5 id={`${id}-conflicts`} className="mb-2 text-md font-medium text-danger">{copy.conflicts(preview.conflicts.length)}</h5>
                 <div role="region" aria-labelledby={`${id}-conflicts`} tabIndex={0} className="max-h-60 overflow-y-auto overscroll-contain rounded-ctl border border-line px-3 py-2">
                   <ul className="space-y-3">
                     {preview.conflicts.map((conflict, index) => (
@@ -309,10 +309,10 @@ export function ImportSection() {
 
         {receipt ? (
           <div className="mt-4 space-y-4 border-t border-line pt-4">
-            <h3 className="text-md font-medium text-ok">{copy.imported}</h3>
+            <h4 className="text-md font-medium text-ok">{copy.imported}</h4>
             <ImportCounts notes={receipt.notes.length} attachments={receipt.attachments} />
             <div>
-              <h4 id={`${id}-receipt`} className="mb-2 text-sm font-medium">{copy.importedNotes}</h4>
+              <h5 id={`${id}-receipt`} className="mb-2 text-sm font-medium">{copy.importedNotes}</h5>
               <div role="region" aria-labelledby={`${id}-receipt`} tabIndex={0} className="max-h-60 overflow-y-auto overscroll-contain rounded-ctl border border-line px-3 py-2">
                 <ul className="space-y-3">
                   {receipt.notes.map((note, index) => (
@@ -350,7 +350,7 @@ function ImportWarnings({ warnings }: { readonly warnings: ImportPreview["warnin
   if (warnings.length === 0) return null;
   return (
     <div>
-      <h4 id={id} className="mb-2 text-md font-medium text-warn">{copy.warnings(warnings.length)}</h4>
+      <h5 id={id} className="mb-2 text-md font-medium text-warn">{copy.warnings(warnings.length)}</h5>
       <p className="mb-2 text-sm text-mute">{copy.warningHint}</p>
       <div role="region" aria-labelledby={id} tabIndex={0} className="max-h-60 overflow-y-auto overscroll-contain rounded-ctl border border-line px-3 py-2">
         <ul className="space-y-3">

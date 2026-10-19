@@ -7,6 +7,14 @@ export const SETTINGS_COPY = defineCopy({
   ko: {
     title: "설정",
     lead: "화면, 로그인 세션, 선택 기능이 어떻게 동작하는지 확인하고 바꿀 수 있어요.",
+    groups: {
+      account: "계정·보안",
+      display: "화면·언어",
+      notes: "캡처·노트",
+      ai: "AI·모델",
+      data: "데이터·백업·내보내기",
+      danger: "위험 구역",
+    },
     theme: {
       title: "화면",
       description: "이 브라우저에 저장돼서 새로고침하거나 다른 화면으로 가도 그대로예요.",
@@ -167,6 +175,14 @@ export const SETTINGS_COPY = defineCopy({
   en: {
     title: "Settings",
     lead: "See and change how the display, your login session and optional features work.",
+    groups: {
+      account: "Account & security",
+      display: "Appearance & language",
+      notes: "Capture & notes",
+      ai: "AI & models",
+      data: "Data, backup & export",
+      danger: "Danger zone",
+    },
     theme: {
       title: "Appearance",
       description: "Saved in this browser and kept when you reload or move to another page.",

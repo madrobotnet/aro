@@ -101,7 +101,7 @@ export function AgentsSection() {
         {notice && <p role="status" className="text-sm">{notice}</p>}
         <div className="border-t border-line pt-5">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-medium">{ko ? "연결된 에이전트" : "Agent connections"}</h3>
+            <h4 className="text-sm font-medium">{ko ? "연결된 에이전트" : "Agent connections"}</h4>
             <Button type="button" variant="ghost" disabled={busy} onClick={() => void refresh().catch(() => setError(ko ? "새로고침하지 못했어요." : "Could not refresh."))}>{ko ? "새로고침" : "Refresh"}</Button>
           </div>
           {!tokens.data ? <p className="text-sm text-mute">{ko ? "불러오는 중…" : "Loading…"}</p> : !tokens.data.tokens.length
@@ -117,7 +117,7 @@ export function AgentsSection() {
             </li>)}</ul>}
         </div>
         <div className="border-t border-line pt-5">
-          <h3 className="text-sm font-medium">{ko ? "승인할 수정 제안" : "Changes awaiting approval"}</h3>
+          <h4 className="text-sm font-medium">{ko ? "승인할 수정 제안" : "Changes awaiting approval"}</h4>
           {proposals.data?.proposals.filter(proposal => proposal.status === "pending").map(proposal => <article key={proposal.id} data-proposal-id={proposal.id} className="mt-4 rounded border border-line p-4">
             <a href={`/notes/${proposal.noteId}`} className="text-sm text-accent underline">{ko ? "현재 노트 확인" : "Review current note"}</a>
             {proposal.patch.title !== undefined && <p className="mt-3 break-words text-sm font-medium">{ko ? "제안한 제목: " : "Proposed title: "}{proposal.patch.title}</p>}
@@ -132,7 +132,7 @@ export function AgentsSection() {
           {proposals.data && !proposals.data.proposals.some(proposal => proposal.status === "pending") && <p className="mt-2 text-sm text-mute">{ko ? "대기 중인 제안이 없어요." : "No pending proposals."}</p>}
         </div>
         <div className="border-t border-line pt-5">
-          <h3 className="text-sm font-medium">{ko ? "최근 접근 기록" : "Recent access activity"}</h3>
+          <h4 className="text-sm font-medium">{ko ? "최근 접근 기록" : "Recent access activity"}</h4>
           <p className="mt-2 text-xs text-mute">{ko ? "도구 이름·결과·시각만 표시해요. 노트 본문이나 토큰은 기록하지 않아요." : "Tool, result and time only. Note bodies and tokens are not logged."}</p>
           <ul className="mt-3 space-y-2">{activity.data?.activity.map(item => <li key={item.id} className="break-words text-xs">
             {item.tool} · {item.status} · {new Date(item.createdAt).toLocaleString(locale)}

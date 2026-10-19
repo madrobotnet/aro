@@ -19,38 +19,13 @@ const fetchSession = async (path: string): Promise<Stamped<SessionInfo>> => ({ v
 
 export function SessionSection() {
   const { logout } = useShell();
-  const router = useRouter();
   const { locale } = useLocale();
   const copy = useCopy(SETTINGS_COPY).session;
   const { data, error, isLoading, mutate } = useSWR<Stamped<SessionInfo>>("/api/auth/me", fetchSession, { revalidateOnFocus: true });
   const [loggingOut, setLoggingOut] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [revoking, setRevoking] = useState(false);
-  // The failed request itself; its message is chosen at render time in the current language.
-  const [revokeError, setRevokeError] = useState<{ readonly cause: unknown } | null>(null);
 
   const expiresAt = data?.value.expiresAt ?? null;
   const days = data ? daysUntil(expiresAt, data.fetchedAt) : null;
-
-  const revokeAll = async () => {
-    if (hasUnsavedNoteDrafts() && !window.confirm(copy.unsavedDrafts)) return;
-    setRevoking(true);
-    setRevokeError(null);
-    try {
-      await api<RevokeAllResult>("/api/auth/sessions/revoke-all", { method: "POST" });
-      // /login sits outside the app shell, so every session-scoped client cache unmounts with it.
-      router.push("/login");
-      router.refresh();
-    } catch (cause) {
-      setRevokeError({ cause });
-      setRevoking(false);
-    }
-  };
-
-  const setConfirm = (open: boolean) => {
-    setConfirmOpen(open);
-    if (!open) setRevokeError(null);
-  };
 
   return (
     <Section id="settings-session" title={copy.title} description={copy.description}>
@@ -98,12 +73,42 @@ export function SessionSection() {
           >
             {copy.logout}
           </Button>
-          <Button variant="danger" size="lg" leading={<ShieldAlert aria-hidden className="size-4" />} onClick={() => setConfirm(true)}>
-            {copy.logoutAll}
-          </Button>
         </div>
       </div>
+    </Section>
+  );
+}
 
+export function SessionDangerSection() {
+  const router = useRouter();
+  const { locale } = useLocale();
+  const copy = useCopy(SETTINGS_COPY).session;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  // Retain the cause, so a language switch also updates the visible failure.
+  const [revokeError, setRevokeError] = useState<{ readonly cause: unknown } | null>(null);
+  const revokeAll = async () => {
+    if (hasUnsavedNoteDrafts() && !window.confirm(copy.unsavedDrafts)) return;
+    setRevoking(true);
+    setRevokeError(null);
+    try {
+      await api<RevokeAllResult>("/api/auth/sessions/revoke-all", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch (cause) {
+      setRevokeError({ cause });
+      setRevoking(false);
+    }
+  };
+  const setConfirm = (open: boolean) => {
+    setConfirmOpen(open);
+    if (!open) setRevokeError(null);
+  };
+  return (
+    <Section id="settings-session-danger" title={copy.logoutAll} description={copy.confirmDescription}>
+      <Button variant="danger" size="lg" leading={<ShieldAlert aria-hidden className="size-4" />} onClick={() => setConfirm(true)}>
+        {copy.logoutAll}
+      </Button>
       <Dialog
         open={confirmOpen}
         onOpenChange={setConfirm}
