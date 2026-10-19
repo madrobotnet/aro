@@ -30,6 +30,13 @@ type FormState =
   | { kind: "error"; failure: SetupFailure }
   | { kind: "success" };
 
+function withoutErrors(errors: SetupSecretErrors, ...fields: (keyof SetupSecretErrors)[]): SetupSecretErrors {
+  if (!fields.some((field) => errors[field])) return errors;
+  const next = { ...errors };
+  for (const field of fields) delete next[field];
+  return next;
+}
+
 export function SetupForm() {
   const router = useRouter();
   const { locale } = useLocale();
@@ -122,6 +129,8 @@ export function SetupForm() {
                   }));
                 }
                 setSetupToken(nextToken);
+                setSecretErrors((current) => withoutErrors(current, "setupToken"));
+                if (state.kind === "error" && state.failure.group === "token") setState({ kind: "idle" });
               }}
               aria-invalid={secretErrors.setupToken || (state.kind === "error" && state.failure.group === "token") ? true : undefined}
               aria-describedby={
@@ -175,7 +184,10 @@ export function SetupForm() {
               minLength={12}
               maxLength={512}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setSecretErrors((current) => withoutErrors(current, "password", "passwordConfirmation"));
+              }}
               aria-invalid={secretErrors.password ? true : undefined}
               aria-describedby={secretErrors.password ? "setup-password-error" : "setup-password-hint"}
               className={cn(inputClassName, "h-11 pr-12")}
@@ -213,7 +225,10 @@ export function SetupForm() {
             minLength={12}
             maxLength={512}
             value={passwordConfirmation}
-            onChange={(event) => setPasswordConfirmation(event.target.value)}
+            onChange={(event) => {
+              setPasswordConfirmation(event.target.value);
+              setSecretErrors((current) => withoutErrors(current, "passwordConfirmation"));
+            }}
             aria-invalid={secretErrors.passwordConfirmation ? true : undefined}
             aria-describedby={secretErrors.passwordConfirmation ? "setup-password-confirm-error" : undefined}
             className={cn(inputClassName, "h-11")}

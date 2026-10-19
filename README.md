@@ -28,6 +28,11 @@ over time. None of these features needs an AI account.
   aliases, and see backlinks and unlinked mentions on every note. Type `[[`
   to get title and alias suggestions or create a missing note. Turn an
   unlinked mention into a link with one click.
+- **Live Markdown editor.** Headings, emphasis, lists, task checkboxes, links,
+  code fences and tables are styled as you type, and the raw syntax shows only
+  on the line you are editing. A format bar covers common formatting and docks
+  at the top while a phone keyboard is open. Tapping a link offers to open or edit it. A raw
+  Markdown mode is one switch away and is remembered.
 - **Daily notes and templates.** Open today's note or choose another day from
   a small calendar. Templates, including a default for new daily notes, fill in
   `{{date}}` and `{{title}}`.
