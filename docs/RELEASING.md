@@ -1,10 +1,10 @@
 # Aro 2.4.0 release contract
 
-This guide describes the maintainer procedure for Aro 2.4.0. It does not claim
-that the tag, image or release assets have been published.
+This guide describes the maintainer procedure for Aro 2.4.0. That procedure was
+followed for the published [v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0) (tag on `1574f62`).
 
 This guide describes the native-image release for **2.4.0** from the public source
-repository, with the existing GHCR package kept private. The tag is
+repository and the public `ghcr.io/madrobotnet/aro` package. The tag is
 `v2.4.0`, the image is `ghcr.io/madrobotnet/aro:2.4.0`, and the installation
 archive is `aro-2.4.0-install.tar.gz`. Installation and data recovery are in
 [SETUP.md](SETUP.md).
@@ -13,9 +13,9 @@ archive is `aro-2.4.0-install.tar.gz`. Installation and data recovery are in
 source revision, image digests, assets, and successful native workflow receipts
 for both platforms. Ordinary exact-SHA CI and synthetic two-platform metadata
 are not native-release proof. Documentation, separate prose polishing, licensing,
-and security checks must also pass. Public source and GitHub release assets do
-not grant anonymous access to the private image package. Repository and package
-visibility are separate settings; this release changes neither.
+and security checks must also pass. Repository and package visibility are separate
+settings; the workflow changes neither. For 2.4.0 the new `aro` package was
+created public and the owner kept it public.
 
 The commands below describe the maintainer procedure; they aren't evidence
 that the remote actions have occurred. Tagging, pushing, and running the release
@@ -206,7 +206,7 @@ validate -> reusable ci -> native build[amd64,arm64]
 | `build` | `contents: read`, `packages: write` | Two native builds pushed by digest with source/version/revision labels, minimum-mode provenance, and SBOM |
 | `verify-pull` | `contents: read`, `packages: read` | Fresh native runners pull each build-output digest, inspect platform/labels, run full smoke, and record cleanup |
 | `merge-candidate` | `contents: read`, `packages: write` | Merge tested descriptors, verify registry bytes, attestation subjects, source-linked provenance, and nonempty SPDX SBOM |
-| `publish-release` | `contents: write`, `packages: write` | Assemble archive, smoke its extracted files on native AMD64, promote exact bytes, verify uploaded assets, and publish a stable GitHub release while retaining private package access |
+| `publish-release` | `contents: write`, `packages: write` | Assemble archive, smoke its extracted files on native AMD64, promote exact bytes, verify uploaded assets, and publish a stable GitHub release without changing package visibility |
 
 Global permissions are empty. New release actions are pinned to full commit
 SHAs. Registry logins use each job's `GITHUB_TOKEN`, not a broad maintainer PAT.
@@ -315,7 +315,7 @@ Publication adds supplementary assets and regenerates `SHA256SUMS` before
 upload. Archive contents are screened for unsafe paths, symlinks, and selected
 secret patterns; this bounded screen doesn't replace the full security audit.
 
-## 6. Watch and verify the release and private package
+## 6. Watch and verify the release and package
 
 List runs for the exact tagged commit. Set `RUN_ID` to the matching release run
 ID from this output, not to an ordinary CI run:
@@ -361,7 +361,7 @@ bun --no-env-file scripts/verify-release.mjs checksums --root release-download
 ```
 
 Require a non-draft, non-prerelease `v2.4.0`, every expected asset, passing
-checksums, public source `isPrivate=false`, and unchanged private package
+checksums, public source `isPrivate=false`, and unchanged package
 visibility confirmed by an operator with package access. Independently compare all archive members
 against `archive-manifest.json`. Extract into an empty directory:
 
@@ -401,12 +401,11 @@ and execution on each architecture.
 ## 7. Preserve the source and package access boundaries
 
 The `madrobotnet/aro` source repository is public. Its release assets and
-source can be downloaded without private-package permission. The existing
-`ghcr.io/madrobotnet/aro` package remains private; repository visibility and
-access inheritance do not make private image pulls anonymous.
+source can be downloaded without private-package permission. The
+`ghcr.io/madrobotnet/aro` package is public, so image pulls need no login.
 
 Before tagging and after publication, an operator with package access must
-confirm the package remains private, the old version's digest is unchanged,
+confirm the package visibility is unchanged, the old version's digest is unchanged,
 and the new version matches the native receipts. The workflow never changes
 either visibility setting, and native reader jobs use scoped job credentials.
 Do not publish tokens or copy them into installation bundles.

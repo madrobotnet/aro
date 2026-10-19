@@ -12,8 +12,7 @@
   <a href="README.md">English</a> · <a href="docs/SETUP.ko.md">한국어 설치 안내</a> · <a href="docs/SETUP.md">English setup</a> · <a href="LICENSE">MIT</a>
 </p>
 
-이 문서는 아로 2.4.0을 설명합니다. 릴리스 설치 명령에는 검증된 릴리스와
-태그가 필요하며, 이 안내 자체가 2.4.0 발행을 뜻하지는 않습니다.
+이 문서는 [v2.4.0 릴리스](https://github.com/madrobotnet/aro/releases/tag/v2.4.0)로 발행된 아로 2.4.0을 설명합니다.
 
 아로는 직접 운영하는 서버에서 소유자 한 명이 쓰는 노트 도구입니다. 링크와 짧은
 생각을 인박스에 먼저 담고 Markdown 노트로 옮겨 적으면서, 노트를 서로 연결해
@@ -112,10 +111,8 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 `release.json`이 들어 있습니다. 아카이브의 Compose 파일은 이미지 다이제스트를
 고정합니다. 묶음의 디렉터리 구조를 그대로 유지하세요.
 
-**이미지 접근:** 소스 저장소와 GitHub 릴리스 파일은 공개되어 있지만 GHCR
-패키지는 비공개이며 이미지를 받으려면 패키지 접근 권한이 필요합니다.
-아래 명령은 [릴리스 안내](docs/RELEASING.md)의
-검증을 마친 `v2.4.0` 릴리스가 있어야 사용할 수 있습니다. GitHub CLI로 릴리스
+**이미지 접근:** 소스 저장소, GitHub 릴리스 파일, `ghcr.io/madrobotnet/aro`
+이미지가 모두 공개되어 있어 로그인 없이 `docker pull`할 수 있습니다. GitHub CLI로 릴리스
 파일을 내려받고, `jq`로 이미지 참조를 읽습니다.
 
 ```sh
@@ -137,16 +134,12 @@ docker compose up -d --wait --wait-timeout 180
 curl -i http://127.0.0.1:3000/api/health
 ```
 
-비공개 GHCR 이미지를 받으려면 별도의 패키지 읽기 권한이 필요합니다.
-GitHub CLI의 저장소 인증만으로 Docker 레지스트리 자격 증명이 생기지는 않습니다.
-공개 릴리스 파일을 받는 것만으로 비공개 이미지 접근 권한이 생기지는 않습니다.
-레지스트리 접근 권한이 없다면 소스에서 빌드하세요.
+발행된 이미지 대신 직접 빌드하고 싶다면 소스에서 빌드하세요.
 
 ### 2.4.0 소스에서 빌드
 
-소스 저장소는 공개되어 있으며 이 경로에는 GHCR 접근 권한이 필요하지 않습니다.
-Compose에 빌드 설정이 없으므로 이미지를
-검증된 `v2.4.0` 태그가 준비된 뒤 직접 빌드합니다.
+이 경로는 GHCR을 쓰지 않습니다. Compose에 빌드 설정이 없으므로 `v2.4.0`
+태그에서 이미지를 직접 빌드합니다.
 
 ```sh
 git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git

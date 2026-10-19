@@ -1,7 +1,6 @@
 # Aro: Installation & Configuration
 
-This guide describes Aro 2.4.0. Release commands require a verified release and
-tag; they do not establish that 2.4.0 is published.
+This guide describes Aro 2.4.0, published as the [v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0).
 
 This guide covers a self-hosted Aro instance for one owner. The deployment
 has two Docker Compose services (the Next.js app and a Postgres database) and
@@ -51,8 +50,8 @@ Its other parsed Compose fields match source. Keep the relative
   untested. For access beyond `127.0.0.1`, you need a TLS-terminating reverse
   proxy that you control (section 6).
 - The archive path uses `tar`, `sha256sum`, and `jq`; the examples use
-  `gh release download` for public release assets. Private image pulls need
-  separate registry authorization.
+  `gh release download` for public release assets. The image is public and
+  needs no registry login.
 - No host Node or Bun: operator scripts are bundled under `/app/scripts`
   in the application image (section 3). Bun 1.4.2 is required for development;
   Node 22 is only for upstream CLI subprocess fixtures.
@@ -69,9 +68,7 @@ by regenerating existing passwords or selecting a different data volume.
 
 ### Installation archive
 
-These archive commands require a completed `v2.4.0` release with the checks
-described in [RELEASING.md](RELEASING.md). Source and release assets are public;
-the GHCR package remains private and image pulls require authorization. Download
+Source, release assets and the `ghcr.io/madrobotnet/aro` image are public. Download
 all release assets into an empty directory, verify their checksums, then extract:
 
 ```sh
@@ -99,8 +96,8 @@ grant anonymous private-package access.
 
 ### Explicit source build
 
-If GHCR access isn't available, build the public source locally. Select the
-verified release tag before building; Compose has no build configuration:
+To build the image yourself instead, build the public source locally. Select the
+release tag before building; Compose has no build configuration:
 
 ```sh
 git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git

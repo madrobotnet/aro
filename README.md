@@ -12,8 +12,8 @@ App icons show the glyph in cream on terracotta.
   <a href="README.ko.md">한국어</a> · <a href="docs/SETUP.md">Setup guide</a> · <a href="LICENSE">MIT</a>
 </p>
 
-This documentation describes Aro 2.4.0. Release installation commands require
-a verified release and tag; they do not establish that 2.4.0 is published.
+This documentation describes Aro 2.4.0, published as the
+[v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0).
 
 Aro runs on your own server for one owner. Save links and quick thoughts in
 the inbox, turn them into Markdown notes, and build connections between notes
@@ -118,10 +118,8 @@ The installation bundle is `aro-2.4.0-install.tar.gz`. It includes
 the documentation, notices, and `release.json`. The archived Compose file pins
 the image by digest. Keep the bundle's directory structure intact.
 
-**Image access:** the source repository and GitHub release assets are public;
-the GHCR package remains private and image pulls require package permission.
-The commands below require a
-completed `v2.4.0` release with the checks in the [release guide](docs/RELEASING.md).
+**Image access:** the source repository, GitHub release assets and the
+`ghcr.io/madrobotnet/aro` image are public, so `docker pull` needs no login.
 Use the GitHub CLI to download its assets and `jq` to read the image reference:
 
 ```sh
@@ -143,16 +141,12 @@ docker compose up -d --wait --wait-timeout 180
 curl -i http://127.0.0.1:3000/api/health
 ```
 
-Private GHCR pulls require separate package read access. GitHub CLI repository
-authentication alone isn't a Docker registry credential. Public release asset
-downloads do not grant private image access. If you don't have registry access, build from
-source instead.
+If you'd rather not use the published image, build from source instead.
 
 ### Build the 2.4.0 source
 
-The source repository is public; this path doesn't require GHCR access.
-Compose has no build configuration, so
-build the image explicitly once the verified `v2.4.0` tag is available:
+This path doesn't use GHCR. Compose has no build configuration, so build the
+image explicitly from the `v2.4.0` tag:
 
 ```sh
 git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
