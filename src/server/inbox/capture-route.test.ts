@@ -3,8 +3,7 @@ import { fileURLToPath } from "node:url";
 
 test("real capture route enforces owner confirmation expiry and committed replay", async () => {
   const process = Bun.spawn([Bun.which("bun") ?? "bun", "--no-env-file",
-    ...(globalThis.process.platform === "darwin"
-      ? ["--preload", Bun.resolveSync("next/dist/server/node-environment-baseline.js", import.meta.dir)] : []),
+    "--preload", Bun.resolveSync("next/dist/server/node-environment-baseline.js", import.meta.dir),
     fileURLToPath(new URL("./capture-route-fixture.js", import.meta.url))],
   { cwd: fileURLToPath(new URL("../../..", import.meta.url)), stdout: "pipe", stderr: "pipe" });
   const [exitCode, stdout, stderr] = await Promise.all([
