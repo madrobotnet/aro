@@ -129,6 +129,7 @@ export function liveRanges(state: EditorState, windows: readonly LiveWindow[]): 
             const heading = node.name === "HeaderMark" && /^SetextHeading/.test(node.node.parent?.name ?? "") ? node.node.parent : null;
             // Either half of a Setext heading exposes its underline for editing.
             if (heading && state.selection.ranges.some((range) => state.doc.lineAt(range.from).number <= line.number && state.doc.lineAt(range.to).number >= state.doc.lineAt(heading.from).number)) return;
+            if (heading) add({ kind: "line", from: line.from, className: "cm-live-setext-hidden" });
             const to = node.name === "HeaderMark" ? node.to + (/^[ \t]+/.exec(state.sliceDoc(node.to, line.to))?.[0].length ?? 0) : node.to;
             add({ kind: "hide", from: node.from, to, syntax: heading ? "SetextMark" : node.name });
           }
@@ -246,6 +247,17 @@ export function liveDecorations(state: EditorState, windows: readonly LiveWindow
   return Decoration.set(ranges, true);
 }
 
+/** A zero-height underline has no vertical hit target for CM's spatial arrows. */
+export function setextStep(state: EditorState, direction: -1 | 1): number | null {
+  if (state.selection.ranges.length !== 1 || !state.selection.main.empty) return null;
+  const current = state.doc.lineAt(state.selection.main.head);
+  const number = current.number + direction;
+  if (number < 1 || number > state.doc.lines) return null;
+  const next = state.doc.line(number);
+  const collapsed = liveRanges(state, [{ from: next.from, to: next.to }]).some((range) => range.kind === "line" && range.className === "cm-live-setext-hidden");
+  return collapsed ? next.from + Math.min(state.selection.main.head - current.from, next.length) : null;
+}
+
 const livePlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet;
   popover: HTMLElement | null = null;
@@ -343,6 +355,15 @@ const livePlugin = ViewPlugin.fromClass(class {
       this.showPopover(link);
       return;
     }
+    if (event.target === this.view.contentDOM && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      const anchor = setextStep(this.view.state, event.key === "ArrowUp" ? -1 : 1);
+      if (anchor !== null) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.view.dispatch({ selection: { anchor }, scrollIntoView: true });
+        return;
+      }
+    }
     if (event.key !== "Enter") return;
     if (link) {
       event.preventDefault();
@@ -402,6 +423,7 @@ const livePlugin = ViewPlugin.fromClass(class {
 const liveTheme = EditorView.baseTheme({
   ".cm-live-h1": { fontSize: "var(--text-2xl)", fontWeight: "700" },
   ".cm-live-h2": { fontSize: "var(--text-xl)", fontWeight: "700" },
+  "& .cm-line.cm-live-setext-hidden": { height: "0", minHeight: "0", lineHeight: "0", overflow: "hidden" },
   ".cm-live-h3, .cm-live-h4, .cm-live-h5, .cm-live-h6": { fontSize: "var(--text-lg)", fontWeight: "600" },
   ".cm-live-strong": { fontWeight: "700" },
   ".cm-live-em": { fontStyle: "italic" },

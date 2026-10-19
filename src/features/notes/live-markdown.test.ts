@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { EditorState } from "@codemirror/state";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { parseWikiLinks } from "@/lib/wikilinks";
-import { liveDecorations, liveRanges, liveRaw, liveWindows, taskChange } from "./live-markdown";
+import { liveDecorations, liveRanges, liveRaw, liveWindows, setextStep, taskChange } from "./live-markdown";
 import { editorLanguage } from "./editor-language";
 
 function state(doc: string, anchor = doc.length) {
@@ -142,8 +142,12 @@ test.each([["===", "cm-live-h1"], ["---", "cm-live-h2"]])("styles Setext %s text
   const onUnderline = liveRanges(state(doc, doc.indexOf(underline) + 1), window);
   // Then
   expect(off).toContainEqual({ kind: "line", from: 0, className });
+  expect(off).toContainEqual({ kind: "line", from: doc.indexOf(underline), className: "cm-live-setext-hidden" });
   expect(off.filter((range) => range.kind === "hide")).toEqual([{ kind: "hide", from: doc.indexOf(underline), to: doc.indexOf(underline) + underline.length, syntax: "SetextMark" }]);
-  for (const ranges of [onText, onUnderline]) expect(ranges.filter((range) => range.kind === "hide")).toEqual([]);
+  for (const ranges of [onText, onUnderline]) {
+    expect(ranges.filter((range) => range.kind === "hide")).toEqual([]);
+    expect(ranges.some((range) => range.kind === "line" && range.className === "cm-live-setext-hidden")).toBe(false);
+  }
 });
 
 test("Setext styling is bounded when a multiline heading crosses a visible window", () => {
@@ -155,6 +159,22 @@ test("Setext styling is bounded when a multiline heading crosses a visible windo
   const ranges = liveRanges(before, window);
   // Then
   expect(ranges.filter((range) => range.kind === "line")).toEqual([{ kind: "line", from: before.doc.line(2).from, className: "cm-live-h1" }]);
+});
+
+test.each(["===", "---"])("vertical navigation reaches a collapsed %s underline without changing source", (underline) => {
+  // Given
+  const doc = `한글 제목\n${underline}\n\n끝`;
+  const before = state(doc, doc.indexOf("\n\n끝") + 1);
+  // When
+  const anchor = setextStep(before, -1);
+  const after = before.update({ selection: { anchor: anchor ?? 0 } }).state;
+  // Then
+  expect(anchor).toBe(doc.indexOf(underline));
+  expect(after.doc.toString()).toBe(doc);
+  expect(liveRanges(after, [{ from: 0, to: doc.length }]).some((range) => range.kind === "line" && range.className === "cm-live-setext-hidden")).toBe(false);
+  expect(setextStep(state(doc, 2), 1)).toBeNull();
+  expect(setextStep(before, 1)).toBeNull();
+  expect(setextStep(EditorState.create({ doc, selection: before.selection, extensions: [editorLanguage(), liveRaw.of(true)] }), -1)).toBeNull();
 });
 
 test.each(["1. [ ] 한글 작업", "2) [x] 완료한 작업", "  12. [X] 중첩 작업"])("keeps the number and gaps of ordered task %s", (item) => {
