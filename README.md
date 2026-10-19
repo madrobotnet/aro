@@ -80,7 +80,12 @@ server/Docker tooling, official chat CLI providers and desktop packaging/updates
 are unsupported. Desktop/server movement is explicit note
 export/import, not simultaneous synchronization or a full-account migration.
 The development version also adds [owner-controlled MCP access](docs/AGENT-ACCESS.md):
-separate revocable tokens, inbox-only captures, and reviewed note-change proposals.
+OAuth connectors for Claude and ChatGPT, separate revocable bearer tokens,
+inbox-only captures, and reviewed note-change proposals. Add
+`https://<host>/api/mcp` in claude.ai **Settings → Connectors → Add custom
+connector**, or ChatGPT **Settings → Connectors / developer mode → add MCP
+server**. Set `ARO_MCP_ALLOWED_HOSTS` to the public host, choose permissions on
+Aro's consent screen, and revoke access in **Settings → Agent access**.
 
 The development checkout also includes operator-triggered, manifest-checked
 [backup and disposable restore verification](docs/BACKUP.md). These management

@@ -73,8 +73,14 @@ SIGINT/SIGTERM 종료는 GitHub 호스팅 `macos-latest`(Apple Silicon, macOS 26
 서버/Docker 도구, 공식 채팅 CLI 제공자, 데스크톱 패키징·업데이트를 지원하지 않습니다.
 데스크톱과 서버 사이의 이동은
 명시적 노트 내보내기/가져오기이며 동시 동기화나 전체 계정 이전이 아닙니다.
-개발 버전은 별도 토큰·즉시 회수·인박스 캡처·수정 제안 승인을 제공하는
-[소유자 제어 MCP 접근](docs/AGENT-ACCESS.md)도 포함합니다.
+개발 버전은 Claude·ChatGPT OAuth 커넥터, 별도 Bearer 토큰, 접근 회수,
+인박스 캡처와 수정 제안 승인을 제공하는
+[소유자 제어 MCP 접근](docs/AGENT-ACCESS.ko.md)도 포함합니다.
+claude.ai의 **설정 → 커넥터 → 사용자 지정 커넥터 추가**, 또는 ChatGPT의
+**설정 → 커넥터 / 개발자 모드 → MCP 서버 추가**에서
+`https://<host>/api/mcp`를 입력하세요. `ARO_MCP_ALLOWED_HOSTS`에 공개 호스트를
+등록하고 아로의 승인 화면에서 권한을 선택하세요. **설정 → 에이전트 접근**에서
+언제든 접근을 회수할 수 있습니다.
 
 개발 체크아웃에는 운영자가 직접 실행하는 [백업과 격리 복원 검증](docs/BACKUP.ko.md)
 명령이 있습니다. 파일 체크섬과 버전을 확인하며, 운영자 호스트에 Node.js 22 이상이
