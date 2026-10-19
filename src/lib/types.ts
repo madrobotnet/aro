@@ -75,6 +75,10 @@ export type InboxItem = {
   id: string;
   title: string;
   body: string;
+  /** Server-cleaned list excerpt, at most 140 characters; empty when it repeats the title. */
+  preview: string;
+  /** Home uses a longer excerpt with the same cleaning and title comparison rules. */
+  homePreview: string;
   source: InboxSource;
   url: string | null;
   createdAt: string;

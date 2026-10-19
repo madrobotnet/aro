@@ -12,6 +12,7 @@ import { fetchUrlText, type UrlIntakeDependencies } from "./url";
 import { discardSQLiteInbox, listSQLiteInbox, promoteSQLiteInbox, sqliteInboxRow } from "./sqlite";
 import { buildSuggestions, probability } from "./suggestions";
 import { persistCaptureReplay, type CaptureReplay } from "./capture-replay";
+import { inboxPreview } from "./preview";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -59,6 +60,8 @@ export function mapItem(row: InboxRow): InboxItemDto {
     id: row.id,
     title: row.title,
     body: row.body,
+    preview: inboxPreview(row),
+    homePreview: inboxPreview(row, 280),
     source: (["web", "url", "share", "api"].includes(row.source) ? row.source : "api") as InboxSource,
     url: row.url,
     createdAt: new Date(row.created_at).toISOString(),

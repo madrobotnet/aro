@@ -20,6 +20,23 @@ afterAll(async () => {
 });
 
 describe("capture and enrichment", () => {
+  test("Postgres DTOs clean legacy links and preserve literal captures before truncation", async () => {
+    const body = `">' <nav>menu</nav><p>지식 &bull; 연결 &amp; 기록</p><script>noise()</script> <p>두 번째 문장</p>`;
+    const link = await captureInbox({ title: "Legacy", text: body, url: "https://example.com/legacy" });
+    expect(link.preview).toBe("지식 • 연결 & 기록 두 번째 문장");
+    expect(link.homePreview).toBe(link.preview);
+    const literal = await captureInbox({ title: "Syntax", text: body });
+    expect(literal.preview).toBe(body);
+    const repeated = await captureInbox({ text: "title only" });
+    expect(repeated.preview).toBe("");
+    const long = await captureInbox({ title: "Long", text: "a".repeat(300) });
+    expect(long.preview).toBe(`${"a".repeat(139)}…`);
+    expect(long.homePreview).toBe(`${"a".repeat(279)}…`);
+    const stored = (await listInbox()).items.find(item => item.id === link.id);
+    expect(stored?.preview).toBe(link.preview);
+    expect(stored?.body).toBe(link.body);
+  });
+
   test("persists text and URL before a URL transport failure and records visible failure", async () => {
     setJevForTests(null);
     const captured = await captureInbox({ title: "자료", text: "내 메모", url: "https://example.com/a" });

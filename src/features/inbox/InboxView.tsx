@@ -13,7 +13,6 @@ import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
 import { formatDateTime } from "@/lib/i18n/format-date";
 import type { InboxItem, Note } from "@/lib/types";
-import { inboxPreview } from "@/lib/inbox-preview";
 import { INBOX_COPY } from "./inbox-copy";
 import {
   applyInboxChange,
@@ -281,7 +280,7 @@ export function InboxView() {
               {items.map((item) => {
                 const active = item.id === selected?.id;
                 const status = urlStatus(item.body);
-                const preview = inboxPreview(item);
+                const preview = item.preview;
                 return (
                   <li key={item.id}>
                     <button

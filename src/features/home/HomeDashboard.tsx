@@ -17,7 +17,6 @@ import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
 import { inboxUrlStatus, stripInboxUrlStatus } from "@/lib/inbox-url-status";
-import { inboxPreview } from "@/lib/inbox-preview";
 import type { HomeData, InboxItem, NoteRef, NoteSummary } from "@/lib/types";
 import { INBOX_COPY } from "@/features/inbox/inbox-copy";
 import { displayNoteTitle } from "@/features/notes/display-title";
@@ -231,7 +230,7 @@ function InboxSection({ count, items, now }: { count: number; items: InboxItem[]
         <ul className="surface-card divide-y divide-line overflow-hidden">
           {items.map((item) => {
             const status = inboxUrlStatus(item.body);
-            const preview = inboxPreview(item, 280)
+            const preview = item.homePreview
               || (!stripInboxUrlStatus(item.body) ? (status === "pending" ? urlCopy.urlPending : status === "failed" ? urlCopy.urlFailed : "") : "");
             return (
             <li key={item.id}>

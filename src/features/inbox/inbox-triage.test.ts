@@ -38,6 +38,8 @@ const item = (id: string, over: Partial<InboxItem> = {}): InboxItem => ({
   id,
   title: `제목 ${id}`,
   body: `본문 ${id}`,
+  preview: `본문 ${id}`,
+  homePreview: `본문 ${id}`,
   source: "web",
   url: null,
   createdAt: "2026-09-27T00:00:00.000Z",

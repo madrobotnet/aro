@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { URL_PENDING_MARKER } from "./inbox-url-status";
-import { inboxPreview } from "./inbox-preview";
+import { URL_PENDING_MARKER } from "@/lib/inbox-url-status";
+import { inboxPreview } from "./preview";
 
 describe("capture preview", () => {
   test("omits a body that repeats the title after whitespace normalization", () => {

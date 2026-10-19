@@ -8,7 +8,6 @@ import { Button, EmptyState, SkeletonLines } from "@/components/ui";
 import { fetcher } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { formatDateTime } from "@/lib/i18n/format-date";
-import { inboxPreview } from "@/lib/inbox-preview";
 import type { InboxItem } from "@/lib/types";
 import { INBOX_COPY } from "./inbox-copy";
 import { INBOX_LATER_KEY, type InboxListData } from "./inbox-triage";
@@ -51,7 +50,7 @@ export function LaterList({ onBringBack }: { onBringBack: (item: InboxItem) => P
         <li key={item.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">{item.title}</p>
-            <p className="mt-0.5 line-clamp-1 text-sm text-mute">{inboxPreview(item) || item.url || copy.noContent}</p>
+            <p className="mt-0.5 line-clamp-1 text-sm text-mute">{item.preview || item.url || copy.noContent}</p>
             {item.snoozedUntil ? (
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-mute">
                 <AlarmClock aria-hidden className="size-3.5 shrink-0" />

@@ -10,6 +10,7 @@ function submit(title: string, locale: Locale) {
   const item: InboxItem = {
     id: "123e4567-e89b-42d3-a456-426614174001",
     title, body: "Keep this body.", source: "web", url: null,
+    preview: "Keep this body.", homePreview: "Keep this body.",
     createdAt: "2026-09-29T00:00:00Z", suggestions: null, snoozedUntil: null,
   };
   const form = captureTree(TriageEditor, {

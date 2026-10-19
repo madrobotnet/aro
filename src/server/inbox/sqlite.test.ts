@@ -37,6 +37,24 @@ test("capture validates source and empty input before persistence", async () => 
   } finally { await f.close(); }
 });
 
+test("SQLite DTOs clean legacy links but retain literal text and stored bodies", async () => {
+  const f = await inboxFixture();
+  try {
+    const body = `">' <nav>menu</nav><p>지식 &bull; 연결 &amp; 기록</p><script>noise()</script> <p>두 번째 문장</p>`;
+    const link = await captureInbox({ title: "Legacy", text: body, url: "https://example.com/legacy" });
+    expect(link.preview).toBe("지식 • 연결 & 기록 두 번째 문장");
+    expect(link.homePreview).toBe(link.preview);
+    expect((await getInboxItem(link.id))?.body).toBe(link.body);
+    const literal = await captureInbox({ title: "Syntax", text: body });
+    expect(literal.preview).toBe(body);
+    const repeated = await captureInbox({ text: "title only" });
+    expect(repeated.preview).toBe("");
+    expect((await listInbox()).items.find(item => item.id === link.id)?.preview).toBe(link.preview);
+    await snoozeInbox(link.id, new Date(Date.now() + 86400_000));
+    expect((await listInbox("later")).items[0]?.preview).toBe(link.preview);
+  } finally { await f.close(); }
+});
+
 test("snooze partitions views with stable ordering and next-return DTO", async () => {
   const f = await inboxFixture();
   try {
