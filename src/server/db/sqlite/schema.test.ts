@@ -12,7 +12,7 @@ test("provides every persisted entity and declared SQLite index", () => {
     "installation_settings", "ai_connections", "ai_auth_attempts", "attachment_cleanup",
     "note_revisions", "note_templates", "note_semantic_index", "note_passages", "chat_requests", "capture_requests",
     "agent_tokens", "agent_proposals", "agent_requests", "agent_activity",
-    "note_shares",
+    "note_shares", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_refresh_tokens", "oauth_rate_limits",
   ];
   const indexes = [
     "sessions_token_hash_uidx", "sessions_user_idx", "auth_login_failures_client_time_idx",
@@ -24,7 +24,7 @@ test("provides every persisted entity and declared SQLite index", () => {
     "note_templates_daily_default_uidx", "note_passages_model_idx", "chat_requests_thread_idx",
     "chat_requests_assistant_idx",
     "agent_proposals_status_idx", "agent_activity_time_idx",
-    "note_shares_note_idx",
+    "note_shares_note_idx", "oauth_grants_owner_idx", "oauth_refresh_grant_idx", "agent_tokens_grant_idx",
   ];
   // When
   const actualTables = db.all<{ name: string }>("SELECT name FROM sqlite_schema WHERE type='table'").map(row => row.name);

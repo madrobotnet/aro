@@ -65,7 +65,7 @@ export async function resetData(): Promise<void> {
       throw new UnsafeTestDatabaseError("The connected database does not match the configured test database.");
     }
     await client.query(
-      "TRUNCATE attachment_cleanup, ai_auth_attempts, ai_connections, installation_settings, chat_messages, chat_threads, attachments, unresolved_links, links, inbox_items, notes, note_templates, sessions, users, auth_login_failures RESTART IDENTITY CASCADE",
+      "TRUNCATE oauth_clients, oauth_rate_limits, attachment_cleanup, ai_auth_attempts, ai_connections, installation_settings, chat_messages, chat_threads, attachments, unresolved_links, links, inbox_items, notes, note_templates, sessions, users, auth_login_failures RESTART IDENTITY CASCADE",
     );
   } finally {
     client.release();

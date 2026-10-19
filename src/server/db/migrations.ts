@@ -6,6 +6,8 @@
  * (same table names: notes, inbox_items, links, attachments, chat_*, users, sessions).
  * Never edit a shipped migration; append a new one.
  */
+import { oauthClientsV1 } from "./oauth-migration";
+
 export type Migration = { id: string; sql: string };
 
 export const MIGRATIONS: readonly Migration[] = [
@@ -412,4 +414,5 @@ CREATE TRIGGER note_shares_inactive AFTER UPDATE OF deleted_at,status ON notes
 FOR EACH ROW EXECUTE FUNCTION revoke_inactive_note_shares();
 `,
   },
+  { id: "0015_oauth_clients", sql: oauthClientsV1 },
 ];
