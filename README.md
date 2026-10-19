@@ -87,6 +87,20 @@ The development checkout also includes operator-triggered, manifest-checked
 commands additionally require Node.js 22+ on the operator host. They do not add
 scheduled backups or restore into an existing installation.
 
+## Server mode and desktop mode
+
+| | Server mode | Desktop mode (experimental) |
+| --- | --- | --- |
+| Runs on | A server or always-on machine with Docker | Your own Linux, Windows or Mac computer, with Bun |
+| Storage | PostgreSQL in Docker, attachments in a volume | One SQLite file and an attachments folder in a private data directory |
+| Reach it from | Any device, including your phone, once you put it behind HTTPS | The same computer only (`127.0.0.1`) |
+| Local search models and chat CLI providers | Supported | Linux only |
+| Install | [Quick start](#quick-start) below | From a development checkout; see [Local SQLite runtime](docs/DESKTOP.md) |
+
+Server mode is the supported way to run Aro. Desktop mode is for keeping a
+notebook on one computer without Docker. The two do not sync; move notes between
+them with Markdown export and import.
+
 ## Quick start
 
 You need Docker and **Docker Compose 5.1.0 or newer**; check with
