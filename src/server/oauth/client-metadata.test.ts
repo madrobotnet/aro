@@ -20,6 +20,17 @@ test("client metadata is fetched over pinned HTTPS and exact document identity i
   })).rejects.toMatchObject({ code: "invalid_client" });
 });
 
+test("claude.ai's published metadata document with extra grant types and client_uri is accepted", async () => {
+  const live = { ...document, client_uri: "https://claude.ai", response_types: ["code"], token_endpoint_auth_method: "none",
+    grant_types: ["authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:jwt-bearer"] };
+  const client = await fetchClientMetadata(ID, { resolve: publicResolve, fetch: async () => Response.json(live) });
+  expect(client.name).toBe("Claude");
+  expect(JSON.parse(client.redirect_uris)).toEqual(live.redirect_uris);
+  await expect(fetchClientMetadata(ID, { resolve: publicResolve,
+    fetch: async () => Response.json({ ...live, grant_types: ["refresh_token"] }),
+  })).rejects.toMatchObject({ code: "invalid_client" });
+});
+
 test("private loopback link-local and mixed DNS destinations are rejected before fetching", async () => {
   let fetches = 0;
   const fetch = async () => { fetches++; return Response.json(document); };

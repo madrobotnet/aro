@@ -11,11 +11,15 @@ const RedirectUri = z.string().min(1).max(2048).refine(value => {
       (url.protocol === "https:" || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)));
   } catch { return false; }
 });
+const SUPPORTED_GRANTS = ["authorization_code", "refresh_token"] as const;
 export const RegistrationSchema = z.object({
   redirect_uris: z.array(RedirectUri).min(1).max(5),
   client_name: z.string().trim().min(1).max(100).default("MCP client"),
   token_endpoint_auth_method: z.enum(["none", "client_secret_basic", "client_secret_post"]).default("none"),
-  grant_types: z.array(z.enum(["authorization_code", "refresh_token"])).min(1).max(2)
+  // RFC 7591 lets the server drop grant types it does not support (claude.ai also lists jwt-bearer).
+  grant_types: z.array(z.string().min(1).max(200)).min(1).max(10)
+    .refine(types => types.includes("authorization_code"), "authorization_code is required")
+    .transform(types => SUPPORTED_GRANTS.filter(type => types.includes(type)))
     .default(["authorization_code", "refresh_token"]),
   response_types: z.array(z.literal("code")).length(1).default(["code"]),
 });
