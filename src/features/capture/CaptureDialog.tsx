@@ -89,6 +89,7 @@ export function CaptureDialog({ open, onOpenChange }: CaptureDialogProps) {
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      dismissible={!saving}
       title={copy.title}
       description={copy.description}
       initialFocusRef={textRef}
