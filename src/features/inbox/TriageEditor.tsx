@@ -7,10 +7,13 @@ import { useCopy, useLocale } from "@/components/i18n";
 import { Badge, Button, buttonClassName, Input, Kbd, TagBadge, Textarea } from "@/components/ui";
 import type { InboxItem } from "@/lib/types";
 import { INBOX_COPY } from "./inbox-copy";
-import { formatCreated, kindLabel, mergeTags, percent, stripUrlStatus, suggestionView, syncTriageDraft, urlStatus } from "./inbox-triage";
+import { formatCreated, kindLabel, mergeTags, percent, suggestionView, urlStatus } from "./inbox-triage";
+import type { TriageDraft } from "./triage-drafts";
 
 type EditorProps = {
   item: InboxItem;
+  draft: TriageDraft;
+  onDraftChange: (update: (current: TriageDraft) => TriageDraft) => void;
   titleRef: RefObject<HTMLInputElement | null>;
   busy: "promote" | "suggest" | null;
   onPromote: (item: InboxItem, draft: { title: string; body: string; tags: string[] }) => Promise<void>;
@@ -24,42 +27,27 @@ type EditorProps = {
 /** Secondary actions share a three-column row on phones, so they tighten their padding there. */
 const SECONDARY_ACTION = "max-sm:gap-1.5 max-sm:px-2";
 
-export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSnooze, onMerge, onSuggest }: EditorProps) {
+export function TriageEditor({ item, draft, onDraftChange, titleRef, busy, onPromote, onDiscard, onSnooze, onMerge, onSuggest }: EditorProps) {
   const { locale } = useLocale();
   const copy = useCopy(INBOX_COPY);
-  const incomingBody = stripUrlStatus(item.body);
-  const [edit, setEdit] = useState(() => ({
-    title: item.title,
-    body: incomingBody,
-    sourceTitle: item.title,
-    sourceBody: incomingBody,
-    titleDirty: false,
-    bodyDirty: false,
-  }));
-  const [manualTags, setManualTags] = useState("");
+  const { edit, manualTags, selectedTags } = draft;
   const [submitted, setSubmitted] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set());
   const suggestions = suggestionView(item.suggestions);
   const status = urlStatus(item.body);
   const tags = mergeTags(manualTags, selectedTags);
   const edited = edit.titleDirty || edit.bodyDirty;
 
-  // Background URL/suggestion refreshes may update the item. Adopt server text
-  // only while that field is pristine, so a late response never replaces typing.
-  if (edit.sourceTitle !== item.title || edit.sourceBody !== incomingBody) {
-    setEdit((current) => syncTriageDraft(current, item.title, incomingBody));
-  }
-
   const toggleTag = (tag: string) => {
-    setSelectedTags((current) => {
-      const next = new Set(current);
+    onDraftChange((current) => {
+      const next = new Set(current.selectedTags);
       if (next.has(tag)) next.delete(tag);
       else next.add(tag);
-      return next;
+      return { ...current, selectedTags: next };
     });
   };
 
   const onFormKeyDown = (event: ReactKeyboardEvent<HTMLFormElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       event.currentTarget.requestSubmit();
@@ -98,7 +86,7 @@ export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSno
           label={copy.editor.titleLabel}
           value={edit.title}
           error={submitted && !edit.title.trim() ? copy.editor.titleRequired : undefined}
-          onChange={(event) => setEdit((current) => ({ ...current, title: event.target.value, titleDirty: true }))}
+          onChange={(event) => onDraftChange((current) => ({ ...current, edit: { ...current.edit, title: event.target.value, titleDirty: true } }))}
           disabled={busy !== null}
           required
         />
@@ -106,7 +94,7 @@ export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSno
           label={copy.editor.bodyLabel}
           rows={11}
           value={edit.body}
-          onChange={(event) => setEdit((current) => ({ ...current, body: event.target.value, bodyDirty: true }))}
+          onChange={(event) => onDraftChange((current) => ({ ...current, edit: { ...current.edit, body: event.target.value, bodyDirty: true } }))}
           disabled={busy !== null}
           className="min-h-52"
         />
@@ -117,7 +105,7 @@ export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSno
           </div>
         ) : null}
 
-        <section aria-labelledby={`suggestions-${item.id}`} className="rounded-card border border-line bg-desk/60 p-4">
+        <section aria-labelledby={`suggestions-${item.id}`} className="border-t border-line pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h2 id={`suggestions-${item.id}`} className="flex items-center gap-2 text-sm font-semibold">
@@ -150,7 +138,7 @@ export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSno
                         type="button"
                         aria-pressed={checked}
                         onClick={() => toggleTag(tag)}
-                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-ctl border px-2.5 text-sm focus-ring ${checked ? "border-accent bg-accent-soft text-accent" : "border-line bg-card text-ink"}`}
+                        className={`control-target inline-flex min-h-touch items-center gap-1.5 rounded-ctl border px-2.5 text-sm focus-ring lg:min-h-9 ${checked ? "border-line-strong bg-canvas font-medium text-ink" : "border-line bg-card text-ink"}`}
                       >
                         {checked ? <Check aria-hidden className="size-3.5" /> : null}#{tag} <span className="text-xs text-mute">{percent(probability)}</span>
                       </button>
@@ -175,7 +163,7 @@ export function TriageEditor({ item, titleRef, busy, onPromote, onDiscard, onSno
           ) : null}
         </section>
 
-        <Input label={copy.editor.tagsLabel} value={manualTags} onChange={(event) => setManualTags(event.target.value)} placeholder={copy.editor.tagsPlaceholder} disabled={busy !== null} />
+        <Input label={copy.editor.tagsLabel} value={manualTags} onChange={(event) => onDraftChange((current) => ({ ...current, manualTags: event.target.value }))} placeholder={copy.editor.tagsPlaceholder} disabled={busy !== null} />
         {tags.length ? <div className="flex flex-wrap gap-1.5" aria-label={copy.editor.appliedTags}>{tags.map((tag) => <TagBadge key={tag} tag={tag} />)}</div> : null}
       </div>
 

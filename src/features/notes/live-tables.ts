@@ -85,7 +85,9 @@ const tableField = StateField.define<{ readonly windows: readonly LiveWindow[]; 
   provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
 });
 
-const viewport = ViewPlugin.fromClass(class {
+export class LiveTableViewport {
+  private pending = false;
+  private destroyed = false;
   constructor(view: EditorView) { this.measure(view); }
   update(update: ViewUpdate) {
     if (update.viewportChanged || update.docChanged || update.transactions.some((tr) => tr.effects.some((effect) => effect.is(compositionSettled)))) this.measure(update.view);
@@ -94,13 +96,24 @@ const viewport = ViewPlugin.fromClass(class {
     view.requestMeasure({
       key: this,
       read(current) { return liveWindows(current.state, current.visibleRanges); },
-      write(windows, current) {
-        if (isComposing(current)) return;
-        if (JSON.stringify(windows) !== JSON.stringify(current.state.field(tableField).windows)) current.dispatch({ effects: tableWindows.of(windows) });
+      write: (_windows, current) => {
+        if (this.pending || this.destroyed) return;
+        this.pending = true;
+        // requestMeasure.write still holds EditorView's update lock. A microtask
+        // runs after that complete measurement, coalescing writes without keeping
+        // a stale window or transaction across document/viewport changes.
+        queueMicrotask(() => {
+          this.pending = false;
+          if (this.destroyed || isComposing(current) || current.state.field(compositionActive, false)) return;
+          const windows = liveWindows(current.state, current.visibleRanges);
+          if (JSON.stringify(windows) !== JSON.stringify(current.state.field(tableField).windows)) current.dispatch({ effects: tableWindows.of(windows) });
+        });
       },
     });
   }
-});
+  destroy() { this.destroyed = true; }
+}
+const viewport = ViewPlugin.fromClass(LiveTableViewport);
 
 const tableTheme = EditorView.baseTheme({
   ".cm-live-table": { maxWidth: "100%", overflowX: "auto", padding: "0.5rem 0" },

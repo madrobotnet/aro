@@ -12,7 +12,7 @@ import type { InboxItem } from "@/lib/types";
 import { INBOX_COPY } from "./inbox-copy";
 import { INBOX_LATER_KEY, type InboxListData } from "./inbox-triage";
 
-export function LaterList({ onBringBack }: { onBringBack: (item: InboxItem) => Promise<void> }) {
+export function LaterList({ onBringBack }: { onBringBack: (item: InboxItem) => Promise<boolean> }) {
   const copy = useCopy(INBOX_COPY);
   const { locale } = useLocale();
   const { data, error, isLoading, mutate } = useSWR<InboxListData>(INBOX_LATER_KEY, fetcher, { revalidateOnFocus: true, shouldRetryOnError: false });

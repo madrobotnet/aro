@@ -72,7 +72,7 @@ export function DailyLauncher({ target = { kind: "today" } }: { target?: DailyTa
           icon={CalendarDays}
           title={busy ? copy.opening : copy.openFailed}
           description={failure ? localizedApiError(failure.error, locale, copy.openFailedDetail) : invalid ? invalidCopy : copy.preparing}
-          action={!busy ? <div className="flex w-full flex-col gap-2 sm:flex-row"><Input aria-label={copy.date} type="date" value={date} onChange={(event) => setPicked(event.target.value)} /><Button variant="primary" disabled={!date} onClick={() => void open(date)}>{copy.open}</Button></div> : undefined}
+          action={!busy ? <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end"><Input label={copy.date} type="date" value={date} onChange={(event) => setPicked(event.target.value)} /><Button variant="primary" disabled={!date} onClick={() => void open(date)}>{copy.open}</Button></div> : undefined}
         />
       </div>
     </section>

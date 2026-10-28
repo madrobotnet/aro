@@ -4,6 +4,7 @@ import { LOCALES } from "@/lib/i18n/locale";
 import { URL_FAILED_MARKER, URL_PENDING_MARKER } from "@/lib/inbox-url-status";
 import type { InboxItem } from "@/lib/types";
 import { INBOX_COPY } from "./inbox-copy";
+import { triageDraft } from "./triage-drafts";
 import {
   applyInboxChange,
   excerpt,
@@ -46,6 +47,22 @@ const item = (id: string, over: Partial<InboxItem> = {}): InboxItem => ({
   suggestions: null,
   snoozedUntil: null,
   ...over,
+});
+
+test("triage source refresh retains dirty body and tag choices while updating a pristine title", () => {
+  const capture = item("a");
+  const initial = triageDraft(capture);
+  const edited = {
+    ...initial, edit: { ...initial.edit, body: "한글 draft", bodyDirty: true },
+    manualTags: "#Idea, 학습", selectedTags: new Set(["Reference"]),
+  };
+
+  const refreshed = triageDraft({ ...capture, title: "Refreshed title", body: "Enriched source" }, edited);
+
+  expect(refreshed.edit).toMatchObject({
+    title: "Refreshed title", body: "한글 draft", sourceBody: "Enriched source", bodyDirty: true, titleDirty: false,
+  });
+  expect(mergeTags(refreshed.manualTags, refreshed.selectedTags)).toEqual(["idea", "학습", "reference"]);
 });
 
 describe("resolveTriageKey", () => {

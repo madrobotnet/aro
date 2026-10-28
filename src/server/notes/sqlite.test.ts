@@ -16,6 +16,7 @@ import {
 } from "./service";
 import { createSQLiteNote, pruneSQLiteRevisions, purgeSQLiteNote, updateSQLiteNote } from "./sqlite";
 import { emptyTrash, purgeExpired, runNoteMaintenance } from "./trash";
+import { findNoteReference } from "./reference";
 
 const original = {
   ARO_DATABASE_MODE: process.env.ARO_DATABASE_MODE,
@@ -42,6 +43,45 @@ afterEach(async () => {
 });
 const filePath = (key: string): string => path.join(directory, "attachments", key);
 const old = (days: number): string => sqliteTimestamp(new Date(Date.now() - days * 86400_000));
+
+test("read-only references preserve Unicode normalization, archived aliases and oldest ordering", async () => {
+  const older = await createNote({ title: "ÉTUDE  계획" });
+  const newer = await createNote({ title: "old name" });
+  await updateNote(older.id, { archived: true, aliases: ["Old  Name"] });
+  store.run("UPDATE notes SET created_at=? WHERE id=?", ["2026-01-01T00:00:00.000000Z", older.id]);
+  store.run("UPDATE notes SET created_at=? WHERE id=?", ["2026-01-02T00:00:00.000000Z", newer.id]);
+  const before = store.all("SELECT id FROM notes ORDER BY id");
+
+  const results = await Promise.all([" étude   계획 ", " OLD\tNAME ", "Missing"].map(findNoteReference));
+
+  expect(results).toEqual([{ id: older.id, title: older.title }, { id: older.id, title: older.title }, null]);
+  expect(store.all("SELECT id FROM notes ORDER BY id")).toEqual(before);
+});
+
+test("read-only references use SQLite id tie-break when creation times match", async () => {
+  const a = await createNote({ title: "A" });
+  const b = await createNote({ title: "B" });
+  await updateNote(a.id, { aliases: ["Shared"] });
+  await updateNote(b.id, { aliases: ["Shared"] });
+  store.run("UPDATE notes SET created_at=?", ["2026-01-01T00:00:00.000000Z"]);
+  const expected = [a, b].sort((left, right) => left.id.localeCompare(right.id))[0];
+  if (!expected) throw new Error("Missing fixture");
+  const result = await findNoteReference("SHARED");
+
+  expect(result).toEqual({ id: expected.id, title: expected.title });
+  expect(store.all("SELECT id FROM notes")).toHaveLength(2);
+});
+
+test("read-only references exclude trashed titles and aliases without creating replacements", async () => {
+  const note = await createNote({ title: "Trashed" });
+  await updateNote(note.id, { aliases: ["Hidden"] });
+  await trashNote(note.id);
+
+  const results = await Promise.all(["Trashed", "Hidden"].map(findNoteReference));
+
+  expect(results).toEqual([null, null]);
+  expect(store.all("SELECT id FROM notes")).toHaveLength(1);
+});
 
 test("native CRUD normalizes UUIDs, titles, tags, aliases and persists through reopen", async () => {
   const note = await createNote({ body: "body #생각", tags: ["Work", "생각"], sourceUrl: "https://example.test" });

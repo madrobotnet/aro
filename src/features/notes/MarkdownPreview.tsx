@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type HTMLAttributes } from "react";
 import ReactMarkdown, { type Components, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -11,7 +11,7 @@ import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
 import { parseTasks, type TaskItem, type TaskToggle } from "@/lib/tasks";
-import type { Note, NoteRef } from "@/lib/types";
+import type { Note } from "@/lib/types";
 import { NOTES_COPY } from "./copy";
 import { PREVIEW_TASK_COPY } from "./daily-copy";
 import { expandWikiLinks, wikiTitleFromHref } from "./markdown";
@@ -143,8 +143,6 @@ export function MarkdownPreview({ body, tasks, source, inEditor = false }: {
   source?: { readonly line: number; readonly updatedAt: string };
   readonly inEditor?: boolean;
 }) {
-  const router = useRouter();
-  const { toast } = useToast();
   const copy = useCopy(NOTES_COPY);
   const taskControls = useTaskControls(body, tasks);
   const preview = useRef<HTMLDivElement>(null);
@@ -185,18 +183,7 @@ export function MarkdownPreview({ body, tasks, source, inEditor = false }: {
               const title = wikiTitleFromHref(href ?? "");
               if (title !== null) {
                 return (
-                  <a
-                    href={href}
-                    {...props}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      void api<{ note: NoteRef }>("/api/notes/by-title", { method: "POST", json: { title } })
-                        .then(({ note }) => router.push(`/notes/${note.id}`))
-                        .catch((error: unknown) => toast(textInEveryLocale((locale) => localizedApiError(error, locale, NOTES_COPY[locale].openLinkFailed)), { tone: "danger" }));
-                    }}
-                  >
-                    {children}
-                  </a>
+                  <Link href={href ?? ""} {...props}>{children}</Link>
                 );
               }
               return <a href={href} rel="noreferrer noopener" target={href?.startsWith("http") ? "_blank" : undefined} {...props}>{children}</a>;

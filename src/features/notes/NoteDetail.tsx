@@ -1,20 +1,20 @@
 "use client";
 
-import { Archive, Check, History, LoaderCircle, Pin, RotateCcw, Trash2, Tags } from "lucide-react";
-import Link from "next/link";
+import { Archive, History, Pin, Trash2, Tags } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useCopy, useLocale } from "@/components/i18n";
-import { Button, cn, EmptyState, Input, Sheet, SkeletonLines, useToast } from "@/components/ui";
+import { DocumentTitle } from "@/components/i18n/DocumentTitle";
+import { Button, cn, EmptyState, Sheet, SkeletonLines, useToast } from "@/components/ui";
 import { sourceEvidence } from "@/features/search/source-passage";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
 import { textInEveryLocale } from "@/lib/i18n/copy";
-import { formatDate, formatDateTime } from "@/lib/i18n/format-date";
+import { formatDateTime } from "@/lib/i18n/format-date";
 import type { TaskToggle } from "@/lib/tasks";
 import type { Note, NoteLinks } from "@/lib/types";
-import { DailyNav } from "./DailyNav";
+import { NoteHeader } from "./NoteHeader";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { NoteConnections } from "./NoteConnections";
@@ -29,7 +29,8 @@ import { displayNoteTitle } from "./display-title";
 import { EDITOR_HEADER_COPY } from "./editor-header-copy";
 import { NoteMoreMenu } from "./NoteMoreMenu";
 import { TagEditor } from "./TagEditor";
-import { mergeCommaItems } from "./comma-items";
+import { AliasField } from "./AliasField";
+import { TrashedNote } from "./TrashedNote";
 import { LIVE_EDITOR_COPY } from "./live-editor-copy";
 import { readRawMode, subscribeRawMode, writeRawMode } from "./raw-mode";
 
@@ -126,7 +127,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
       router.push("/notes?view=trash");
       const id = note.id;
       toast(textInEveryLocale((locale) => NOTES_COPY[locale].detail.trashed), {
-        action: { label: textInEveryLocale((locale) => NOTES_COPY[locale].detail.undo), onClick: () => void undoTrash(id) },
+        action: { label: textInEveryLocale((locale) => NOTES_COPY[locale].detail.undo), onClick: () => undoTrash(id) },
       });
     } catch (error) { toast(textInEveryLocale((locale) => localizedApiError(error, locale, NOTES_COPY[locale].detail.trashFailed)), { tone: "danger" }); }
     finally { setActionBusy(false); }
@@ -139,7 +140,11 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
       await mutateAll(`/api/notes/${id}`, { note: restored }, { revalidate: false });
       await refreshLists();
       router.push(`/notes/${id}`);
-    } catch (error) { toast(textInEveryLocale((locale) => localizedApiError(error, locale, NOTES_COPY[locale].detail.restoreFailed)), { tone: "danger" }); }
+      return true;
+    } catch (error) {
+      toast(textInEveryLocale((locale) => localizedApiError(error, locale, NOTES_COPY[locale].detail.restoreFailed)), { tone: "danger" });
+      return false;
+    }
   };
   const restoreRevision = async (revisionId: string): Promise<RestoreOutcome> => {
     // Settle the draft first so no autosave lands after the restore and overwrites it.
@@ -186,42 +191,24 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
     }}>{value === "raw" ? liveCopy.raw : copy.detail[value]}</button>
   ))}</div>;
 
-  if (note.deletedAt) {
-    const purgeDate = note.purgeAt ? formatDate(note.purgeAt, locale) : "";
-    return (
-      <section className="min-w-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
-        <div className="mx-auto max-w-3xl">
-          <Link href="/notes?view=trash" className="inline-flex min-h-touch items-center text-sm text-accent sm:min-h-0">{copy.detail.backToTrash}</Link>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">{displayNoteTitle(note, locale)}</h1>
-          <div className="mt-4 rounded-card border border-line bg-warn-soft px-4 py-3">
-            <div className="flex items-start gap-3">
-              <Trash2 aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
-              <div className="min-w-0">
-                <p className="font-medium text-ink">{copy.detail.trashedTitle}</p>
-                <p className="mt-0.5 text-sm text-ink">{purgeDate ? <>{copy.detail.purgeOn(purgeDate)} </> : null}{copy.detail.trashedDescription}</p>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 sm:pl-8">
-              <Button variant="primary" className="min-h-touch sm:min-h-0" loading={actionBusy} leading={<RotateCcw aria-hidden className="size-4" />} onClick={() => void restore()}>{copy.detail.restore}</Button>
-              <Button className="min-h-touch sm:min-h-0" disabled={actionBusy} leading={<History aria-hidden className="size-4" />} onClick={() => setHistoryOpen(true)}>{copy.history.open}</Button>
-              <Button variant="danger" className="min-h-touch sm:min-h-0" disabled={actionBusy} onClick={() => setPurgeOpen(true)}>{copy.detail.purge}</Button>
-            </div>
-          </div>
-        </div>
-        {history}
-        <PurgeNoteDialog noteId={note.id} open={purgeOpen} onOpenChange={setPurgeOpen} />
-      </section>
-    );
-  }
+  if (note.deletedAt) return (
+    <TrashedNote
+      note={note}
+      busy={actionBusy}
+      onRestore={restore}
+      onHistory={() => setHistoryOpen(true)}
+      onPurge={() => setPurgeOpen(true)}
+    >
+      {history}
+      <PurgeNoteDialog noteId={note.id} open={purgeOpen} onOpenChange={setPurgeOpen} />
+    </TrashedNote>
+  );
 
   return (
     <section className="relative min-w-0 flex-1 overflow-y-auto bg-card pb-36 scrollbar-thin">
-      <div className="py-2 sm:px-4">
-        <div className="flex min-w-0 flex-wrap items-center lg:gap-1">
-          <Link href="/notes" aria-label={copy.detail.backToList} title={copy.detail.backToList} className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center text-sm text-mute hover:text-ink lg:hidden"><span aria-hidden>←</span></Link>
-          {note.dailyDate ? <DailyNav date={note.dailyDate} /> : null}
-          {snapshot.state !== "failed" ? <SaveIndicator state={snapshot.state} version={snapshot.version} error={snapshot.error} retry={() => void controller.retry()} compact={Boolean(note.dailyDate)} /> : null}
-          <div className={cn("ml-auto", note.dailyDate && "max-sm:order-last max-sm:mt-1 max-sm:flex max-sm:w-full max-sm:justify-end")}>{modeControl}</div>
+      <DocumentTitle title={displayNoteTitle({ title: snapshot.title, dailyDate: note.dailyDate }, locale)} />
+      <h1 className="sr-only">{displayNoteTitle({ title: snapshot.title, dailyDate: note.dailyDate }, locale)}</h1>
+      <NoteHeader date={note.dailyDate} state={snapshot.state} version={snapshot.version} error={snapshot.error} retry={() => void controller.retry()} modeControl={modeControl}>
           <Button variant="ghost" iconOnly className={cn("min-h-touch min-w-touch", note.dailyDate && "max-sm:ml-auto")} aria-label={copy.detail.pin} title={copy.detail.pin} aria-pressed={note.pinned} disabled={actionBusy} onClick={() => void patchFlag({ pinned: !note.pinned })}><Pin aria-hidden className={note.pinned ? "size-4 fill-current text-accent" : "size-4"} /></Button>
           {!note.archived ? <ShareNoteDialog noteId={note.id} beforeCreate={() => controller.flush()} /> : null}
           <NoteMoreMenu disabled={actionBusy} actions={[
@@ -230,9 +217,7 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
             { label: copy.detail.aliases, icon: <Tags aria-hidden className="size-4" />, run: () => setAliasesOpen(true) },
             { label: copy.detail.moveToTrash, icon: <Trash2 aria-hidden className="size-4" />, danger: true, run: () => void trash() },
           ]} />
-        </div>
-        {snapshot.state === "failed" ? <SaveIndicator state={snapshot.state} version={snapshot.version} error={snapshot.error} retry={() => void controller.retry()} /> : null}
-      </div>
+      </NoteHeader>
       <div className="mx-auto max-w-3xl px-4 pt-3 sm:px-8 lg:pt-6">
         <input aria-label={copy.detail.titleLabel} placeholder={copy.detail.titleLabel}
           className="w-full min-w-0 rounded-ctl border border-transparent bg-transparent px-1 py-2 text-2xl font-semibold tracking-tight text-ink placeholder:text-mute hover:border-line focus:outline-none focus:shadow-[inset_0_-2px_0_var(--focus)]"
@@ -271,38 +256,8 @@ function LoadedNote({ note, checking, refresh }: { note: Note; checking: boolean
       </div>
       {history}
       <Sheet open={aliasesOpen} onOpenChange={setAliasesOpen} title={copy.detail.aliases} bodyClassName="px-4 py-3">
-        <CommaField key={restoreEpoch} label={copy.detail.aliases} defaultValue={snapshot.aliases.join(", ")} placeholder={copy.detail.aliasesPlaceholder} onCommit={(aliases) => controller.update({ aliases })} />
+        <AliasField key={restoreEpoch} label={copy.detail.aliases} defaultValue={snapshot.aliases.join(", ")} placeholder={copy.detail.aliasesPlaceholder} onCommit={(aliases) => controller.update({ aliases })} />
       </Sheet>
     </section>
   );
-}
-
-function CommaField({ label, defaultValue, placeholder, onCommit }: { label: string; defaultValue: string; placeholder: string; onCommit: (items: string[]) => void }) {
-  const [draft, setDraft] = useState({ base: defaultValue, value: defaultValue });
-  if (draft.base !== defaultValue && draft.value === draft.base) {
-    setDraft({ base: defaultValue, value: defaultValue });
-  }
-  return <Input label={label} value={draft.value} placeholder={placeholder}
-    onChange={(event) => setDraft({ ...draft, value: event.target.value })} onBlur={(event) => {
-    const values = mergeCommaItems(event.target.value, draft.base, defaultValue);
-    setDraft({ base: values.join(", "), value: values.join(", ") });
-    if (values.join(", ") !== defaultValue) onCommit(values);
-  }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />;
-}
-
-function SaveIndicator({ state, version, error, retry, compact = false }: { state: string; version: number; error: unknown; retry: () => void; compact?: boolean }) {
-  const { locale } = useLocale();
-  const copy = useCopy(NOTES_COPY);
-  if (state === "failed") return <div role="alert" data-save-state={state} data-save-version={version} className="order-last w-full rounded-ctl border border-danger/30 bg-danger-soft px-3 py-2 text-sm">
-    <div className="flex items-center justify-between gap-2"><span className="font-medium text-danger">{copy.detail.saveFailed}</span><Button size="sm" className="min-h-touch sm:min-h-0" variant="ghost" onClick={retry}>{copy.retry}</Button></div>
-    <p>{localizedApiError(error, locale, copy.detail.saveFailedDetail)}</p>
-  </div>;
-  const saving = state === "saving" || state === "dirty";
-  // One live region whose text changes, so screen readers hear each save state.
-  return <span role="status" data-save-state={state} data-save-version={version} aria-label={saving ? copy.detail.saving : copy.detail.saved} title={saving ? copy.detail.saving : copy.detail.saved}
-    className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs", saving ? "text-warn" : "text-mute")}>
-    {saving ? <LoaderCircle aria-hidden className="size-3.5 animate-spin" /> : <Check aria-hidden className="size-3.5" />}
-    {/* A daily note's header also holds the date control, so on phones the state is its icon. */}
-    <span className={compact ? "sr-only sm:not-sr-only" : "max-[430px]:sr-only"}>{saving ? copy.detail.saving : copy.detail.saved}</span>
-  </span>;
 }

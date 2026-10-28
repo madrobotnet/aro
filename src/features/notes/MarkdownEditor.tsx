@@ -130,10 +130,11 @@ export function MarkdownEditor({ noteId, value, onChange, onAppend, raw = false 
       ".cm-scroller": { fontFamily: "var(--font-sans)", fontSize: "var(--text-read-size)", lineHeight: "var(--text-read-leading)" },
       // lineWrapping resets word-break; restore the global Korean rule so words never split mid-syllable.
       ".cm-content, .cm-lineWrapping": { wordBreak: "keep-all", overflowWrap: "anywhere" },
-      ".cm-content": { minHeight: "24rem", padding: "1rem 0 6rem", caretColor: "var(--accent)" },
-      ".cm-line": { padding: "0" },
-      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
-      "&.cm-focused": { outline: "none" },
+      ".cm-content": { minHeight: "24rem", padding: "1rem 0 6rem", caretColor: "var(--focus)" },
+      // Keep the drawn caret's negative margin inside the scroller at the start of a line.
+      ".cm-line": { padding: "0 0.25rem" },
+      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--focus)", borderLeftWidth: "2px" },
+      "&.cm-focused": { outline: "1px solid var(--mute)", outlineOffset: "2px", backgroundColor: "var(--desk)" },
     })),
   ], []);
   // The link is already in the body; get-or-create never duplicates a note the title list did not show (archived).
