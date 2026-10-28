@@ -7,15 +7,11 @@ import {
   type JevConnectionView,
   type JevProvider,
 } from "@/lib/ai-settings";
-import {
-  BaseUrlSchema,
-  ExtraHeadersSchema,
-  ModelSchema,
-} from "@/lib/ai-provider-options";
+import { ModelSchema } from "@/lib/ai-provider-options";
 import { isCustomProvider } from "@/lib/ai-providers";
 import { chatAuthModels, JEV_AUTH_MODELS } from "@/lib/ai-model-catalog";
 import { isSelectableAuthModel, savedModelFor } from "./model-choice";
-import type { ConnectionErrorKey } from "./ai-copy";
+import { parseChatApiOptions } from "./connection-api-options";
 import type {
   BuildConnectionResult,
   ChatFormState,
@@ -121,43 +117,6 @@ function parseModel(model: string, errors: ConnectionErrors): string | null {
   return result.data;
 }
 
-function isUrl(value: string): boolean {
-  try {
-    return new URL(value).href.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/** Reason for a rejected base URL, from the schema's issue code and the value (never its message text). */
-function baseUrlError(value: string, issueCode: string | undefined): ConnectionErrorKey {
-  if (!value.trim()) return "baseUrlRequired";
-  if (issueCode === "too_big") return "baseUrlTooLong";
-  return isUrl(value.trim()) ? "baseUrlUnsafe" : "baseUrlInvalid";
-}
-
-function parseHeaders(value: string, errors: ConnectionErrors): Record<string, string> | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    errors.headers = "headersNotObject";
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    errors.headers = "headersNotObject";
-    return null;
-  }
-  const result = ExtraHeadersSchema.safeParse(parsed);
-  if (!result.success) {
-    const issue = result.error.issues[0];
-    // Custom issues are the schema's own rules: the header count (whole object) or a reserved/duplicate name.
-    errors.headers = issue?.code !== "custom" ? "headersInvalid" : issue.path.length === 0 ? "headersTooMany" : "headersReserved";
-    return null;
-  }
-  return result.data;
-}
-
 export function buildChatConnection(
   state: ChatFormState,
   saved: ChatConnectionView | null,
@@ -195,30 +154,7 @@ export function buildChatConnection(
     };
   }
 
-  const custom = isCustomProvider(state.provider);
-  const baseResult = custom ? BaseUrlSchema.safeParse(state.baseUrl) : null;
-  if (custom && !baseResult?.success) {
-    errors.baseUrl = baseUrlError(state.baseUrl, baseResult?.error.issues[0]?.code);
-  }
-  const baseUrl = baseResult?.success ? baseResult.data : undefined;
-  const unchanged = saved?.mode === "api"
-    && saved.provider === state.provider
-    && (saved.baseUrl ?? "") === (baseUrl ?? "");
-  const apiKey = state.apiKey.trim();
-  if (!apiKey && !state.keyless && !(unchanged && saved?.hasApiKey)) {
-    errors.apiKey = custom ? "apiKeyOrKeyless" : "apiKeyRequired";
-  }
-  let headers: Record<string, string> | undefined;
-  if (custom && state.headerAction === "clear") headers = {};
-  if (custom && state.headerAction === "replace") {
-    const parsed = parseHeaders(state.headersJson, errors);
-    if (parsed) headers = parsed;
-  }
-  const maxText = state.maxOutputTokens.trim();
-  const maxOutputTokens = maxText ? Number(maxText) : undefined;
-  if (maxOutputTokens !== undefined && (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 128_000)) {
-    errors.maxOutputTokens = "maxOutputTokensRange";
-  }
+  const options = parseChatApiOptions(state, saved, errors);
   if (Object.keys(errors).length > 0 || !model) return { ok: false, errors };
   return {
     ok: true,
@@ -226,11 +162,7 @@ export function buildChatConnection(
       mode: "api",
       provider: state.provider,
       model,
-      ...(apiKey ? { apiKey } : state.keyless && custom ? { apiKey: "" } : {}),
-      ...(baseUrl ? { baseUrl } : {}),
-      ...(custom || state.provider === "github-copilot" ? { apiFormat: state.apiFormat } : {}),
-      ...(headers !== undefined ? { headers } : {}),
-      ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+      ...options,
     },
   };
 }

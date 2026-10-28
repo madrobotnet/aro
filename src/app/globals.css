@@ -25,6 +25,8 @@
   --mute: #68615b;
   --line: #e4dccf;
   --line-strong: #d3c9b8;
+  /* Interactive boundaries, not decorative card dividers (at least 3:1 on canvas/desk/card). */
+  --control-boundary: #8a7d6d;
   --accent: #a24518;
   --accent-ink: #fffcf7;
   --accent-soft: #f6e3d6;
@@ -33,6 +35,7 @@
   --rail-mute: #9c948a;
   --rail-line: #3a352f;
   --rail-hover: #37322c;
+  --rail-pressed: #494138;
   /* Active rail icon; the rail stays dark in both themes, so the light accent is too dim there. */
   --rail-accent: #e07a45;
   --ok: #356d42;
@@ -74,6 +77,7 @@
   --mute: #a8a29e;
   --line: #35302b;
   --line-strong: #47413a;
+  --control-boundary: #8b7f73;
   --accent: #e07a45;
   --accent-ink: #1c1917;
   --accent-soft: #3a2519;
@@ -82,6 +86,7 @@
   --rail-mute: #8a837a;
   --rail-line: #26221f;
   --rail-hover: #1d1a17;
+  --rail-pressed: #302a25;
   --rail-accent: #e07a45;
   --ok: #7fb98c;
   --ok-soft: #1f2e22;
@@ -158,6 +163,7 @@
   --color-mute: var(--mute);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-control-boundary: var(--control-boundary);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
@@ -166,6 +172,7 @@
   --color-rail-mute: var(--rail-mute);
   --color-rail-line: var(--rail-line);
   --color-rail-hover: var(--rail-hover);
+  --color-rail-pressed: var(--rail-pressed);
   --color-rail-accent: var(--rail-accent);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
@@ -209,6 +216,7 @@
   --text-3xl--line-height: 2.5rem;
 
   --radius-ctl: 8px;
+  --radius-keycap: 5px;
   --radius-card: 10px;
   --radius-pill: 999px;
 
@@ -307,9 +315,6 @@
     *,
     *::before,
     *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
   }
@@ -343,6 +348,14 @@
   &:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+}
+
+/* Grow the actual box, not a hit-area overlay that can overlap its neighbor. */
+@utility control-target {
+  @media (pointer: coarse), (max-width: 639px) {
+    min-width: var(--spacing-touch);
+    min-height: var(--spacing-touch);
   }
 }
 
@@ -431,10 +444,10 @@
 
 @keyframes sb-shimmer {
   from {
-    background-position: 200% 0;
+    transform: translateX(-100%);
   }
   to {
-    background-position: -200% 0;
+    transform: translateX(100%);
   }
 }
 
@@ -448,6 +461,26 @@ dialog[open]::backdrop {
 
 dialog[open][data-sheet] {
   animation: sb-sheet-up 200ms var(--ease-out-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[open],
+  dialog[open][data-sheet] {
+    animation: sb-fade-in 160ms ease-out;
+  }
+
+  /* Keep loading perceivable without continuous rotation. Opacity pulses,
+     color feedback and the editor's own caret animation keep their timing. */
+  .animate-spin {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Only layout and positional transitions lose motion, not state feedback. */
+  [class~="transition-[padding]"],
+  [class~="transition-[width]"],
+  .transition-transform {
+    transition-property: none;
+  }
 }
 
 /* cmdk: hide the group heading when it has no visible items */

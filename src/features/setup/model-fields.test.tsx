@@ -7,6 +7,7 @@ import { AI_COPY } from "./ai-copy";
 import { AiAuthPanel } from "./AiAuthPanel";
 import { AuthModelSelect } from "./AuthModelSelect";
 import { ChatAiFields } from "./ChatAiFields";
+import { ChatAuthFields } from "./ChatAuthFields";
 import { ChatModelField } from "./ChatApiFields";
 import { JevAiFields } from "./JevAiFields";
 import { emptyAiForm, type ChatFormState, type JevFormState } from "./ai-form";
@@ -27,6 +28,9 @@ function findAll(node: ReactNode, match: (element: AnyElement) => boolean): AnyE
     if (!isValidElement<Record<string, unknown>>(value)) return;
     if (match(value)) found.push(value);
     visit(value.props.children as ReactNode);
+    if (value.type === ChatAuthFields && isValidElement<Parameters<typeof ChatAuthFields>[0]>(value)) {
+      visit(captureTree(ChatAuthFields, value.props));
+    }
   };
   visit(node);
   return found;

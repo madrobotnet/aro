@@ -119,6 +119,7 @@ export function JevAiFields({
                   });
                 }}
                 aria-invalid={errors["jev.provider"] ? true : undefined}
+                aria-describedby={errors["jev.provider"] ? `${idPrefix}-jev-provider-error` : undefined}
                 className={cn(inputClassName, "pr-8")}
               >
                 {JEV_PROVIDERS.map((provider) => <option key={provider.id} value={provider.id}>{copy.providers[provider.id]}</option>)}

@@ -23,7 +23,7 @@ export function Badge({ tone = "neutral", count, className, children, ...rest }:
     return (
       <span
         className={cn(
-          "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-pill px-1.5 text-2xs font-semibold tabular-nums leading-none",
+          "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-pill px-1.5 text-xs font-semibold tabular-nums leading-none",
           TONE[tone],
           className,
         )}

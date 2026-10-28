@@ -39,7 +39,7 @@ export default async function ConsentPage({ searchParams }: {
       <section className="w-full max-w-lg surface-card p-6 sm:p-8">
         <h1 className="text-xl font-semibold">{copy.invalid}</h1>
         <p className="mt-3 text-sm text-mute" role="alert">{copy.invalidHelp}</p>
-        <Link className="mt-6 inline-block text-accent underline" href="/">{copy.home}</Link>
+        <Link className="control-target focus-ring mt-6 inline-flex h-9 items-center rounded-ctl px-2 text-accent underline" href="/">{copy.home}</Link>
       </section>
     </main>;
   }

@@ -55,7 +55,7 @@ export function AuthCodeField({
           aria-describedby={error ? `${id}-error` : `${id}-hint`}
           onChange={(event) => onChangeAction(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+            if (event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
             // Implicit submission would send the surrounding setup or connection form instead.
             event.preventDefault();
             onSubmitAction();

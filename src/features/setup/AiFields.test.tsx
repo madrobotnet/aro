@@ -4,6 +4,7 @@ import { AiFields } from "./AiFields";
 import { ChatAiFields } from "./ChatAiFields";
 import { JevAiFields } from "./JevAiFields";
 import { emptyAiForm, type AiFormState } from "./ai-form";
+import { renderInLocale } from "./test-locale";
 
 test("keeps both Auth completions queued before the next form render", () => {
   const base = emptyAiForm();
@@ -34,4 +35,19 @@ test("keeps both Auth completions queued before the next form render", () => {
   );
   expect(result.chat.authAttemptId).toBe(chatId);
   expect(result.jev.authAttemptId).toBe(jevId);
+});
+
+test("associates the Jev provider error with its invalid select when validation fails", () => {
+  // Given
+  const value = { ...emptyAiForm().jev, enabled: true };
+
+  // When
+  const markup = renderInLocale(
+    <JevAiFields value={value} onChangeAction={() => {}} disabled={false} saved={null}
+      errors={{ "jev.provider": "typesafeApiKeyOnly" }} idPrefix="qa" />,
+  );
+
+  // Then
+  expect(markup).toMatch(/<select id="qa-jev-provider"[^>]*aria-invalid="true"[^>]*aria-describedby="qa-jev-provider-error"/);
+  expect(markup).toContain('id="qa-jev-provider-error" role="alert"');
 });

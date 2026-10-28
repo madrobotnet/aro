@@ -6,8 +6,8 @@ export type KbdVariant = "default" | "onAccent" | "onRail";
 
 const VARIANT: Record<KbdVariant, string> = {
   default: "border-line-strong/80 bg-desk text-mute shadow-[inset_0_-1px_0_var(--line-strong)]",
-  onAccent: "border-transparent bg-accent-ink/20 text-accent-ink",
-  onRail: "border-rail-line bg-rail-hover text-rail-mute",
+  onAccent: "border-accent-ink/40 bg-transparent text-accent-ink",
+  onRail: "border-rail-line bg-rail-hover text-rail-ink",
 };
 
 /** Keyboard key cap. Callers supply the platform modifier text when needed. */
@@ -15,7 +15,7 @@ export function Kbd({ className, children, variant = "default", ...rest }: HTMLA
   return (
     <kbd
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border px-1 text-2xs font-medium",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-keycap border px-1 text-xs font-medium",
         VARIANT[variant],
         className,
       )}

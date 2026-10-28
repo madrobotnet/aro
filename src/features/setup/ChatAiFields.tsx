@@ -1,17 +1,16 @@
 "use client";
 
 import { AI_PROVIDERS, AiProviderSchema } from "@/lib/ai-settings";
-import type { WebAuthProvider } from "@/lib/ai-auth";
 import { isCustomProvider } from "@/lib/ai-providers";
 import { chatAuthModels } from "@/lib/ai-model-catalog";
 import { useCopy } from "@/components/i18n";
-import { Badge } from "@/components/ui/Badge";
 import { inputClassName } from "@/components/ui/Input";
 import { cn } from "@/components/ui/cn";
 import { AI_COPY } from "./ai-copy";
-import { AiAuthPanel, abandonAuthAttempt } from "./AiAuthPanel";
+import { abandonAuthAttempt } from "./AiAuthPanel";
 import { ConsentRow, FieldError, useFieldErrorText } from "./AiFieldControls";
-import { ChatApiFields, ChatApiFormatField, ChatModelField } from "./ChatApiFields";
+import { ChatApiFields, ChatModelField } from "./ChatApiFields";
+import { ChatAuthFields } from "./ChatAuthFields";
 import { modelForMode, modelForProvider, savedModelFor } from "./model-choice";
 import {
   chatProviderInfo,
@@ -20,12 +19,6 @@ import {
   type ChatFormState,
   type SavedAiView,
 } from "./ai-form";
-
-function selectedWebAuthProvider(provider: ChatFormState["provider"]): WebAuthProvider | null {
-  if (provider === "openai" || provider === "google" || provider === "github-copilot"
-    || provider === "openrouter" || provider === "xai") return provider;
-  return null;
-}
 
 export function ChatAiFields({
   value: chat,
@@ -59,11 +52,6 @@ export function ChatAiFields({
   const setChat = (patch: Partial<ChatFormState>) => onChangeAction({ ...chat, ...patch });
   const savedChat = saved?.chat ?? null;
   const switchMode = (mode: ChatFormState["mode"]) => modelForMode(chat, mode, savedChat, chatAuthModels(chat.provider));
-  const webAuthProvider = selectedWebAuthProvider(chat.provider);
-  const status = connections?.find((entry) => entry.provider === chat.provider);
-  // Existing OpenAI/Google profiles may rely on the server's CLI login file instead of a stored credential.
-  const legacyFileAuth = (chat.provider === "openai" || chat.provider === "google")
-    && saved?.chat?.mode === "auth" && saved.chat.provider === chat.provider && !saved.chat.hasCredential;
   const abandonReadyAttempt = () => {
     if (!chat.authAttemptId) return;
     void abandonAuthAttempt(chat.authAttemptId, setupToken ? { setupToken } : {})
@@ -201,60 +189,19 @@ export function ChatAiFields({
           />
           {chat.mode === "api" ? (
             <ChatApiFields idPrefix={idPrefix} chat={chat} setChatAction={setChat} retained={retained} custom={custom} errors={errors} disabled={disabled} />
-          ) : webAuthProvider ? (
-            <>
-              {legacyFileAuth ? (
-                <div className="flex flex-col gap-1.5 text-sm">
-                  <p className="text-pretty text-mute">
-                    {copy.legacyCli}
-                  </p>
-                  {status ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={status.available ? "ok" : "warn"}>{status.available ? copy.cliReady : copy.cliMissing}</Badge>
-                      <p className="text-pretty text-mute">{status.available ? copy.cliReadyDetail : copy.cliMissingDetail}</p>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              {webAuthProvider === "github-copilot" ? (
-                <ChatApiFormatField idPrefix={idPrefix} chat={chat} setChatAction={setChat} />
-              ) : null}
-              {webAuthProvider === "github-copilot" ? (
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor={`${idPrefix}-chat-domain`} className="text-sm font-medium">{copy.enterpriseDomain}</label>
-                  <input
-                    id={`${idPrefix}-chat-domain`}
-                    value={chat.enterpriseDomain}
-                    placeholder="github.example.com"
-                    onChange={(event) => {
-                      abandonReadyAttempt();
-                      setChat({ enterpriseDomain: event.target.value, authAttemptId: undefined, consent: false });
-                    }}
-                    aria-invalid={errors["chat.enterpriseDomain"] ? true : undefined}
-                    aria-describedby={errors["chat.enterpriseDomain"] ? `${idPrefix}-chat-domain-error` : undefined}
-                    className={inputClassName}
-                  />
-                  <FieldError id={`${idPrefix}-chat-domain-error`} message={errorText(errors["chat.enterpriseDomain"])} />
-                </div>
-              ) : null}
-              <AiAuthPanel
-                key={`${webAuthProvider}:${chat.enterpriseDomain}`}
-                provider={webAuthProvider}
-                enterpriseDomain={chat.enterpriseDomain}
-                setupToken={setupToken}
-                disabled={disabled}
-                readyAttemptId={chat.authAttemptId}
-                hasSavedCredential={
-                  saved?.chat?.mode === "auth"
-                  && saved.chat.provider === webAuthProvider
-                  && (saved.chat.enterpriseDomain ?? "") === chat.enterpriseDomain.trim()
-                  && Boolean(saved.chat.hasCredential)
-                }
-                onReadyAction={(authAttemptId) => setChat({ authAttemptId })}
-              />
-              <FieldError id={`${idPrefix}-chat-auth-error`} message={errorText(errors["chat.auth"])} />
-            </>
-          ) : null}
+          ) : (
+            <ChatAuthFields
+              chat={chat}
+              setChatAction={setChat}
+              abandonReadyAttemptAction={abandonReadyAttempt}
+              disabled={disabled}
+              saved={saved}
+              connections={connections}
+              errors={errors}
+              idPrefix={idPrefix}
+              setupToken={setupToken}
+            />
+          )}
           <ConsentRow
             id={`${idPrefix}-chat-consent`}
             checked={chat.consent}
