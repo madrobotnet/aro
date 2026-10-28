@@ -95,7 +95,8 @@ export class LiveTableViewport {
   measure(view: EditorView) {
     view.requestMeasure({
       key: this,
-      read(current) { return liveWindows(current.state, current.visibleRanges); },
+      // A block replacement is omitted from visibleRanges, but still occupies the viewport.
+      read(current) { return liveWindows(current.state, [current.viewport]); },
       write: (_windows, current) => {
         if (this.pending || this.destroyed) return;
         this.pending = true;
@@ -105,7 +106,7 @@ export class LiveTableViewport {
         queueMicrotask(() => {
           this.pending = false;
           if (this.destroyed || isComposing(current) || current.state.field(compositionActive, false)) return;
-          const windows = liveWindows(current.state, current.visibleRanges);
+          const windows = liveWindows(current.state, [current.viewport]);
           if (JSON.stringify(windows) !== JSON.stringify(current.state.field(tableField).windows)) current.dispatch({ effects: tableWindows.of(windows) });
         });
       },

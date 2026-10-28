@@ -36,12 +36,13 @@ test("raw mode does not replace table source", () => {
 /** The real plugin and StateField, with the measurement lock and later queue
  * controlled explicitly. Dispatch inside write reproduces EditorView's lock.
  */
-function measuredViewport() {
+function measuredViewport(source = Array.from({ length: 120 }, (_, i) => `Line ${i}`).join("\n")) {
   let current = EditorState.create({
-    doc: Array.from({ length: 120 }, (_, i) => `Line ${i}`).join("\n"),
+    doc: source,
     extensions: [markdown({ base: markdownLanguage }), liveTables(), compositionActive],
   });
-  let visible = [{ from: current.doc.line(70).from, to: current.doc.line(75).to }];
+  let viewport = { from: current.doc.line(70).from, to: current.doc.line(75).to };
+  let visible = [viewport];
   let composing = false;
   let measuring = false;
   let dispatched = 0;
@@ -51,6 +52,7 @@ function measuredViewport() {
   const view: EditorView = Object.create(EditorView.prototype);
   Object.defineProperties(view, {
     state: { get: () => current },
+    viewport: { get: () => viewport },
     visibleRanges: { get: () => visible },
     composing: { get: () => composing },
     compositionStarted: { get: () => false },
@@ -78,11 +80,34 @@ function measuredViewport() {
     get dispatched() { return dispatched; },
     get queued() { return later.length; },
     get state() { return current; },
-    setVisible: (ranges: typeof visible) => { visible = ranges; },
+    setVisible: (ranges: typeof visible) => {
+      visible = ranges;
+      const first = ranges[0], last = ranges.at(-1);
+      if (first && last) viewport = { from: first.from, to: last.to };
+    },
+    setViewport: (range: typeof viewport) => { viewport = range; },
     compose: (active: boolean) => { composing = active; },
     edit: (insert: string) => { current = current.update({ changes: { from: 0, to: current.doc.length, insert } }).state; },
   };
 }
+
+test("keeps a block table when its replacement excludes source from visible ranges", () => {
+  // Given: the viewport is inside a rendered table, whose replaced source is not visible.
+  const prefix = "Before\n\n";
+  const table = ["| Name | Value |", "| --- | --- |", ...Array.from({ length: 80 }, (_, i) => `| Row ${i} | Value ${i} |`)].join("\n");
+  const measured = measuredViewport(`${prefix}${table}\n\nAfter`);
+  try {
+    measured.setVisible([]);
+    measured.setViewport({ from: prefix.length, to: prefix.length + table.length });
+    // When: the real plugin refreshes its StateField after viewport measurement.
+    measured.measure();
+    measured.flush();
+    // Then: the table's replacement remains, rather than changing the reader's layout.
+    const decoration = measured.state.facet(EditorView.decorations)[0];
+    if (!decoration || typeof decoration === "function") throw new Error("Expected direct table decorations");
+    expect(decoration.size).toBe(1);
+  } finally { measured.dispose(); }
+});
 
 test("table measurement coalesces changed windows outside the view update lock", () => {
   const measured = measuredViewport();
