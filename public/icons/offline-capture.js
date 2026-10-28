@@ -1,9 +1,24 @@
-import { LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts } from "./offline-capture-queue.js";
+import { DraftError, LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts } from "./offline-capture-queue.js";
+import { offlineLocale, offlineDate, OFFLINE_COPY, draftErrorText } from "./offline-capture-display.js";
 
 const element = (id) => document.getElementById(id);
+const locale = offlineLocale(document.cookie, navigator.languages);
+const copy = OFFLINE_COPY[locale];
+document.documentElement.lang = locale;
+document.title = copy.pageTitle;
+document.querySelectorAll("[data-copy]").forEach(node => { node.textContent = copy[node.dataset.copy]; });
+element("online-navigation").setAttribute("aria-label", copy.navigation);
 const status = element("status");
 let confirmation = null; // Session identity is deliberately never persisted.
 let busy = false;
+let deleting = null;
+const deleteDialog = element("delete-dialog");
+
+function closeDelete() {
+  if (busy) return;
+  deleting = null;
+  deleteDialog.close();
+}
 
 function clearConfirmation() {
   confirmation = null;
@@ -15,17 +30,17 @@ function render() {
   element("count").textContent = `${drafts.length} / 50`;
   const list = element("drafts");
   list.replaceChildren();
-  if (!drafts.length) list.textContent = "No local drafts yet.";
+  if (!drafts.length) list.textContent = copy.empty;
   for (const draft of drafts) {
     const article = document.createElement("article");
     const title = document.createElement("h3");
-    title.textContent = draft.title || draft.text.split("\n")[0].slice(0, 120) || "Saved link";
+    title.textContent = draft.title || draft.text.split("\n")[0].slice(0, 120) || copy.savedLink;
     const date = document.createElement("p");
     date.className = "secondary";
-    date.textContent = new Date(draft.createdAt).toLocaleString();
+    date.textContent = offlineDate(draft.createdAt, locale);
     const details = document.createElement("details");
     const summary = document.createElement("summary");
-    summary.textContent = "Review draft";
+    summary.textContent = copy.review;
     const text = document.createElement("pre");
     text.textContent = draft.text;
     const url = document.createElement("p");
@@ -34,12 +49,16 @@ function render() {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "delete";
-    remove.textContent = "Delete local draft";
-    remove.addEventListener("click", () => run(async () => {
+    remove.textContent = copy.remove;
+    remove.addEventListener("click", () => {
+      if (busy) return;
       clearConfirmation();
-      writeDrafts(localStorage, readDrafts(localStorage).filter((item) => item.requestId !== draft.requestId));
-      status.textContent = "Local draft deleted.";
-    }));
+      deleting = draft.requestId;
+      element("delete-name").textContent = title.textContent;
+      element("delete-error").textContent = "";
+      deleteDialog.showModal();
+      element("delete-cancel").focus();
+    });
     article.append(title, date, details, remove);
     list.append(article);
   }
@@ -54,22 +73,23 @@ async function run(action) {
   document.querySelectorAll("button").forEach((button) => { button.disabled = true; });
   element("editor").disabled = true;
   try {
-    if (!navigator.locks) throw new Error("Safe cross-tab draft storage is unavailable in this browser. Use a browser with Web Locks on HTTPS or localhost.");
+    if (!navigator.locks) throw new DraftError("locks", copy.locks);
     await navigator.locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
-      if (!lock) throw new Error("Another tab is saving or sending drafts. Wait for it to finish, then try again.");
+      if (!lock) throw new DraftError("locked", copy.locked);
       await navigator.locks.request(LEGACY_STORAGE_KEY, async () => migrateDrafts(localStorage));
       await action();
     });
   } catch (error) {
     clearConfirmation();
-    status.textContent = error instanceof Error ? error.message : "Operation failed. Drafts were kept.";
+    status.textContent = draftErrorText(error, copy);
+    if (deleting) element("delete-error").textContent = status.textContent;
   } finally {
     busy = false;
     element("editor").disabled = false;
     document.querySelectorAll("button").forEach((button) => { button.disabled = false; });
     try { render(); } catch (error) {
       element("prepare").disabled = true;
-      status.textContent = error instanceof Error ? error.message : "Cannot read local drafts.";
+      status.textContent = draftErrorText(error, copy);
     }
   }
 }
@@ -88,36 +108,53 @@ element("capture-form").addEventListener("submit", (event) => {
     element("text").value = "";
     element("title").value = "";
     element("url").value = "";
-    status.textContent = "Saved locally, unencrypted. Nothing was sent.";
+    status.textContent = copy.saved;
   });
 });
 
 element("prepare").addEventListener("click", () => run(async () => {
   clearConfirmation();
   confirmation = await prepareFlush(localStorage, fetcher);
-  element("owner").textContent = `Authenticated owner: ${confirmation.ownerId}. ${readDrafts(localStorage).length} drafts ready for review.`;
+  element("owner").textContent = copy.owner(confirmation.ownerId, readDrafts(localStorage).length);
   element("confirmation").hidden = false;
-  status.textContent = "Check the owner above. Sending requires another explicit confirmation.";
+  status.textContent = copy.reviewOwner;
 }));
 element("send").addEventListener("click", () => run(async () => {
   const approved = confirmation;
   clearConfirmation();
-  status.textContent = "Sending oldest drafts first...";
+  status.textContent = copy.sending;
   const sent = await flushDrafts(localStorage, approved, fetcher);
-  status.textContent = `${sent} drafts sent to the inbox and removed locally.`;
+  status.textContent = copy.sent(sent);
 }));
 element("cancel").addEventListener("click", clearConfirmation);
+element("delete-cancel").addEventListener("click", closeDelete);
+deleteDialog.addEventListener("cancel", event => {
+  if (busy) event.preventDefault();
+  else deleting = null;
+});
+element("delete-confirm").addEventListener("click", () => {
+  const selected = deleting;
+  if (!selected) return;
+  run(async () => {
+    clearConfirmation();
+    writeDrafts(localStorage, readDrafts(localStorage).filter(item => item.requestId !== selected));
+    deleting = null;
+    deleteDialog.close();
+    status.textContent = copy.deleted;
+  });
+});
 window.addEventListener("storage", () => {
   clearConfirmation();
+  closeDelete();
   if (!busy) {
     try { render(); } catch (error) {
-      status.textContent = error instanceof Error ? error.message : "Cannot read local drafts.";
+      status.textContent = draftErrorText(error, copy);
     }
   }
 });
 window.addEventListener("offline", () => {
   clearConfirmation();
-  status.textContent = "Offline. You can save locally; sending requires an online login and confirmation.";
+  status.textContent = copy.offline;
 });
 window.addEventListener("pageshow", clearConfirmation);
 document.addEventListener("visibilitychange", () => { if (document.hidden) clearConfirmation(); });
@@ -143,8 +180,8 @@ if ("serviceWorker" in navigator) {
       }
       await navigator.serviceWorker.ready;
     })
-    .then(() => { element("readiness").textContent = "Offline page ready on this device. Drafts stay local until you confirm sending."; })
-    .catch(() => { element("readiness").textContent = "Offline page installation failed. Keep this page open; do not rely on offline reopening yet."; });
+    .then(() => { element("readiness").textContent = copy.ready; element("readiness").dataset.ready = "true"; })
+    .catch(() => { element("readiness").textContent = copy.installFailed; element("readiness").dataset.ready = "false"; });
 } else {
-  element("readiness").textContent = "Offline reopening is unavailable here. Use HTTPS or localhost and a browser with service workers.";
+  element("readiness").textContent = copy.unavailable;
 }

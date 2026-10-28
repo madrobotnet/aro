@@ -4,6 +4,7 @@ import { CircleCheck, CircleX, Clock } from "lucide-react";
 import { useCopy, useLocale } from "@/components/i18n";
 import { DocumentTitle } from "@/components/i18n/DocumentTitle";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { buttonClassName } from "@/components/ui/Button";
 import { brandName } from "@/lib/brand";
 import { CONNECT_COPY, type ConnectOutcome } from "./connect-copy";
 
@@ -29,6 +30,9 @@ export function ConnectCompleteView({ outcome, setup }: { readonly outcome: Conn
       </h1>
       <p className="mt-3 text-md leading-relaxed text-mute">{copy[outcome].body(tab)}</p>
       <p className="mt-5 text-sm text-mute">{copy.close}</p>
+      <a href={setup ? "/setup" : "/settings"} className={`mt-5 ${buttonClassName({ size: "lg" })}`}>
+        {locale === "ko" ? setup ? "최초 설정으로 돌아가기" : "설정으로 돌아가기" : setup ? "Return to setup" : "Return to Settings"}
+      </a>
     </section>
   );
 }

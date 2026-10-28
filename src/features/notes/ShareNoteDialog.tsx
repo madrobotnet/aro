@@ -1,5 +1,5 @@
 import { Share2, X } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import useSWR from "swr";
 import { useCopy, useLocale } from "@/components/i18n";
 import { Button, Input, useModalDialog } from "@/components/ui";
@@ -21,6 +21,7 @@ const COPY = {
     loadFailed: "공유 목록을 불러오지 못했습니다.", retry: "다시 시도",
     saveFailed: "노트를 먼저 저장해야 합니다. 노트 화면에서 저장을 다시 시도하세요.",
     stop: "공유 해제, 휴지통 이동, 보관 또는 영구 삭제 시 링크는 즉시 무효가 됩니다.",
+    revokeTitle: "이 스냅샷의 공유를 해제할까요?", revokeBody: "이 링크로는 더 이상 스냅샷을 읽을 수 없습니다.", cancel: "취소",
   },
   en: {
     open: "Share", title: "Share a note snapshot", close: "Close",
@@ -34,6 +35,7 @@ const COPY = {
     loadFailed: "Could not load shares.", retry: "Retry",
     saveFailed: "Save the note first. Retry saving from the note screen.",
     stop: "Revoking, trashing, archiving or permanently deleting the note immediately invalidates the link.",
+    revokeTitle: "Revoke this snapshot?", revokeBody: "This link will no longer open the snapshot.", cancel: "Cancel",
   },
 } as const;
 
@@ -73,11 +75,17 @@ function ShareBody({ noteId, beforeCreate, busy, setBusy, titleId, onDismiss }: 
   const [hours, setHours] = useState("24");
   const [link, setLink] = useState<{ id: string; url: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ readonly key: "failed" | "saveFailed" | "copyFailed"; readonly cause?: unknown } | null>(null);
+  const [revoking, setRevoking] = useState<ShareSummary | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const active = useRef(false);
+  useEffect(() => { if (revoking) cancelRef.current?.focus(); }, [revoking]);
   const create = async () => {
+    if (active.current || revoking) return;
+    active.current = true;
     setBusy(true); setFailure(null);
     try {
-      if (!await beforeCreate()) { setFailure(copy.saveFailed); return; }
+      if (!await beforeCreate()) { setFailure({ key: "saveFailed" }); return; }
       const result = await api<{ share: ShareSummary; path: string }>(endpoint, {
         method: "POST", json: { confirmed, expiresInHours: Number(hours) },
       });
@@ -85,17 +93,20 @@ function ShareBody({ noteId, beforeCreate, busy, setBusy, titleId, onDismiss }: 
       setCopied(false); setConfirmed(false);
       await list.mutate();
     } catch (error) {
-      setFailure(localizedApiError(error, locale, copy.failed));
-    } finally { setBusy(false); }
+      setFailure({ key: "failed", cause: error });
+    } finally { active.current = false; setBusy(false); }
   };
   const revoke = async (id: string) => {
+    if (active.current) return;
+    active.current = true;
     setBusy(true); setFailure(null);
     try {
       await api(`${endpoint}/${id}`, { method: "DELETE" });
       if (link?.id === id) setLink(null);
+      setRevoking(null);
       await list.mutate();
-    } catch (error) { setFailure(localizedApiError(error, locale, copy.failed)); }
-    finally { setBusy(false); }
+    } catch (cause) { setFailure({ key: "failed", cause }); }
+    finally { active.current = false; setBusy(false); }
   };
   return <>
     <header className="flex items-start justify-between gap-3">
@@ -114,14 +125,14 @@ function ShareBody({ noteId, beforeCreate, busy, setBusy, titleId, onDismiss }: 
       <input type="checkbox" checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} className="mt-1 size-5 shrink-0 accent-accent" />
       <span>{copy.confirm}</span>
     </label>
-    <Button variant="primary" className="mt-3 min-h-touch w-full" disabled={!confirmed || busy || Boolean(link)} loading={busy} onClick={() => void create()}>{copy.create}</Button>
-    {failure ? <p role="alert" className="mt-3 text-sm text-danger">{failure}</p> : null}
+    <Button variant="primary" className="mt-3 min-h-touch w-full" disabled={!confirmed || busy || Boolean(link) || Boolean(revoking)} loading={busy && !revoking} onClick={() => void create()}>{copy.create}</Button>
+    {failure ? <p role="alert" className="mt-3 text-sm text-danger">{localizedApiError(failure.cause, locale, copy[failure.key])}</p> : null}
     {link ? <section className="mt-5 space-y-3 rounded-ctl bg-desk p-3">
       <p role="status" className="text-sm">{copy.once}</p>
       <Input label={copy.link} value={link.url} readOnly onFocus={(event) => event.currentTarget.select()} />
       <Button className="min-h-touch" onClick={() => {
-        if (!navigator.clipboard) { setFailure(copy.copyFailed); return; }
-        void navigator.clipboard.writeText(link.url).then(() => setCopied(true), () => setFailure(copy.copyFailed));
+        if (!navigator.clipboard) { setFailure({ key: "copyFailed" }); return; }
+        void navigator.clipboard.writeText(link.url).then(() => setCopied(true), cause => setFailure({ key: "copyFailed", cause }));
       }}>{copied ? copy.copied : copy.copy}</Button>
     </section> : null}
     <section className="mt-6 border-t border-line pt-4">
@@ -133,8 +144,17 @@ function ShareBody({ noteId, beforeCreate, busy, setBusy, titleId, onDismiss }: 
           <div className="text-sm"><time dateTime={share.createdAt}>{formatDateTime(share.createdAt, locale)}</time>
             <p className="text-xs text-mute">{share.revokedAt ? copy.revoked : `${copy.expires}: ${formatDateTime(share.expiresAt, locale)}`}</p>
           </div>
-          {!share.revokedAt ? <Button size="sm" className="min-h-touch" disabled={busy} onClick={() => void revoke(share.id)}>{copy.revoke}</Button> : null}
+          {!share.revokedAt ? <Button size="sm" className="min-h-touch" disabled={busy} onClick={() => { setFailure(null); setRevoking(share); }}>{copy.revoke}</Button> : null}
         </li>)}</ul>}
     </section>
+    {revoking ? <section role="region" aria-label={copy.revokeTitle} className="mt-4 rounded-ctl bg-desk p-4">
+      <h3 className="text-md font-medium">{copy.revokeTitle}</h3>
+      <p className="mt-2 text-sm">{formatDateTime(revoking.createdAt, locale)}</p>
+      <p className="mt-2 text-sm text-mute">{copy.revokeBody}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button ref={cancelRef} disabled={busy} onClick={() => { setRevoking(null); setFailure(null); }}>{copy.cancel}</Button>
+        <Button variant="danger" loading={busy} onClick={() => void revoke(revoking.id)}>{copy.revoke}</Button>
+      </div>
+    </section> : null}
   </>;
 }
