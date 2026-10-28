@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { ArrowLeft, CalendarDays, ChevronRight, FileStack, FileText, LoaderCircle, Monitor, Moon, Plus, Search, Settings, Sun, Zap } from "lucide-react";
+import { ArrowLeft, LoaderCircle, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -9,16 +9,15 @@ import { refreshNoteViews } from "@/features/notes/note-cache";
 import { createNoteFromTemplate, TEMPLATES_KEY } from "@/features/settings/template-note";
 import { api } from "@/lib/api-client";
 import { localizedApiError } from "@/lib/i18n/api-error";
-import { textInEveryLocale } from "@/lib/i18n/copy";
 import { localDateKey } from "@/lib/i18n/format-date";
 import type { NoteTemplate } from "@/lib/templates";
 import type { NoteRef } from "@/lib/types";
-import { useCopy } from "@/components/i18n/LocaleProvider";
+import { useCopy, useLocale } from "@/components/i18n/LocaleProvider";
 import { useModalDialog } from "@/components/ui/Dialog";
 import { Kbd } from "@/components/ui/Kbd";
 import { useToast } from "@/components/ui/Toast";
-import { everyLocale, keywordsInEveryLocale, SHELL_COPY } from "./copy";
-import { NAV_ITEMS } from "./nav";
+import { everyLocale, SHELL_COPY } from "./copy";
+import { NoteCommands, RootCommands, TemplateCommands } from "./PaletteRows";
 import { modKey } from "./shortcuts";
 import { useTheme } from "./ThemeProvider";
 
@@ -49,8 +48,15 @@ export function CommandPalette({ open, mode, onOpenChange, onModeChange, onCaptu
   return (
     <dialog
       ref={ref}
+      data-command-palette
       onClose={onClose}
-      onClick={onBackdropClick}
+      // PaletteBody owns the mutation state; native exits honor its rendered busy signal.
+      onCancel={(event) => {
+        if (event.currentTarget.querySelector('[cmdk-list][aria-busy="true"]')) event.preventDefault();
+      }}
+      onClick={(event) => {
+        if (!event.currentTarget.querySelector('[cmdk-list][aria-busy="true"]')) onBackdropClick(event);
+      }}
       aria-label={mode === "notes" ? copy.palette.switcherLabel : copy.actions.palette}
       className="mx-auto mb-auto mt-[10dvh] w-[calc(100%-1.5rem)] max-w-xl overflow-hidden rounded-card border border-line bg-card p-0 text-ink shadow-pop backdrop:bg-scrim sm:mt-[14dvh]"
     >
@@ -67,9 +73,11 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
   const { cache, mutate } = useSWRConfig();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const { locale } = useLocale();
   const copy = useCopy(SHELL_COPY);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<{ cause: unknown } | null>(null);
   // Nested page of the ⌘K palette; the note switcher (⌘P) has none.
   const [page, setPage] = useState<"root" | "templates">("root");
   const onTemplates = mode === "all" && page === "templates";
@@ -98,13 +106,15 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
   const mod = modKey();
 
   const run = (fn: () => void | Promise<void>) => {
+    if (busy) return;
     void (async () => {
       setBusy(true);
+      setFailure(null);
       try {
         await fn();
         onOpenChange(false);
       } catch (error) {
-        toast(textInEveryLocale((locale) => localizedApiError(error, locale, SHELL_COPY[locale].palette.failed)), { tone: "danger" });
+        setFailure({ cause: error });
       } finally {
         setBusy(false);
       }
@@ -138,7 +148,26 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
   };
   // Escape, or Backspace in an empty field, leaves the template page before it closes the palette.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!onTemplates || event.nativeEvent.isComposing) return;
+    if (event.defaultPrevented || event.repeat || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    // cmdk also binds Ctrl+P to its previous row. Own the palette mode commands
+    // before that handler prevents them from reaching the shell.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && ["k", "p"].includes(event.key.toLowerCase())) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (busy) return;
+      if (event.key.toLowerCase() === "p") onModeChange("notes");
+      else {
+        onModeChange("all");
+        onOpenChange(false);
+      }
+      return;
+    }
+    if (busy && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (!onTemplates) return;
     if (event.key === "Escape" || (event.key === "Backspace" && query === "")) {
       event.preventDefault();
       event.stopPropagation();
@@ -162,7 +191,7 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
         return isNoteRow(value) ? 2 : 1;
       }}
       className="flex max-h-[min(70dvh,32rem)] flex-col"
-      onKeyDown={onKeyDown}
+      onKeyDownCapture={onKeyDown}
     >
       <div className="flex items-center gap-2 border-b border-line px-3">
         {onTemplates ? (
@@ -202,148 +231,26 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
         </div>
       </div>
 
-      <Command.List className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-1.5 scrollbar-thin">
+      {failure ? <p role="alert" className="border-b border-line bg-danger-soft px-4 py-3 text-sm text-danger">{localizedApiError(failure.cause, locale, copy.palette.failed)}</p> : null}
+      <Command.List aria-busy={busy} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-1.5 scrollbar-thin">
         <Command.Empty className="px-3 py-8 text-center text-sm text-mute">
           {onTemplates ? copy.palette.empty : notes.isValidating ? copy.palette.searching : notes.error ? copy.palette.loadFailed : copy.palette.empty}
         </Command.Empty>
 
-        {onTemplates ? (
-          <>
-            {templates.error && !templates.data ? (
-              <p role="alert" className="px-3 py-3 text-sm text-danger">{copy.palette.templates.loadFailed}</p>
-            ) : !templates.data ? (
-              <p className="px-3 py-3 text-sm text-mute">{copy.palette.templates.loading}</p>
-            ) : templateList.length === 0 ? (
-              <p className="px-3 py-3 text-sm text-mute">{copy.palette.templates.none}</p>
-            ) : (
-              <Command.Group heading={copy.palette.groups.templates} className={GROUP}>
-                {templateList.map((template) => (
-                  <Command.Item key={template.id} value={`template-${template.id}`} keywords={[template.name]} onSelect={() => createFromTemplate(template)} className={ITEM}>
-                    <FileStack aria-hidden className={ICON} />
-                    <span className="flex-1 truncate">{template.name}</span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            )}
-            <Command.Group className={GROUP}>
-              <Command.Item
-                value="manage-templates"
-                keywords={keywordsInEveryLocale((c) => c.palette.templates.manage)}
-                onSelect={() => go("/settings#settings-templates")}
-                className={ITEM}
-              >
-                <Settings aria-hidden className={ICON} />
-                <span className="flex-1">{copy.palette.templates.manage}</span>
-              </Command.Item>
-            </Command.Group>
-          </>
-        ) : null}
+        {onTemplates ? <TemplateCommands templates={templateList} loading={!templates.data} failed={Boolean(templates.error && !templates.data)} onCreate={createFromTemplate} go={go} /> : null}
 
-        {!onTemplates && (noteRows.length > 0 || canCreate) ? (
-          <Command.Group heading={recent ? copy.palette.groups.recent : copy.palette.groups.notes} className={GROUP}>
-            {noteRows.map((note) => (
-              <Command.Item key={note.id} value={`note-${note.id}`} keywords={[note.title, trimmed]} onSelect={() => go(`/notes/${note.id}`)} className={ITEM}>
-                <FileText aria-hidden className={ICON} />
-                <span className="flex-1 truncate">{note.title}</span>
-              </Command.Item>
-            ))}
-            {canCreate ? (
-              <Command.Item
-                value={`create-${trimmed}`}
-                keywords={[trimmed, ...keywordsInEveryLocale((c) => c.palette.newNote)]}
-                onSelect={() => createNote(trimmed)}
-                className={ITEM}
-              >
-                <Plus aria-hidden className={ICON} />
-                <span className="flex-1 truncate">{copy.palette.createNamed(trimmed)}</span>
-              </Command.Item>
-            ) : null}
-          </Command.Group>
-        ) : null}
+        {!onTemplates && (noteRows.length > 0 || canCreate) ? <NoteCommands notes={noteRows} recent={recent} canCreate={canCreate} query={trimmed} go={go} onCreate={createNote} /> : null}
 
         {mode === "all" && !onTemplates ? (
-          <Command.Group heading={copy.palette.groups.actions} className={GROUP}>
-            <Command.Item
-              value="capture"
-              keywords={[...keywordsInEveryLocale((c) => c.actions.capture, (c) => c.palette.keywords.capture), "c"]}
-              onSelect={() => run(() => onCapture?.())}
-              className={ITEM}
-            >
-              <Zap aria-hidden className={ICON} />
-              <span className="flex-1">{copy.actions.capture}</span>
-              <Hint keys={["c"]} />
-            </Command.Item>
-            <Command.Item
-              value="new-note"
-              keywords={keywordsInEveryLocale((c) => c.palette.newNote, (c) => c.palette.keywords.newNote)}
-              onSelect={() => createNote()}
-              className={ITEM}
-            >
-              <Plus aria-hidden className={ICON} />
-              <span className="flex-1">{copy.palette.newNote}</span>
-            </Command.Item>
-            <Command.Item
-              value="new-from-template"
-              keywords={keywordsInEveryLocale((c) => c.palette.newFromTemplate, (c) => c.palette.keywords.template)}
-              onSelect={() => showPage("templates")}
-              className={ITEM}
-            >
-              <FileStack aria-hidden className={ICON} />
-              <span className="flex-1">{copy.palette.newFromTemplate}</span>
-              <ChevronRight aria-hidden className={ICON} />
-            </Command.Item>
-            <Command.Item
-              value="daily"
-              keywords={keywordsInEveryLocale((c) => c.palette.openDaily, (c) => c.palette.keywords.daily)}
-              onSelect={openDaily}
-              className={ITEM}
-            >
-              <CalendarDays aria-hidden className={ICON} />
-              <span className="flex-1">{copy.palette.openDaily}</span>
-            </Command.Item>
-          </Command.Group>
-        ) : null}
-
-        {mode === "all" && !onTemplates ? (
-          <Command.Group heading={copy.palette.groups.go} className={GROUP}>
-            {NAV_ITEMS.map((item) => (
-              <Command.Item
-                key={item.id}
-                value={`go-${item.id}`}
-                keywords={[...keywordsInEveryLocale((c) => c.nav[item.id]), item.id, item.href]}
-                onSelect={() => go(item.href)}
-                className={ITEM}
-              >
-                <item.icon aria-hidden className={ICON} />
-                <span className="flex-1">{copy.nav[item.id]}</span>
-                {item.goKey ? <Hint keys={["g", item.goKey]} /> : null}
-              </Command.Item>
-            ))}
-          </Command.Group>
-        ) : null}
-
-        {mode === "all" && !onTemplates ? (
-          <Command.Group heading={copy.palette.groups.theme} className={GROUP}>
-            {(
-              [
-                ["light", Sun],
-                ["dark", Moon],
-                ["system", Monitor],
-              ] as const
-            ).map(([value, Icon]) => (
-              <Command.Item
-                key={value}
-                value={`theme-${value}`}
-                keywords={[...keywordsInEveryLocale((c) => c.palette.keywords.theme, (c) => c.theme.palette[value]), value]}
-                onSelect={() => run(() => setTheme(value))}
-                className={ITEM}
-              >
-                <Icon aria-hidden className={ICON} />
-                <span className="flex-1">{copy.theme.palette[value]}</span>
-                {theme === value ? <span className="text-xs text-mute">{copy.palette.current}</span> : null}
-              </Command.Item>
-            ))}
-          </Command.Group>
+          <RootCommands
+            onCapture={() => run(() => onCapture?.())}
+            onNewNote={() => createNote()}
+            onTemplates={() => showPage("templates")}
+            onDaily={openDaily}
+            go={go}
+            theme={theme}
+            onTheme={(value) => run(() => setTheme(value))}
+          />
         ) : null}
       </Command.List>
 
@@ -361,21 +268,5 @@ function PaletteBody({ mode, onOpenChange, onModeChange, onCapture, inputRef }: 
         </span>
       </div>
     </Command>
-  );
-}
-
-const GROUP =
-  "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-mute";
-const ITEM =
-  "flex h-10 cursor-pointer select-none items-center gap-2.5 rounded-ctl px-2.5 text-base text-ink data-[selected=true]:bg-accent-soft data-[selected=true]:text-ink aria-disabled:opacity-50";
-const ICON = "size-4 shrink-0 text-mute";
-
-function Hint({ keys }: { keys: readonly string[] }) {
-  return (
-    <span aria-hidden className="hidden items-center gap-0.5 sm:inline-flex">
-      {keys.map((k, i) => (
-        <Kbd key={`${k}-${i}`}>{k}</Kbd>
-      ))}
-    </span>
   );
 }

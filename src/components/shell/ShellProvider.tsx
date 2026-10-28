@@ -59,6 +59,7 @@ function ShellState({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteMode, setPaletteMode] = useState<PaletteMode>("all");
   const chord = useRef<ChordState>(IDLE_CHORD);
+  const capturePending = useRef(false);
 
   // Server snapshot is "collapsed"; RAIL_INIT_SCRIPT already applied the persisted width pre-hydration.
   const railExpanded = useSyncExternalStore(subscribeRail, readRailExpanded, () => false);
@@ -95,6 +96,19 @@ function ShellState({ children }: { children: ReactNode }) {
   }, [nextReturnAt, returnCheck, mutateSWR]);
 
   const openCapture = useCallback(() => {
+    const palette = document.querySelector<HTMLDialogElement>("dialog[data-command-palette]");
+    if (palette?.open) {
+      if (capturePending.current) return;
+      capturePending.current = true;
+      // Let the palette's native close event restore its opener before Capture
+      // records that same outside element as its own focus-return destination.
+      palette.addEventListener("close", () => {
+        capturePending.current = false;
+        setCaptureOpen(true);
+      }, { once: true });
+      setPaletteOpen(false);
+      return;
+    }
     setPaletteOpen(false);
     setCaptureOpen(true);
   }, []);
@@ -126,7 +140,7 @@ function ShellState({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.repeat) return;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || event.repeat) return;
       const { action, state } = resolveShortcut(
         {
           key: event.key,
@@ -140,8 +154,13 @@ function ShellState({ children }: { children: ReactNode }) {
         event.timeStamp,
       );
       chord.current = state;
-      if (!action) return;
+      const modalOwner = document.querySelector("dialog:modal:not([data-command-palette])");
+      if (!action) {
+        if (modalOwner && state.pendingGoAt !== null) event.preventDefault();
+        return;
+      }
       event.preventDefault();
+      if (modalOwner) return;
       switch (action.type) {
         case "palette":
           setPaletteMode("all");

@@ -113,21 +113,21 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
         ) : null}
         <label className="flex items-center gap-2 text-sm text-mute">
           {copy.toolbar.depth}
-          <select aria-label={copy.toolbar.depthLabel} className="h-8 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}>
+          <select aria-label={copy.toolbar.depthLabel} className="h-touch lg:h-8 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}>
             <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
           </select>
         </label>
         {!compact ? (
           <label className="flex items-center gap-2 text-sm text-mute">
             {copy.toolbar.tagFilter}
-            <select className="h-8 max-w-40 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={tag} onChange={(event) => setTag(event.target.value)}>
+            <select className="h-touch lg:h-8 max-w-40 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={tag} onChange={(event) => setTag(event.target.value)}>
               <option value="">{copy.toolbar.allTags}</option>
               {tagData?.tags.map((item) => <option key={item.tag} value={item.tag}>{item.tag} ({item.count})</option>)}
             </select>
           </label>
         ) : null}
-        <label className="flex min-h-8 items-center gap-2 text-sm text-ink"><input type="checkbox" checked={includeTags} onChange={(event) => setIncludeTags(event.target.checked)} />{copy.toolbar.tagNodes}</label>
-        <label className="flex min-h-8 items-center gap-2 text-sm text-ink"><input type="checkbox" checked={includeOrphans} onChange={(event) => setIncludeOrphans(event.target.checked)} />{copy.toolbar.orphans}</label>
+        <label className="flex min-h-touch items-center gap-2 lg:min-h-8 text-sm text-ink"><input className="size-4 accent-accent" type="checkbox" checked={includeTags} onChange={(event) => setIncludeTags(event.target.checked)} />{copy.toolbar.tagNodes}</label>
+        <label className="flex min-h-touch items-center gap-2 lg:min-h-8 text-sm text-ink"><input className="size-4 accent-accent" type="checkbox" checked={includeOrphans} onChange={(event) => setIncludeOrphans(event.target.checked)} />{copy.toolbar.orphans}</label>
         <span className="ml-auto text-sm text-mute" aria-live="polite">{data ? copy.toolbar.stats(data.nodes.length, data.links.length) : ""}</span>
       </div>
 
@@ -154,10 +154,10 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
               onPinChange={recordPin}
             />
             <div className="absolute left-2 top-2 flex gap-1 rounded-ctl border border-line bg-card/90 p-1 shadow-card">
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch sm:min-h-0 sm:min-w-0" variant="ghost" aria-label={copy.canvas.zoomIn} onClick={() => canvasRef.current?.zoomBy(1.35)}><Plus aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch sm:min-h-0 sm:min-w-0" variant="ghost" aria-label={copy.canvas.zoomOut} onClick={() => canvasRef.current?.zoomBy(0.75)}><Minus aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch sm:min-h-0 sm:min-w-0" variant="ghost" aria-label={copy.canvas.fit} onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch sm:min-h-0 sm:min-w-0" variant="ghost" aria-label={copy.canvas.reset} onClick={reset}><RotateCcw aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomIn} title={copy.canvas.zoomIn} onClick={() => canvasRef.current?.zoomBy(1.35)}><Plus aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomOut} title={copy.canvas.zoomOut} onClick={() => canvasRef.current?.zoomBy(0.75)}><Minus aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.fit} title={copy.canvas.fit} onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.reset} title={copy.canvas.reset} onClick={reset}><RotateCcw aria-hidden className="size-4" /></Button>
             </div>
           </div>
           {data.truncated ? <p role="status" className="text-sm text-warn">{copy.status.truncated}</p> : null}
@@ -184,10 +184,10 @@ function Inspector({ node, neighbors, pinned, creating, actionError, onClose, on
     <aside id="graph-inspector" className="rounded-card border border-line bg-card p-4 shadow-card" aria-label={copy.label}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><p className="text-xs font-medium text-mute">{copy.kind[node.kind]}</p><h2 className="truncate text-lg font-semibold text-ink">{node.label}</h2></div>
-        <Button iconOnly size="sm" variant="ghost" aria-label={copy.close} onClick={onClose}><X aria-hidden className="size-4" /></Button>
+        <Button iconOnly size="sm" variant="ghost" aria-label={copy.close} title={copy.close} onClick={onClose}><X aria-hidden className="size-4" /></Button>
       </div>
       <div className="mt-2 flex flex-wrap gap-1">{node.tags.map((tag) => <Badge key={tag}>#{tag}</Badge>)}<Badge tone="neutral" count={node.degree}>{copy.links}</Badge></div>
-      {neighbors.length ? <div className="mt-3"><p className="text-xs font-medium text-mute">{copy.neighbors}</p><div className="mt-1 flex flex-wrap gap-1">{neighbors.map((neighbor) => <button key={neighbor.id} type="button" className="rounded-pill border border-line bg-desk px-2 py-1 text-xs text-ink hover:bg-line/50 focus-ring" onClick={() => onSelect(neighbor.id)}>{neighbor.label}</button>)}</div></div> : <p className="mt-3 text-sm text-mute">{copy.noNeighbors}</p>}
+      {neighbors.length ? <div className="mt-3"><p className="text-xs font-medium text-mute">{copy.neighbors}</p><div className="mt-1 flex flex-wrap gap-1">{neighbors.map((neighbor) => <button key={neighbor.id} type="button" className="min-h-touch rounded-pill border border-line bg-desk px-3 py-2 text-xs lg:min-h-8 text-ink hover:bg-line/50 focus-ring" onClick={() => onSelect(neighbor.id)}>{neighbor.label}</button>)}</div></div> : <p className="mt-3 text-sm text-mute">{copy.noNeighbors}</p>}
       {actionError ? <p role="alert" className="mt-3 text-sm text-danger">{actionError}</p> : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {node.kind === "note" ? <Link className={buttonClassName({ variant: "primary", size: "sm" })} href={`/notes/${node.id}`}>{copy.open}</Link> : null}
@@ -203,8 +203,8 @@ function AccessibleGraphList({ data, selectedId, onSelect }: { data: GraphData; 
   const copy = useCopy(GRAPH_COPY).list;
   return (
     <details className="rounded-card border border-line bg-desk p-3">
-      <summary className="cursor-pointer font-medium text-ink focus-ring">{copy.summary(data.nodes.length)}</summary>
-      <ul className="mt-3 grid max-h-72 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+      <summary className="flex min-h-touch cursor-pointer items-center font-medium text-ink focus-ring">{copy.summary(data.nodes.length)}</summary>
+      <ul className="mt-3 grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
         {data.nodes.map((node) => <li key={node.id}><button type="button" aria-pressed={selectedId === node.id} className="flex min-h-11 w-full items-center justify-between rounded-ctl px-3 py-2 text-left text-sm text-ink hover:bg-line/50 focus-ring aria-pressed:bg-accent-soft" onClick={() => onSelect(node)}><span className="truncate">{node.label}</span><span className="ml-2 shrink-0 text-xs text-mute">{node.degree}</span></button></li>)}
       </ul>
     </details>

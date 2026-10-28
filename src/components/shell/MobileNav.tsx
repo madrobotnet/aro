@@ -1,6 +1,6 @@
 "use client";
 
-import { Ellipsis, LogOut, Monitor, Moon, Plus, Search, Sun } from "lucide-react";
+import { Check, Ellipsis, LogOut, Monitor, Moon, Plus, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -30,10 +30,11 @@ export function MobileTopBar() {
       <Link href="/" aria-label={copy.nav.home} className="flex size-touch items-center justify-center rounded-ctl focus-ring">
         <BrandMark />
       </Link>
-      <h1 className="min-w-0 flex-1 truncate text-md font-semibold tracking-tight">{title}</h1>
+      <p className="min-w-0 flex-1 truncate text-md font-semibold tracking-tight">{title}</p>
       <button
         type="button"
         aria-label={copy.actions.openPalette}
+        title={copy.actions.openPalette}
         onClick={() => shell.openPalette("all")}
         className="flex size-touch items-center justify-center rounded-ctl text-mute hover:bg-line/60 hover:text-ink focus-ring"
       >
@@ -67,6 +68,7 @@ export function MobileNav() {
             <button
               type="button"
               aria-label={copy.actions.capture}
+              title={copy.actions.capture}
               onClick={() => shell.openCapture()}
               className="-mt-5 flex size-14 items-center justify-center rounded-pill bg-accent text-accent-ink shadow-pop transition-[filter] active:brightness-90 focus-ring-offset"
             >
@@ -81,10 +83,11 @@ export function MobileNav() {
               type="button"
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
+              aria-current={moreActive ? "page" : undefined}
               onClick={() => setMoreOpen(true)}
-              className={cn(BOTTOM_ITEM, moreActive ? "text-accent" : "text-mute")}
+              className={cn(BOTTOM_ITEM, moreActive ? "bg-accent-soft text-ink" : "text-mute")}
             >
-              <Ellipsis aria-hidden className="size-5" />
+              <span className="relative"><Ellipsis aria-hidden className="size-5" />{moreActive ? <Check aria-hidden className="absolute -right-3 -top-1 size-3" /> : null}</span>
               <span className="text-xs font-medium">{copy.mobile.more}</span>
             </button>
           </li>
@@ -109,6 +112,7 @@ export function MobileNav() {
                 >
                   <item.icon aria-hidden className="size-5 text-mute" />
                   <span className="flex-1">{copy.nav[id]}</span>
+                  {active ? <Check aria-hidden className="size-4" /> : null}
                 </Link>
               </li>
             );
@@ -137,9 +141,10 @@ function BottomLink({ id, active, badge }: { id: (typeof MOBILE_PRIMARY)[number]
   const copy = useCopy(SHELL_COPY);
   return (
     <li>
-      <Link href={item.href} aria-current={active ? "page" : undefined} className={cn(BOTTOM_ITEM, active ? "text-accent" : "text-mute")}>
+      <Link href={item.href} aria-current={active ? "page" : undefined} className={cn(BOTTOM_ITEM, active ? "bg-accent-soft text-ink" : "text-mute")}>
         <span className="relative">
           <item.icon aria-hidden className="size-5" />
+          {active ? <Check aria-hidden className="absolute -left-3 -top-1 size-3" /> : null}
           {badge ? <Badge tone="rail" count={badge} className="absolute -right-2.5 -top-1.5" /> : null}
         </span>
         <span className="text-xs font-medium">{copy.nav[id]}</span>

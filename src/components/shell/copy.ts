@@ -8,7 +8,7 @@ import { LOCALES, type Locale, type LocalizedText } from "@/lib/i18n/locale";
 export const SHELL_COPY = defineCopy({
   ko: {
     nav: { home: "홈", inbox: "인박스", notes: "노트", tasks: "할 일", daily: "오늘", search: "검색", graph: "그래프", chat: "채팅", settings: "설정" },
-    actions: { capture: "빠르게 캡처", palette: "명령 팔레트", openPalette: "명령 팔레트 열기", logout: "로그아웃" },
+    actions: { skip: "본문으로 건너뛰기", capture: "빠르게 캡처", palette: "명령 팔레트", openPalette: "명령 팔레트 열기", logout: "로그아웃" },
     rail: { navLabel: "주 메뉴", collapse: "메뉴 접기", expand: "메뉴 펼치기", pending: (count: number) => `${count}개 대기 중` },
     mobile: { navLabel: "하단 메뉴", more: "더보기" },
     theme: {
@@ -52,7 +52,7 @@ export const SHELL_COPY = defineCopy({
   },
   en: {
     nav: { home: "Home", inbox: "Inbox", notes: "Notes", tasks: "Tasks", daily: "Today", search: "Search", graph: "Graph", chat: "Chat", settings: "Settings" },
-    actions: { capture: "Quick capture", palette: "Commands", openPalette: "Open command palette", logout: "Log out" },
+    actions: { skip: "Skip to content", capture: "Quick capture", palette: "Commands", openPalette: "Open command palette", logout: "Log out" },
     rail: {
       navLabel: "Main menu",
       collapse: "Collapse menu",
