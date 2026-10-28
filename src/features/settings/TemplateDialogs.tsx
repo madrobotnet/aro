@@ -148,7 +148,7 @@ export function TemplateEditor({ open, template, onOpenChange, onSaved }: {
 export function DeleteTemplateDialog({ template, onClose, onDeleted }: {
   template: NoteTemplate | null;
   onClose: () => void;
-  onDeleted: () => void;
+  onDeleted: (id: string) => void;
 }) {
   const copy = useCopy(SETTINGS_COPY).templates;
   const { locale } = useLocale();
@@ -161,7 +161,7 @@ export function DeleteTemplateDialog({ template, onClose, onDeleted }: {
     setRemoveError(null);
     try {
       await api(`/api/templates/${encodeURIComponent(template.id)}`, { method: "DELETE" });
-      onDeleted();
+      onDeleted(template.id);
     } catch (cause) {
       setRemoveError({ cause });
     } finally {

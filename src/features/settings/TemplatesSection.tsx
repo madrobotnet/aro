@@ -2,7 +2,7 @@
 
 import { CalendarDays, FilePlus2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useCopy, useLocale } from "@/components/i18n";
 import { Badge, Button, Skeleton, useToast } from "@/components/ui";
@@ -31,6 +31,14 @@ export function TemplatesSection() {
   const [deleting, setDeleting] = useState<NoteTemplate | null>(null);
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  const removedTemplateId = useRef<string | null>(null);
+  useEffect(() => {
+    const id = removedTemplateId.current;
+    if (!id || !data || data.templates.some(template => template.id === id)) return;
+    removedTemplateId.current = null;
+    // Revalidation can remove the opener after native dialog focus restoration.
+    if (document.activeElement === document.body) addRef.current?.focus();
+  }, [data]);
   const openEditor = (template: NoteTemplate | null) => {
     setEditing((current) => ({ session: current.session + 1, template }));
     setEditorOpen(true);
@@ -112,7 +120,8 @@ export function TemplatesSection() {
           // After a delete the opener row is gone, so the native focus restore has nothing to return to.
           if (document.activeElement === document.body) addRef.current?.focus();
         }}
-        onDeleted={() => {
+        onDeleted={(id) => {
+          removedTemplateId.current = id;
           void reload();
           toast(textInEveryLocale((each) => SETTINGS_COPY[each].templates.deleted), { tone: "ok" });
           setDeleting(null);
