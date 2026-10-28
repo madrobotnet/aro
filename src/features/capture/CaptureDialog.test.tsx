@@ -1,5 +1,7 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { Children, isValidElement, type ReactNode } from "react";
+import { Dialog, type DialogProps } from "@/components/ui/Dialog";
+import { Textarea } from "@/components/ui";
 import { ToastProvider } from "@/components/ui/Toast";
 import { renderInLocale } from "@/features/setup/test-locale";
 import { LOCALES } from "@/lib/i18n/locale";
@@ -50,4 +52,48 @@ test.each([...LOCALES])("capture uses its own URL validation in %s rather than t
   const forms = markup.match(/<form\b[^>]*>/g) ?? [];
   expect(forms).toHaveLength(1);
   expect(forms[0]).toMatch(/\bnovalidate(?:=|\s|>)/i);
+});
+
+test("capture prevents native cancellation while its submitted request is pending", async () => {
+  // Given: drive real hook updates in the existing SSR harness; hold only the wire response.
+  const pending = Promise.withResolvers<Response>();
+  const fetchMock = spyOn(globalThis, "fetch").mockReturnValue(pending.promise);
+  const captured: { dialog: ReactNode; submission?: Promise<void> } = { dialog: null };
+  let phase = 0;
+  function Probe() {
+    const capture = CaptureDialog({ open: true, onOpenChange() {} });
+    if (!isValidElement<DialogProps>(capture)) throw new Error("Expected capture dialog");
+    captured.dialog = Dialog(capture.props);
+    const form = Children.toArray(capture.props.children).find((child) => isValidElement(child) && child.type === "form");
+    if (!isValidElement<{ children: ReactNode; onSubmit: (event: { preventDefault(): void }) => Promise<void> }>(form)) {
+      throw new Error("Expected capture form");
+    }
+    if (phase === 0) {
+      phase = 1;
+      const input = Children.toArray(form.props.children).find((child) => isValidElement(child) && child.type === Textarea);
+      if (!isValidElement<{ onChange: (event: { target: { value: string } }) => void }>(input)) throw new Error("Expected capture input");
+      input.props.onChange({ target: { value: "Pending capture draft" } });
+    } else if (phase === 1) {
+      phase = 2;
+      captured.submission = form.props.onSubmit({ preventDefault() {} });
+    }
+    return captured.dialog;
+  }
+
+  try {
+    renderInLocale(<ToastProvider><Probe /></ToastProvider>);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/capture", expect.objectContaining({ method: "POST" }));
+    const dialog = captured.dialog;
+    if (!isValidElement<{ onCancel: (event: Event) => void }>(dialog)) throw new Error("Expected native dialog");
+    // When: the browser requests native Escape cancellation before the response settles.
+    const cancellation = new Event("cancel", { cancelable: true });
+    dialog.props.onCancel(cancellation);
+    // Then: the actual Dialog handler preserves the pending capture's modal owner.
+    expect(cancellation.defaultPrevented).toBe(true);
+  } finally {
+    pending.resolve(Response.json({ error: { code: "internal_error", message: "Controlled failure" } }, { status: 503 }));
+    await captured.submission;
+    fetchMock.mockRestore();
+  }
 });
