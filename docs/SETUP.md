@@ -1,6 +1,6 @@
 # Aro: Installation & Configuration
 
-This guide describes Aro 2.4.0, published as the [v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0).
+This guide describes Aro 2.4.1, published as the [v2.4.1 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.1).
 
 This guide covers a self-hosted Aro instance for one owner. The deployment
 has two Docker Compose services (the Next.js app and a Postgres database) and
@@ -16,7 +16,7 @@ process and publication status: [RELEASING.md](RELEASING.md).
 
 | Service | Image | Notes |
 | --- | --- | --- |
-| `app` | `ARO_IMAGE` (default `ghcr.io/madrobotnet/aro:2.4.0`) | Image-only Compose service, running the Bun standalone Next.js server as `nextjs` (UID/GID 1001). Publishes `127.0.0.1:${APP_PORT:-3000}:3000`, loopback only. Docker healthcheck uses `/api/health`. |
+| `app` | `ARO_IMAGE` (default `ghcr.io/madrobotnet/aro:2.4.1`) | Image-only Compose service, running the Bun standalone Next.js server as `nextjs` (UID/GID 1001). Publishes `127.0.0.1:${APP_PORT:-3000}:3000`, loopback only. Docker healthcheck uses `/api/health`. |
 | `db` | `pgvector/pgvector:0.8.6-pg18` | Internal only (no host port). Healthcheck `pg_isready -U postgres -d "$POSTGRES_DB"`; the app waits for it. On a **fresh** data volume the Postgres entrypoint runs `docker/postgres/production/01-app-role.sql`. It precreates the `pgcrypto`, `vector`, and `pg_trgm` extensions and the restricted application role (section 4). |
 
 Compose prefixes named volumes with the project name, which defaults to the
@@ -34,7 +34,7 @@ volume is mounted. These are project-scoped logical keys, not fixed
 global volume names. Section 10 explains how to keep an existing physical volume.
 
 The release archive pins `app.image` to
-`ghcr.io/madrobotnet/aro:2.4.0@sha256:...`, recorded in `release.json`.
+`ghcr.io/madrobotnet/aro:2.4.1@sha256:...`, recorded in `release.json`.
 Its other parsed Compose fields match source. Keep the relative
 `docker/postgres/production` directory beside Compose; downloading only
 `compose.yml` omits the required database initialization script.
@@ -72,11 +72,11 @@ Source, release assets and the `ghcr.io/madrobotnet/aro` image are public. Downl
 all release assets into an empty directory, verify their checksums, then extract:
 
 ```sh
-mkdir aro-release-2.4.0
-cd aro-release-2.4.0
-gh release download v2.4.0 --repo madrobotnet/aro
+mkdir aro-release-2.4.1
+cd aro-release-2.4.1
+gh release download v2.4.1 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf aro-2.4.0-install.tar.gz
+tar -xzf aro-2.4.1-install.tar.gz
 cd aro
 ARO_IMAGE=$(jq -r .image release.json)
 export ARO_IMAGE
@@ -86,7 +86,7 @@ docker pull "$ARO_IMAGE"
 Use this same digest reference for bootstrap and the app. Archived Compose
 already uses it by default; remove or update any old `ARO_IMAGE` override in
 `.env`. Source Compose uses the readable version tag
-`ghcr.io/madrobotnet/aro:2.4.0`, which release policy treats as immutable.
+`ghcr.io/madrobotnet/aro:2.4.1`, which release policy treats as immutable.
 
 Private pulls need a Docker registry credential with package read access.
 GitHub CLI access to the repository doesn't itself provide that
@@ -100,9 +100,9 @@ To build the image yourself instead, build the public source locally. Select the
 release tag before building; Compose has no build configuration:
 
 ```sh
-git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.1 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.4.0 \
+docker build --build-arg VERSION=2.4.1 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 ARO_IMAGE=aro:local
 export ARO_IMAGE
@@ -388,7 +388,7 @@ password; keep it out of shared logs. `bun run seed` adds demo notes to the dev 
 | `SESSION_TTL_DAYS` | sessions | `30` | Session lifetime in days |
 | `ATTACHMENTS_DIR` | attachment storage | `.data/attachments` (relative to the app's working directory) | Attachment file location; in Docker this is inside the `app-data` volume |
 | `APP_PORT` | `compose.yml` | `3000` | Loopback host port |
-| `ARO_IMAGE` | `compose.yml` only | `ghcr.io/madrobotnet/aro:2.4.0` in source; verified digest in archive | Explicit app image selection; set `aro:local` for source builds; not forwarded to the app |
+| `ARO_IMAGE` | `compose.yml` only | `ghcr.io/madrobotnet/aro:2.4.1` in source; verified digest in archive | Explicit app image selection; set `aro:local` for source builds; not forwarded to the app |
 | `POSTGRES_APP_DB` | Compose / URL helper | Required | App database name; generated fresh value `aro`; preserve existing value on upgrade |
 | `POSTGRES_APP_USER` | Compose / URL helper | Required | App role name; generated fresh value `aro`; preserve existing value on upgrade |
 | `COMPOSE_PROJECT_NAME` | Compose | Generated value `aro` | Project name; preserve the original value on upgrade |
@@ -684,10 +684,10 @@ docker compose up -d --wait --wait-timeout 180
 
 For a source installation, update the existing checkout to the intended version
 without replacing `.env` or changing its project. Use that checkout's package
-version for `VERSION`; this release is 2.4.0:
+version for `VERSION`; this release is 2.4.1:
 
 ```sh
-docker build --build-arg VERSION=2.4.0 \
+docker build --build-arg VERSION=2.4.1 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 ARO_IMAGE=aro:local
 export ARO_IMAGE

@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased — recovery and portable data
+## 2.4.1 - 2026-10-29
+
+### Fixed
+
+- Keep setup credentials out of URLs before the page becomes interactive, and
+  prevent duplicate setup submissions (#25).
+- Make controls, keyboard focus, touch targets and recoverable notifications
+  easier to use, including Korean text and reduced-motion preferences (#26).
+- Preserve Inbox and Capture drafts during saves and retries. Keep reference
+  navigation read-only until Create, and retain editor focus, tables and the
+  caret while scrolling or switching views (#27).
+- Improve route titles, skip navigation and mobile destinations. Preserve modal
+  focus and detached chat reading positions, and keep graph controls clear of
+  plotted nodes (#28).
+- Keep Settings and Sharing errors useful after language changes, confirm access
+  revocation, restore focus after template deletion, and make offline capture
+  controls and unavailable public links clearer (#29).
+- Recover exact Debian source packages from a pinned snapshot when rolling
+  indexes no longer contain the installed version, restoring native image
+  builds without changing runtime package sources (#30).
+
+### Included since the previous release
+
+- MCP connectors can authorize with OAuth discovery, PKCE and rotating grants.
+  Client metadata may list unsupported grant types alongside supported ones.
+  This support was already deployed before the 2.4.1 release.
+
+## 2.4.0 - 2026-10-19
 
 - Rename the product and new-install identifiers to Aro / 아로. Releases from
   2.4.0 use the `ghcr.io/madrobotnet/aro` image, `aro-<version>-*` archives,

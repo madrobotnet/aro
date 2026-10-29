@@ -12,7 +12,7 @@
   <a href="README.md">English</a> · <a href="docs/SETUP.ko.md">한국어 설치 안내</a> · <a href="docs/SETUP.md">English setup</a> · <a href="LICENSE">MIT</a>
 </p>
 
-이 문서는 [v2.4.0 릴리스](https://github.com/madrobotnet/aro/releases/tag/v2.4.0)로 발행된 아로 2.4.0을 설명합니다.
+이 문서는 [v2.4.1 릴리스](https://github.com/madrobotnet/aro/releases/tag/v2.4.1)로 발행된 아로 2.4.1을 설명합니다.
 
 아로는 직접 운영하는 서버에서 소유자 한 명이 쓰는 노트 도구입니다. 링크와 짧은
 생각을 인박스에 먼저 담고 Markdown 노트로 옮겨 적으면서, 노트를 서로 연결해
@@ -112,7 +112,7 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 
 ### 릴리스 설치 아카이브
 
-설치 묶음은 `aro-2.4.0-install.tar.gz`입니다. `compose.yml`, 필수 마운트
+설치 묶음은 `aro-2.4.1-install.tar.gz`입니다. `compose.yml`, 필수 마운트
 파일 `docker/postgres/production/01-app-role.sql`, 문서, 고지,
 `release.json`이 들어 있습니다. 아카이브의 Compose 파일은 이미지 다이제스트를
 고정합니다. 묶음의 디렉터리 구조를 그대로 유지하세요.
@@ -122,11 +122,11 @@ Docker와 **Docker Compose 5.1.0 이상**이 필요합니다. 버전은
 파일을 내려받고, `jq`로 이미지 참조를 읽습니다.
 
 ```sh
-mkdir aro-release-2.4.0
-cd aro-release-2.4.0
-gh release download v2.4.0 --repo madrobotnet/aro
+mkdir aro-release-2.4.1
+cd aro-release-2.4.1
+gh release download v2.4.1 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf aro-2.4.0-install.tar.gz
+tar -xzf aro-2.4.1-install.tar.gz
 cd aro
 
 ARO_IMAGE=$(jq -r .image release.json)
@@ -142,15 +142,15 @@ curl -i http://127.0.0.1:3000/api/health
 
 발행된 이미지 대신 직접 빌드하고 싶다면 소스에서 빌드하세요.
 
-### 2.4.0 소스에서 빌드
+### 2.4.1 소스에서 빌드
 
-이 경로는 GHCR을 쓰지 않습니다. Compose에 빌드 설정이 없으므로 `v2.4.0`
+이 경로는 GHCR을 쓰지 않습니다. Compose에 빌드 설정이 없으므로 `v2.4.1`
 태그에서 이미지를 직접 빌드합니다.
 
 ```sh
-git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.1 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.4.0 \
+docker build --build-arg VERSION=2.4.1 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 ARO_IMAGE=aro:local
 export ARO_IMAGE
@@ -181,7 +181,7 @@ curl -i http://127.0.0.1:3000/api/health
    바꾸지 않고 종료합니다. 호스트에서 `bun install`을 실행해도 이 파일이나
    코드는 생기지 않습니다.
 2. Compose는 DB 상태 검사가 통과한 뒤 선택한 이미지를 시작합니다.
-   소스 Compose의 기본값은 `ghcr.io/madrobotnet/aro:2.4.0`입니다.
+   소스 Compose의 기본값은 `ghcr.io/madrobotnet/aro:2.4.1`입니다.
    릴리스 아카이브는 검증된 다이제스트를, 소스 빌드는
    `ARO_IMAGE=aro:local`을 사용합니다.
 3. 앱은 `127.0.0.1`에만 바인딩됩니다. 루프백 HTTP에서만

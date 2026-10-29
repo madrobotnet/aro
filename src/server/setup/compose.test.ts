@@ -38,7 +38,7 @@ afterEach(async () => {
 });
 
 for (const scenario of [
-  { name: "default", image: "ghcr.io/madrobotnet/aro:2.4.0", values: {}, expected: defaults },
+  { name: "default", image: "ghcr.io/madrobotnet/aro:2.4.1", values: {}, expected: defaults },
   {
     name: "new image wins over legacy",
     image: "aro:local",

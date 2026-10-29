@@ -55,7 +55,7 @@ async function fixture(overrides = {}, version = "2.4.0") {
   const prefix = releasePrefix(version);
   const image = `${releaseRegistry(version)}:${version}@sha256:${"a".repeat(64)}`;
   let compose = (await readFile(join(import.meta.dir, "../compose.yml"), "utf8"))
-    .replace("ghcr.io/madrobotnet/aro:2.4.0}", `${image}}`);
+    .replace("ghcr.io/madrobotnet/aro:2.4.1}", `${image}}`);
   if (prefix === "irang") compose = compose.replace(`\${ARO_IMAGE:-\${IRANG_IMAGE:-${image}}}`, `\${IRANG_IMAGE:-${image}}`);
   const release = {
     schemaVersion: 1, version, ref: `refs/tags/v${version}`, revision: "b".repeat(40),

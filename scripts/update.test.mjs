@@ -261,7 +261,7 @@ test("legacy upgrade preserves resolved production names and volumes with real C
   await writeFile(join(f.current, ".env"), f.environment, { mode: 0o600 });
   const state = JSON.parse(await readFile(stateFile));
   const template = await readFile(join(import.meta.dir, "../compose.yml"), "utf8");
-  const nextCompose = template.replace("ghcr.io/madrobotnet/aro:2.4.0", state.next.image);
+  const nextCompose = template.replace("ghcr.io/madrobotnet/aro:2.4.1", state.next.image);
   const oldCompose = template
     .replace(/^  app-db:.*\n/m, "").replace(/^  app-user:.*\n/m, "")
     .replace(/\$\{ARO_IMAGE:-\$\{IRANG_IMAGE:-[^}]+}}/, `\${IRANG_IMAGE:-${state.previous.image}}`)

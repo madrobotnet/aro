@@ -83,7 +83,7 @@ COPY scripts/prepare-release-materials.mjs scripts/prepare-redistribution-runtim
     scripts/collect-image-licenses.mjs scripts/release-names.mjs ./scripts/
 COPY --from=filesystem / /target/
 ARG TARGETARCH
-ARG VERSION=2.4.0
+ARG VERSION=2.4.1
 ARG REVISION=local
 # Match the Debian snapshot recorded in the pinned NODE_IMAGE's apt sources.
 # Update this alongside that digest; runtime apt sources remain unchanged.
@@ -115,7 +115,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     CODEX_HOME=/app/.data/auth/codex \
     GEMINI_CLI_HOME=/app/.data/auth/google
 USER 1001:1001
-ARG VERSION=2.4.0
+ARG VERSION=2.4.1
 ARG REVISION=local
 LABEL org.opencontainers.image.title="Aro" \
       org.opencontainers.image.description="Aro application image. Third-party notices are in /app/licenses and /usr/share/aro/licenses." \

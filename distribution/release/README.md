@@ -13,10 +13,10 @@ has kind `aro-selected-materials` (restore also accepts `irang-selected-material
 associations and an explicit file allowlist. No producer filesystem locators
 are needed to restore sources.
 
-For version 2.4.0, each native output contains:
+For version 2.4.1, each native output contains:
 
-- `aro-2.4.0-sources-linux-ARCH-index.json` and its `.sha256`;
-- `aro-2.4.0-sources-linux-ARCH-0001.tar` and subsequent numbered pieces;
+- `aro-2.4.1-sources-linux-ARCH-index.json` and its `.sha256`;
+- `aro-2.4.1-sources-linux-ARCH-0001.tar` and subsequent numbered pieces;
 - `assets.mjs`, `restore.mjs` and `release-names.mjs`, the standalone Node reconstruction helpers.
 
 Versions below 2.4.0 retain the `irang-` asset prefix and registry; published
@@ -35,7 +35,7 @@ The preparer can also be run explicitly:
 ```sh
 bun scripts/prepare-source-assets.mjs \
   --materials /materials --seal MATERIAL_MANIFEST_SHA256 \
-  --version 2.4.0 --revision FULL_GIT_REVISION \
+  --version 2.4.1 --revision FULL_GIT_REVISION \
   --platform linux/amd64 --out /new/source-assets
 ```
 
@@ -50,7 +50,7 @@ piece and all three helpers, then reconstruct into a new directory:
 
 ```sh
 node restore.mjs /downloads \
-  aro-2.4.0-sources-linux-amd64-index.json INDEX_SHA256 /new/source-tree
+  aro-2.4.1-sources-linux-amd64-index.json INDEX_SHA256 /new/source-tree
 ```
 
 Reconstruction verifies the pinned index, every archive and every piece before

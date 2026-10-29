@@ -1,13 +1,12 @@
-# Aro 2.4.0 release contract
+# Aro 2.4.1 release contract
 
-This guide describes the maintainer procedure for Aro 2.4.0. That procedure was
-followed for the published [v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0) (tag on `1574f62`).
-
-This guide describes the native-image release for **2.4.0** from the public source
+This guide covers the native-image release for **2.4.1** from the public source
 repository and the public `ghcr.io/madrobotnet/aro` package. The tag is
-`v2.4.0`, the image is `ghcr.io/madrobotnet/aro:2.4.0`, and the installation
-archive is `aro-2.4.0-install.tar.gz`. Installation and data recovery are in
+`v2.4.1`, the image is `ghcr.io/madrobotnet/aro:2.4.1`, and the installation
+archive is `aro-2.4.1-install.tar.gz`. Installation and data recovery are in
 [SETUP.md](SETUP.md).
+
+The previous v2.4.0 release was tagged on `1574f62`.
 
 **Verification boundary:** accept a release only after checking its exact tag,
 source revision, image digests, assets, and successful native workflow receipts
@@ -24,11 +23,11 @@ The workflow doesn't deploy production or change visibility.
 
 ## 1. Release identity and toolchain
 
-Before tagging, set `package.json` to version `2.4.0` and keep `private: true`. This is an image
+Before tagging, set `package.json` to version `2.4.1` and keep `private: true`. This is an image
 distribution, not an npm package. Source `compose.yml` must remain image-only:
 
 Select the app image with `ARO_IMAGE`; its source default is
-`ghcr.io/madrobotnet/aro:2.4.0`. The previous environment key remains an upgrade
+`ghcr.io/madrobotnet/aro:2.4.1`. The previous environment key remains an upgrade
 fallback, described in [UPDATE.md](UPDATE.md).
 
 The stable tag, package version, and Compose default version must agree.
@@ -55,13 +54,13 @@ The Dockerfile pins both native base indexes. Each build also exports its
 `/usr/share/aro/licenses/materials.json` and verify that architecture's source
 index against the seal, version, revision and platform. The native receipt
 records the index hash and material seal alongside the runnable digest.
-See the tagged [source reconstruction contract](https://github.com/madrobotnet/aro/blob/v2.4.0/distribution/release/README.md).
+See the tagged [source reconstruction contract](https://github.com/madrobotnet/aro/blob/v2.4.1/distribution/release/README.md).
 Publish both architecture-qualified indexes, all numbered source pieces,
 checksum sidecars and reconstruction helpers with the installation assets.
 `verify-release.mjs sources` checks their native bindings; `checksums` streams
 validated source pieces while retaining the installer's text/privacy screen.
 
-Only `:2.4.0` and `:sha-<full-source-SHA>` are final image tags. There are no
+Only `:2.4.1` and `:sha-<full-source-SHA>` are final image tags. There are no
 `latest`, `2`, or `2.2` aliases. A published version must never point to new
 bytes. Rebuilding from the same source can produce different bytes because
 base images and upstream materials can change; source equality isn't digest
@@ -95,7 +94,7 @@ bun run lint -- --max-warnings=0
 bun test src/server/setup/compose.test.ts src/server/setup/compose-upgrade.test.ts src/server/setup/env-script.test.ts
 bun run db:up
 TEST_DATABASE_URL=postgres://aro:aro@127.0.0.1:55432/aro_test bun test
-docker build --build-arg VERSION=2.4.0 \
+docker build --build-arg VERSION=2.4.1 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:package-qa .
 ```
 
@@ -152,12 +151,12 @@ tags/releases. Don't overwrite a version another maintainer has published:
 ```sh
 git fetch origin main --tags
 git status --short
-git tag --list v2.4.0
-git ls-remote --tags origin refs/tags/v2.4.0
+git tag --list v2.4.1
+git ls-remote --tags origin refs/tags/v2.4.1
 gh release list --repo madrobotnet/aro
 gh repo view madrobotnet/aro --json isPrivate
 
-VERSION=2.4.0
+VERSION=2.4.1
 SOURCE_SHA=$(git rev-parse HEAD)
 git merge-base --is-ancestor "$SOURCE_SHA" origin/main
 bun --no-env-file scripts/verify-release.mjs validate \
@@ -165,17 +164,17 @@ bun --no-env-file scripts/verify-release.mjs validate \
   --revision "$SOURCE_SHA"
 ```
 
-Proceed only when the source repository is public and the existing image package
-remains private, the final revision's checks are
-clean, the worktree is clean, and `v2.4.0` is absent locally and remotely.
+Proceed only when the source repository is public, package visibility is
+unchanged, the final revision's checks pass, the worktree is clean, and
+`v2.4.1` is absent locally and remotely.
 The validator checks identity and image-only Compose; it doesn't prove all
 readiness gates or tag absence.
 
 With the owner's authorization, create and push the annotated tag:
 
 ```sh
-git tag -a v2.4.0 "$SOURCE_SHA" -m "Aro 2.4.0"
-git push origin refs/tags/v2.4.0
+git tag -a v2.4.1 "$SOURCE_SHA" -m "Aro 2.4.1"
+git push origin refs/tags/v2.4.1
 ```
 
 The tag push triggers `.github/workflows/release.yml`, named
@@ -183,7 +182,7 @@ The tag push triggers `.github/workflows/release.yml`, named
 dispatch on that tag, not on `main`:
 
 ```sh
-gh workflow run release.yml --repo madrobotnet/aro --ref v2.4.0
+gh workflow run release.yml --repo madrobotnet/aro --ref v2.4.1
 ```
 
 Don't dispatch a second run while a healthy tag-triggered run is active.
@@ -277,16 +276,16 @@ review before it can enter the bundle.
 image reference, final index digest, both runnable platform digests, and source
 and archived Compose SHA-256 values. The assembler changes exactly one parsed
 Compose value, the default `app.image`, to
-`ghcr.io/madrobotnet/aro:2.4.0@sha256:...`. It retains `ARO_IMAGE` overrides,
+`ghcr.io/madrobotnet/aro:2.4.1@sha256:...`. It retains `ARO_IMAGE` overrides,
 the SQL mount, secrets, project-scoped volume keys, and every other parsed field.
 Bootstrap must select `release.json`'s image too.
 
 | Release asset | Contents |
 | --- | --- |
-| `aro-2.4.0-install.tar.gz` | Digest-pinned installation bundle |
-| `aro-2.4.0-sources-linux-<arch>-index.json` | Architecture-qualified source index |
-| `aro-2.4.0-sources-linux-<arch>-0001.tar` (and later numbers) | Numbered source pieces |
-| `aro-2.4.0-sources-linux-<arch>-index.json.sha256` | Source index checksum sidecar |
+| `aro-2.4.1-install.tar.gz` | Digest-pinned installation bundle |
+| `aro-2.4.1-sources-linux-<arch>-index.json` | Architecture-qualified source index |
+| `aro-2.4.1-sources-linux-<arch>-0001.tar` (and later numbers) | Numbered source pieces |
+| `aro-2.4.1-sources-linux-<arch>-index.json.sha256` | Source index checksum sidecar |
 | `assets.mjs`, `restore.mjs`, `release-names.mjs` | Source reconstruction helpers |
 | `archive-manifest.json` | Each archive member's path, size, and SHA-256 |
 | `image-manifest.json` | Exact merged OCI index bytes |
@@ -349,8 +348,8 @@ Download evidence and release assets into new private directories:
 umask 077
 gh run download "$RUN_ID" --repo madrobotnet/aro --dir release-actions
 mkdir release-download
-gh release download v2.4.0 --repo madrobotnet/aro --dir release-download
-gh release view v2.4.0 --repo madrobotnet/aro \
+gh release download v2.4.1 --repo madrobotnet/aro --dir release-download
+gh release view v2.4.1 --repo madrobotnet/aro \
   --json tagName,targetCommitish,isDraft,isPrerelease,assets,url
 gh repo view madrobotnet/aro --json isPrivate
 bun --no-env-file scripts/verify-release.mjs checksums --root release-download
@@ -360,15 +359,15 @@ bun --no-env-file scripts/verify-release.mjs checksums --root release-download
 )
 ```
 
-Require a non-draft, non-prerelease `v2.4.0`, every expected asset, passing
+Require a non-draft, non-prerelease `v2.4.1`, every expected asset, passing
 checksums, public source `isPrivate=false`, and unchanged package
 visibility confirmed by an operator with package access. Independently compare all archive members
 against `archive-manifest.json`. Extract into an empty directory:
 
 ```sh
 mkdir release-extracted
-tar -xzf release-download/aro-2.4.0-install.tar.gz -C release-extracted
-TAGGED_SHA=$(git rev-parse 'refs/tags/v2.4.0^{commit}')
+tar -xzf release-download/aro-2.4.1-install.tar.gz -C release-extracted
+TAGGED_SHA=$(git rev-parse 'refs/tags/v2.4.1^{commit}')
 test "$TAGGED_SHA" = "$SOURCE_SHA"
 test "$(jq -r .revision release-download/release-receipt.json)" = "$SOURCE_SHA"
 test "$(jq -r .revision release-extracted/aro/release.json)" = "$SOURCE_SHA"
