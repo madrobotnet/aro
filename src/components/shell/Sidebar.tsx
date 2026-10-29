@@ -107,9 +107,9 @@ function RailLink({ item, active, expanded, badge }: { item: NavItem; active: bo
       aria-current={active ? "page" : undefined}
       title={expanded ? undefined : label}
       className={cn(
-        "relative flex h-10 items-center gap-2.5 rounded-ctl text-rail-mute transition-colors hover:bg-rail-hover hover:text-rail-ink focus-ring",
+        "relative flex h-10 items-center gap-2.5 rounded-ctl transition-colors hover:bg-rail-hover hover:text-rail-ink focus-ring",
         expanded ? "px-3" : "justify-center",
-        active && "bg-rail-hover text-rail-ink",
+        active ? "bg-rail-hover text-rail-ink" : "text-rail-mute",
       )}
     >
       <Icon aria-hidden className={cn("size-5 shrink-0", active && "text-rail-accent")} />

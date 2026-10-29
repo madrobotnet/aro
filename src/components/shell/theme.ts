@@ -7,6 +7,8 @@ export const THEME_STORAGE_KEY = "sb-theme";
 /** In-tab change signal so every subscriber (useSyncExternalStore) re-reads storage. */
 export const THEME_CHANGE_EVENT = "sb-theme-change";
 const THEMES: readonly Theme[] = ["system", "light", "dark"];
+// A rejected write still expresses this tab's choice; "system" is a choice too.
+let unpersistedTheme: Theme | null = null;
 
 export function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);
@@ -24,6 +26,7 @@ export function nextTheme(theme: Theme): Theme {
 
 /** Stored preference; anything unreadable or unknown counts as "system". */
 export function readStoredTheme(): Theme {
+  if (unpersistedTheme !== null) return unpersistedTheme;
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     return isTheme(stored) ? stored : "system";
@@ -36,8 +39,9 @@ export function writeStoredTheme(theme: Theme): void {
   try {
     if (theme === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
     else window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    unpersistedTheme = null;
   } catch {
-    // Private mode or blocked storage: the change event still updates this tab.
+    unpersistedTheme = theme;
   }
   window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }
