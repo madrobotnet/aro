@@ -12,8 +12,8 @@ App icons show the glyph in cream on terracotta.
   <a href="README.ko.md">한국어</a> · <a href="docs/SETUP.md">Setup guide</a> · <a href="LICENSE">MIT</a>
 </p>
 
-This documentation describes Aro 2.4.0, published as the
-[v2.4.0 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.0).
+This documentation describes Aro 2.4.1, published as the
+[v2.4.1 release](https://github.com/madrobotnet/aro/releases/tag/v2.4.1).
 
 Aro runs on your own server for one owner. Save links and quick thoughts in
 the inbox, turn them into Markdown notes, and build connections between notes
@@ -118,7 +118,7 @@ These server deployment commands use a POSIX shell and are Linux-only.
 
 ### Released installation archive
 
-The installation bundle is `aro-2.4.0-install.tar.gz`. It includes
+The installation bundle is `aro-2.4.1-install.tar.gz`. It includes
 `compose.yml`, its required `docker/postgres/production/01-app-role.sql` mount,
 the documentation, notices, and `release.json`. The archived Compose file pins
 the image by digest. Keep the bundle's directory structure intact.
@@ -128,11 +128,11 @@ the image by digest. Keep the bundle's directory structure intact.
 Use the GitHub CLI to download its assets and `jq` to read the image reference:
 
 ```sh
-mkdir aro-release-2.4.0
-cd aro-release-2.4.0
-gh release download v2.4.0 --repo madrobotnet/aro
+mkdir aro-release-2.4.1
+cd aro-release-2.4.1
+gh release download v2.4.1 --repo madrobotnet/aro
 sha256sum --check SHA256SUMS
-tar -xzf aro-2.4.0-install.tar.gz
+tar -xzf aro-2.4.1-install.tar.gz
 cd aro
 
 ARO_IMAGE=$(jq -r .image release.json)
@@ -148,15 +148,15 @@ curl -i http://127.0.0.1:3000/api/health
 
 If you'd rather not use the published image, build from source instead.
 
-### Build the 2.4.0 source
+### Build the 2.4.1 source
 
 This path doesn't use GHCR. Compose has no build configuration, so build the
-image explicitly from the `v2.4.0` tag:
+image explicitly from the `v2.4.1` tag:
 
 ```sh
-git clone --branch v2.4.0 --single-branch https://github.com/madrobotnet/aro.git
+git clone --branch v2.4.1 --single-branch https://github.com/madrobotnet/aro.git
 cd aro
-docker build --build-arg VERSION=2.4.0 \
+docker build --build-arg VERSION=2.4.1 \
   --build-arg REVISION="$(git rev-parse HEAD)" -t aro:local .
 ARO_IMAGE=aro:local
 export ARO_IMAGE
@@ -187,7 +187,7 @@ What happens during setup:
    anything. Running `bun install` on your machine won't create this file or
    the code.
 2. Compose starts the selected image after the database passes its health check.
-   Source Compose defaults to `ghcr.io/madrobotnet/aro:2.4.0`; the release
+   Source Compose defaults to `ghcr.io/madrobotnet/aro:2.4.1`; the release
    archive uses its verified digest, and a source build uses `ARO_IMAGE=aro:local`.
 3. The app listens on `127.0.0.1` only. Use `INSECURE_COOKIES=1` only for
    loopback HTTP; HTTPS requires `INSECURE_COOKIES=0`.
