@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { localeFromHeaders } from "@/lib/i18n/locale";
+import { snapshotResponse } from "@/server/shares/public";
 
 const SESSION_COOKIE = "aro_session";
 const AI_AUTH_COOKIE = "sb_ai_auth";
@@ -38,14 +40,8 @@ export function proxy(request: NextRequest) {
     return response;
   }
   if (pathname === "/share" || pathname.startsWith("/share/")) {
-    return new NextResponse("Not found.", {
-      status: 404,
-      headers: {
-        "cache-control": "private, no-store, max-age=0",
-        "referrer-policy": "no-referrer",
-        "x-robots-tag": "noindex, nofollow, noarchive",
-      },
-    });
+    const response = snapshotResponse(null, localeFromHeaders(request.headers));
+    return new NextResponse(request.method === "HEAD" ? null : response.body, { status: response.status, headers: response.headers });
   }
   if (pathname === "/setup" || pathname === "/api/setup" || pathname === "/connect/complete"
     || ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/api/mcp",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useCopy, useLocale } from "@/components/i18n";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -57,9 +57,11 @@ export function ConnectionProfileDialog({
   // The failed request itself; its message follows the current language.
   const [saveError, setSaveError] = useState<{ readonly cause: unknown } | null>(null);
   const [saving, setSaving] = useState(false);
+  const formId = useId();
+  const active = useRef(false);
 
   const close = () => {
-    if (saving) return;
+    if (active.current) return;
     const attemptId = purpose === "chat" ? form.chat.authAttemptId : form.jev.authAttemptId;
     if (attemptId) {
       void abandonAuthAttempt(attemptId, {})
@@ -69,10 +71,11 @@ export function ConnectionProfileDialog({
   };
 
   const save = async () => {
-    if (saving) return;
+    if (active.current) return;
     const built = buildProfileInput(purpose, form, profile);
     setErrors(built.ok ? {} : built.errors);
     if (!built.ok) return;
+    active.current = true;
     setSaving(true);
     setSaveError(null);
     try {
@@ -87,6 +90,7 @@ export function ConnectionProfileDialog({
     } catch (cause) {
       setSaveError({ cause });
     } finally {
+      active.current = false;
       setSaving(false);
     }
   };
@@ -103,12 +107,16 @@ export function ConnectionProfileDialog({
       footer={
         <>
           <Button size="lg" disabled={saving} onClick={close}>{copy.cancel}</Button>
-          <Button variant="primary" size="lg" loading={saving} onClick={() => void save()}>
+          <Button type="submit" form={formId} variant="primary" size="lg" loading={saving}>
             {saving ? copy.saving : copy.save}
           </Button>
         </>
       }
     >
+      <form id={formId} noValidate onSubmit={event => { event.preventDefault(); void save(); }}
+        onKeyDown={event => {
+          if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
+        }}>
       <AiFields
         idPrefix={`profile-${purpose}`}
         value={form}
@@ -125,6 +133,7 @@ export function ConnectionProfileDialog({
           {aiSaveFailureText(saveError.cause, locale)}
         </p>
       ) : null}
+      </form>
     </Dialog>
   );
 }

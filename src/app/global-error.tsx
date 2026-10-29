@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import { StatusScreen } from "@/components/shell/StatusScreen";
 import { ThemeProvider } from "@/components/shell/ThemeProvider";
+import { THEME_INIT_SCRIPT } from "@/components/shell/theme";
 import { detectLocale, FALLBACK_LOCALE, readDocumentLocale, type Locale } from "@/lib/i18n/locale";
 import "./globals.css";
 
@@ -22,6 +23,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
   const locale = useSyncExternalStore(subscribeNever, readBrowserLocale, () => FALLBACK_LOCALE);
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} /></head>
       <body className="bg-canvas text-ink antialiased">
         <ThemeProvider>
           <LocaleProvider initialLocale={locale}>

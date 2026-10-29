@@ -112,6 +112,7 @@ export function SessionDangerSection() {
       <Dialog
         open={confirmOpen}
         onOpenChange={setConfirm}
+        dismissible={!revoking}
         size="sm"
         bodyClassName="empty:hidden"
         title={copy.confirmTitle}

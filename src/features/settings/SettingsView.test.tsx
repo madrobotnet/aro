@@ -11,6 +11,8 @@ import { Section, SettingsGroup } from "./SettingsSection";
 import { SessionDangerSection, SessionSection } from "./SettingsSession";
 import { SettingsView } from "./SettingsView";
 import { TemplatesSection } from "./TemplatesSection";
+import { ConnectionProfileDialog } from "./ConnectionProfileDialog";
+import { Button, Dialog } from "@/components/ui";
 
 type GroupProps = { id: string; children: ReactNode; danger?: boolean };
 function groups(node: ReactNode): ReactElement<GroupProps>[] {
@@ -49,4 +51,31 @@ test("group and row headings expose a labelled hierarchy without extra scroll co
   expect(markup).toContain('aria-labelledby="row"');
   expect(markup).toContain('<h3 id="row"');
   expect(markup).not.toContain("overflow");
+});
+
+test("connection Save belongs to its real form and composition cannot implicitly submit", () => {
+  // Given a new connection dialog using the same form boundary as the browser.
+  const tree = captureTree(ConnectionProfileDialog, {
+    open: true, purpose: "chat", profile: null, connections: [],
+    onOpenChangeAction: () => {}, onSavedAction: () => {},
+  });
+  if (!isValidElement<{ children: ReactNode; footer: ReactNode }>(tree) || tree.type !== Dialog) {
+    throw new Error("Expected the connection dialog");
+  }
+  const form = Children.toArray(tree.props.children).find(child =>
+    isValidElement(child) && child.type === "form");
+  if (!isValidElement<{ id: string; onKeyDown: (event: {
+    key: string; keyCode: number; nativeEvent: { isComposing: boolean }; preventDefault: () => void;
+  }) => void }>(form)) throw new Error("Expected a real form");
+  const save = Children.toArray(tree.props.footer).flatMap(child =>
+    isValidElement<{ children?: ReactNode }>(child) ? Children.toArray(child.props.children) : [])
+    .find(child => isValidElement<{ type?: string }>(child) && child.type === Button && child.props.type === "submit");
+  // When inspecting the machine-consumed association, then Save submits exactly this form.
+  if (!isValidElement<{ form: string }>(save)) throw new Error("Expected Save submit button");
+  expect(save.props.form).toBe(form.props.id);
+  for (const [isComposing, keyCode, expected] of [[true, 13, true], [false, 229, true], [false, 13, false]] as const) {
+    let prevented = false;
+    form.props.onKeyDown({ key: "Enter", keyCode, nativeEvent: { isComposing }, preventDefault: () => { prevented = true; } });
+    expect(prevented).toBe(expected);
+  }
 });

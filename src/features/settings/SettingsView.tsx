@@ -78,8 +78,8 @@ function ThemeSection() {
             <label
               key={value}
               className={cn(
-                "flex min-h-touch cursor-pointer items-center justify-center gap-2 rounded-ctl text-base font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent/40",
-                theme === value ? "bg-card text-ink shadow-card" : "text-mute hover:text-ink",
+                "flex min-h-touch cursor-pointer items-center justify-center gap-2 rounded-ctl text-base font-medium transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus",
+                theme === value ? "bg-card text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink",
               )}
             >
               <input type="radio" name="theme" value={value} checked={theme === value} onChange={() => setTheme(value)} className="sr-only" />

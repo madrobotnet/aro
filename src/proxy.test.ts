@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { NextRequest } from "next/server";
 import { proxy } from "./proxy";
+import { snapshotResponse } from "@/server/shares/public";
 
 test.each(["aro_session", "sb_session"])("accepts %s at the proxy gate", (name) => {
   const response = proxy(new NextRequest("https://brain.example/api/notes", {
@@ -26,6 +27,22 @@ test("opens only exact read-only share capabilities while private APIs stay prot
   expect(proxy(new NextRequest(`https://brain.example/share/${token}`, { method: "POST" })).headers.get("x-middleware-next")).toBeNull();
   for (const path of ["/api/attachments/private", "/api/notes/id/shares", "/api/notes/id/shares/share-id", "/api/notes/id"]) {
     expect(proxy(new NextRequest(`https://brain.example${path}`)).status).toBe(401);
+  }
+});
+
+test.each(["ko", "en"] as const)("malformed share failures match the unavailable reader in %s", async locale => {
+  // Given all malformed capability shapes, independent of the browser's language.
+  const expected = snapshotResponse(null, locale);
+  const body = await expected.text();
+  for (const path of ["/share", "/share/", "/share/short", `/share/${"A".repeat(64)}`, `/share/${"a".repeat(64)}/extra`]) {
+    // When the public boundary rejects the capability.
+    const actual = proxy(new NextRequest(`https://brain.example${path}`, {
+      headers: { cookie: `sb_locale=${locale}`, "accept-language": locale === "en" ? "ko" : "en" },
+    }));
+    // Then neither markup nor privacy headers reveal the rejection reason.
+    expect(actual.status).toBe(expected.status);
+    expect(await actual.text()).toBe(body);
+    for (const [name, value] of expected.headers) expect(actual.headers.get(name)).toBe(value);
   }
 });
 

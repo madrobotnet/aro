@@ -14,42 +14,50 @@
 </head>
 <body>
   <main>
-    <header><span class="brand">ARO / CAPTURE</span><nav aria-label="Online navigation"><a href="/">Open app</a><a href="/login?next=%2Ficons%2Foffline-capture.html">Log in</a></nav></header>
-    <h1>Offline capture</h1>
-    <p class="intro">Save a thought here. Send it to your inbox when you're online.</p>
-    <p id="readiness" class="secondary" role="status">Preparing the offline page...</p>
+    <header><span class="brand"><span data-copy="brand">ARO / CAPTURE</span></span><nav id="online-navigation" aria-label="Online navigation"><a href="/"><span data-copy="open">Open app</span></a><a href="/login?next=%2Ficons%2Foffline-capture.html"><span data-copy="login">Log in</span></a></nav></header>
+    <h1><span data-copy="heading">Offline capture</span></h1>
+    <p class="intro"><span data-copy="intro">Save a thought here. Send it to your inbox when you're online.</span></p>
+    <p id="readiness" class="secondary" role="status"><span data-copy="preparing">Preparing the offline page...</span></p>
     <form id="capture-form">
       <fieldset id="editor">
-        <legend>New local draft</legend>
-        <label for="text">Thought <span class="secondary">(up to 20,000 characters)</span></label>
+        <legend><span data-copy="legend">New local draft</span></legend>
+        <label for="text"><span data-copy="thought">Thought</span> <span class="secondary"><span data-copy="thoughtLimit">(up to 20,000 characters)</span></span></label>
         <textarea id="text" rows="6" maxlength="20000"></textarea>
-        <label for="title">Title <span class="secondary">(optional)</span></label>
+        <label for="title"><span data-copy="title">Title</span> <span class="secondary"><span data-copy="optional">(optional)</span></span></label>
         <input id="title" maxlength="300" autocomplete="off">
-        <label for="url">Link <span class="secondary">(optional)</span></label>
+        <label for="url"><span data-copy="link">Link</span> <span class="secondary"><span data-copy="optional">(optional)</span></span></label>
         <input id="url" type="url" maxlength="2000" placeholder="https://example.com" autocomplete="off">
-        <label class="consent"><input id="consent" type="checkbox" required><span>I agree to save these drafts unencrypted in this browser. Anyone with access to this browser profile can read them, including after logout. Avoid secrets. Browser cleanup can erase drafts.</span></label>
-        <p class="secondary">Limit: 50 drafts, 512 KiB total. Nothing is saved until you choose Save locally. Saved drafts are immutable; delete and save a new draft to change one.</p>
-        <button type="submit" class="primary">Save locally</button>
+        <label class="consent"><input id="consent" type="checkbox" required><span><span data-copy="consent">I agree to save these drafts unencrypted in this browser. Anyone with access to this browser profile can read them, including after logout. Avoid secrets. Browser cleanup can erase drafts.</span></span></label>
+        <p class="secondary"><span data-copy="limits">Limit: 50 drafts, 512 KiB total. Nothing is saved until you choose Save locally. Saved drafts are immutable; delete and save a new draft to change one.</span></p>
+        <button type="submit" class="primary"><span data-copy="save">Save locally</span></button>
       </fieldset>
     </form>
     <details>
-      <summary>Installation and offline limits</summary>
-      <p class="secondary">To install, use your browser's Install app or Add to Home Screen menu after the offline page is ready. HTTPS or localhost is required. This page supports offline capture only, not offline note editing or live sync.</p>
+      <summary><span data-copy="help">Installation and offline limits</span></summary>
+      <p class="secondary"><span data-copy="helpBody">To install, use your browser's Install app or Add to Home Screen menu after the offline page is ready. HTTPS or localhost is required. This page supports offline capture only, not offline note editing or live sync.</span></p>
     </details>
     <section aria-labelledby="draft-heading">
-      <div class="section-heading"><h2 id="draft-heading">Local drafts</h2><span id="count" class="secondary"></span></div>
-      <p class="secondary">Oldest drafts send first. Deleting removes only the local copy; a draft whose response was lost may already be in your inbox.</p>
+      <div class="section-heading"><h2 id="draft-heading"><span data-copy="drafts">Local drafts</span></h2><span id="count" class="secondary"></span></div>
+      <p class="secondary"><span data-copy="order">Oldest drafts send first. Deleting removes only the local copy; a draft whose response was lost may already be in your inbox.</span></p>
       <div id="drafts"></div>
-      <button id="prepare" type="button">Review owner before sending</button>
+      <button id="prepare" type="button"><span data-copy="prepare">Review owner before sending</span></button>
       <div id="confirmation" hidden>
         <p id="owner"></p>
-        <p>Send these local drafts to this owner now? Login changes stop sending. Queued capture does not call AI or fetch link contents.</p>
-        <button id="send" type="button" class="primary">Confirm and send queued drafts</button>
-        <button id="cancel" type="button">Cancel</button>
+        <p><span data-copy="sendQuestion">Send these local drafts to this owner now? Login changes stop sending. Queued capture does not call AI or fetch link contents.</span></p>
+        <button id="send" type="button" class="primary"><span data-copy="send">Confirm and send queued drafts</span></button>
+        <button id="cancel" type="button"><span data-copy="cancel">Cancel</span></button>
       </div>
     </section>
     <p id="status" role="status" aria-live="polite"></p>
     <noscript>This page needs JavaScript to save local drafts. Nothing has been saved.</noscript>
+    <dialog id="delete-dialog" aria-labelledby="delete-heading">
+      <h2 id="delete-heading" data-copy="deleteTitle">Delete this local draft?</h2>
+      <p id="delete-name"></p>
+      <p data-copy="deleteBody">This removes only this browser's copy. A draft whose response was lost may already be in your inbox.</p>
+      <p id="delete-error" role="alert"></p>
+      <button id="delete-cancel" type="button" data-copy="cancel">Cancel</button>
+      <button id="delete-confirm" type="button" class="delete" data-copy="remove">Delete local draft</button>
+    </dialog>
   </main>
 </body>
 </html>

@@ -4,6 +4,41 @@ import { runInNewContext } from "node:vm";
 import {
   STORAGE_KEY, LEGACY_STORAGE_KEY, LOCK_NAME, migrateDrafts, MAX_BYTES, readDrafts, writeDrafts, prepareFlush, flushDrafts,
 } from "../../public/icons/offline-capture-queue.js";
+import { DraftError } from "../../public/icons/offline-capture-queue.js";
+import { offlineLocale, offlineDate, OFFLINE_COPY, draftErrorText } from "../../public/icons/offline-capture-display.js";
+import { formatDateTime } from "./i18n/format-date";
+
+test.each([
+  ["sb_locale=ko", ["en-US"], "ko"], ["sb_locale=en", ["ko-KR"], "en"],
+  ["other=x; sb_locale=ko; another=y", ["en"], "ko"], ["", ["ko-KR", "en"], "ko"],
+  ["", ["en-US", "ko-KR"], "en"], ["sb_locale=invalid", ["fr-FR", "ko"], "en"],
+  ["", [], "en"],
+])("offline locale honors explicit choice and primary language: %j %j", (cookie, languages, expected) => {
+  // Given a cookie and ordered browser preferences, when resolving display, then only the primary fallback is used.
+  expect(offlineLocale(cookie, languages)).toBe(expected);
+});
+
+test.each(["en", "ko"])("offline date adapter matches the app across zones in %s", locale => {
+  // Given seconds-bearing fixed inputs, including daylight saving and calendar rollover.
+  for (const value of ["2030-01-02T00:03:59Z", "2026-03-08T09:59:59Z", "2026-11-01T09:01:37Z", "invalid"]) {
+    for (const timeZone of ["UTC", "Asia/Seoul", "America/Los_Angeles"]) {
+      // When displaying through the independently shipped adapter, then app parity holds.
+      expect(offlineDate(value, locale, { timeZone })).toBe(formatDateTime(value, locale, { timeZone }));
+    }
+  }
+});
+
+test("offline errors retain actionable display identity independently of code", () => {
+  // Given errors sharing transport codes but requiring different recovery.
+  const errors = [
+    new DraftError("storage", "unused", "read"), new DraftError("storage", "unused", "write"),
+    new DraftError("ambiguous", "unused", "unreadable"), new DraftError("ambiguous", "unused", "unverified"),
+  ];
+  // When resolving in either locale, then the correct catalog entry is selected, never the raw message.
+  for (const copy of Object.values(OFFLINE_COPY)) {
+    expect(errors.map(error => draftErrorText(error, copy))).toEqual([copy.read, copy.write, copy.unreadable, copy.unverified]);
+  }
+});
 
 function storage() {
   const values = new Map();
@@ -169,7 +204,7 @@ function worker(fetcher = async () => new Response("static")) {
   return { handlers, names };
 }
 
-test("worker precaches only seven public assets, omits credentials and rejects redirects", async () => {
+test("worker precaches only its public assets, omits credentials and rejects redirects", async () => {
   const calls = [];
   const w = worker(async (url, options) => { calls.push({ url, options }); return new Response("static"); });
   let done;
@@ -177,6 +212,7 @@ test("worker precaches only seven public assets, omits credentials and rejects r
   await done;
   expect(calls.map((call) => call.url)).toEqual([
     "/icons/offline-capture.html", "/icons/offline-capture.js", "/icons/offline-capture-queue.js",
+    "/icons/offline-capture-display.js",
     "/icons/offline-capture.css", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",
   ]);
   expect(calls.every((call) => call.options.credentials === "omit" && call.options.redirect === "error")).toBe(true);
@@ -225,7 +261,7 @@ test("worker serves cached public capture offline and cleans only its own older 
   w.names.set("aro-offline-capture-v1", new Map());
   w.handlers.get("activate")({ waitUntil: (promise) => { done = promise; } });
   await done;
-  expect([...w.names.keys()]).toEqual(["aro-offline-capture-v2", "unrelated-auth-cache"]);
+  expect([...w.names.keys()]).toEqual(["aro-offline-capture-v4", "unrelated-auth-cache"]);
 });
 
 test("legacy drafts move once with unchanged identities and no duplicates", () => {
@@ -265,6 +301,7 @@ test("page startup migrates only while holding new and legacy Web Locks", async 
   const done = new Promise(resolve => { rendered = resolve; });
   const node = () => ({
     addEventListener() {}, replaceChildren() {}, append() {},
+    setAttribute() {}, showModal() {}, close() {}, focus() {},
     hidden: false, disabled: false, textContent: "",
   });
   const elements = new Map();
@@ -273,8 +310,10 @@ test("page startup migrates only while holding new and legacy Web Locks", async 
   elements.set("count", count);
   const context = {
     LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts,
+    DraftError, offlineLocale, offlineDate, OFFLINE_COPY, draftErrorText,
     localStorage: store, AbortSignal,
     document: {
+      cookie: "", documentElement: {},
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, node());
         return elements.get(id);
@@ -282,7 +321,7 @@ test("page startup migrates only while holding new and legacy Web Locks", async 
       createElement: node, querySelectorAll: () => [], addEventListener() {},
     },
     window: { addEventListener() {} },
-    navigator: { locks: { async request(name, options, action) {
+    navigator: { languages: ["en-US"], locks: { async request(name, options, action) {
       locks.push(name);
       if (name === LOCK_NAME) { await granted; return action({ name }); }
       return options({ name });
@@ -290,7 +329,7 @@ test("page startup migrates only while holding new and legacy Web Locks", async 
   };
   const source = readFileSync(new URL("../../public/icons/offline-capture.js", import.meta.url), "utf8");
   // When
-  runInNewContext(source.slice(source.indexOf("\n") + 1), context);
+  runInNewContext(source.replace(/^import .*;\n/gm, ""), context);
   expect(locks).toEqual([LOCK_NAME]);
   expect(store.getItem(LEGACY_STORAGE_KEY)).not.toBeNull();
   grant();
@@ -302,4 +341,54 @@ test("page startup migrates only while holding new and legacy Web Locks", async 
   expect(locks).toEqual([LOCK_NAME, LEGACY_STORAGE_KEY]);
   expect(readDrafts(store)).toEqual([saved]);
   expect(store.getItem(LEGACY_STORAGE_KEY)).toBeNull();
+});
+
+test("local deletion requires confirmation and keeps the selected UUID through duplicate activation", async () => {
+  // Given two persisted drafts and the real page controller with deterministic DOM/lock seams.
+  const store = storage(), first = draft("first"), second = draft("second");
+  writeDrafts(store, [first, second]);
+  const elements = new Map();
+  let focusedCancel = false, changed;
+  const nextRender = () => new Promise(resolve => { changed = resolve; });
+  const node = () => ({
+    listeners: new Map(), children: [], dataset: {}, hidden: false, disabled: false, open: false,
+    textContent: "", addEventListener(name, handler) { this.listeners.set(name, handler); },
+    replaceChildren() { this.children = []; }, append(...children) { this.children.push(...children); },
+    setAttribute() {}, showModal() { this.open = true; }, close() { this.open = false; },
+    focus() { focusedCancel = this === element("delete-cancel"); },
+  });
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, node());
+    return elements.get(id);
+  };
+  Object.defineProperty(element("count"), "textContent", { set() { changed?.(); } });
+  const rendered = nextRender();
+  const context = {
+    DraftError, LOCK_NAME, LEGACY_STORAGE_KEY, migrateDrafts, readDrafts, writeDrafts, prepareFlush, flushDrafts,
+    offlineLocale, offlineDate, OFFLINE_COPY, draftErrorText, localStorage: store, AbortSignal,
+    document: { cookie: "", documentElement: {}, getElementById: element, createElement: node,
+      querySelectorAll: () => [], addEventListener() {} },
+    window: { addEventListener() {} },
+    navigator: { languages: ["en"], locks: { request: async (name, options, action) =>
+      typeof options === "function" ? options({ name }) : action({ name }) } },
+  };
+  const source = readFileSync(new URL("../../public/icons/offline-capture.js", import.meta.url), "utf8");
+  runInNewContext(source.replace(/^import .*;\n/gm, ""), context);
+  await rendered;
+  const removeAt = index => element("drafts").children[index].children.at(-1).listeners.get("click")();
+  // When opening then cancelling the first draft, selecting the second and confirming twice in one turn.
+  removeAt(0);
+  expect(readDrafts(store)).toEqual([first, second]);
+  expect(focusedCancel).toBe(true);
+  element("delete-cancel").listeners.get("click")();
+  expect(readDrafts(store)).toEqual([first, second]);
+  removeAt(1);
+  const committed = nextRender();
+  element("delete-confirm").listeners.get("click")();
+  element("delete-confirm").listeners.get("click")();
+  await committed;
+  // Then only the selected draft is removed, with no owner/send confirmation or network call.
+  expect(readDrafts(store)).toEqual([first]);
+  expect(element("delete-dialog").open).toBe(false);
+  expect(element("confirmation").hidden).toBe(true);
 });

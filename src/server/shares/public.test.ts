@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { snapshotResponse } from "./public";
+import { formatDateTime } from "@/lib/i18n/format-date";
 
 test("renders shared data as inert readable text with no remote resources", async () => {
   // Given Markdown, private attachment URLs and hostile HTML.
@@ -25,4 +26,15 @@ test("returns one generic uncached not-found document for unavailable shares", a
   expect(response.status).toBe(404);
   expect(response.headers.get("cache-control")).toContain("no-store");
   expect(await response.text()).not.toContain("<pre>");
+});
+
+test.each(["en", "ko"] as const)("formats snapshot expiry explicitly in UTC for %s", async locale => {
+  // Given a seconds-bearing expiry on a date boundary.
+  const expiresAt = "2030-01-02T00:03:59.000Z";
+  // When rendering the public snapshot.
+  const html = await snapshotResponse({ title: "Fixture", body: "Body", expiresAt }, locale).text();
+  const time = /<time datetime="([^"]+)">([^<]+)<\/time>/.exec(html);
+  // Then machine time is unchanged and visible time follows the shared UTC rule.
+  expect(time?.[1]).toBe(expiresAt);
+  expect(time?.[2]).toBe(`${formatDateTime(expiresAt, locale, { timeZone: "UTC" })} UTC`);
 });

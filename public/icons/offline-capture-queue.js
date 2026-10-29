@@ -6,10 +6,12 @@ export const MAX_BYTES = 512 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export class DraftError extends Error {
-  constructor(code, message) {
+  constructor(code, message, displayKey = code, status = null) {
     super(message);
     this.name = "DraftError";
     this.code = code;
+    this.displayKey = displayKey;
+    this.status = status;
   }
 }
 
@@ -26,14 +28,14 @@ function serialize(drafts) {
       || (!draft.text.trim() && !draft.url.trim())
       || typeof draft.createdAt !== "string" || !Number.isFinite(Date.parse(draft.createdAt))
       || Object.keys(draft).some((key) => !["requestId", "text", "url", "title", "createdAt"].includes(key))) {
-      throw new DraftError("storage", "Draft data is invalid. Existing data was not changed.");
+      throw new DraftError("storage", "Draft data is invalid. Existing data was not changed.", "invalid");
     }
     ids.add(draft.requestId);
   }
   const value = JSON.stringify(drafts);
   // Bound actual localStorage UTF-16 usage, including serialized metadata.
   if (value.length * 2 > MAX_BYTES) {
-    throw new DraftError("storage", "Local drafts exceed 512 KiB. Delete a draft before saving more.");
+    throw new DraftError("storage", "Local drafts exceed 512 KiB. Delete a draft before saving more.", "full");
   }
   return value;
 }
@@ -46,7 +48,7 @@ export function readDrafts(storage) {
     return drafts;
   } catch (error) {
     if (error instanceof DraftError) throw error;
-    throw new DraftError("storage", "Cannot read local drafts. Browser storage may be blocked or damaged; existing data was not changed.");
+    throw new DraftError("storage", "Cannot read local drafts. Browser storage may be blocked or damaged; existing data was not changed.", "read");
   }
 }
 
@@ -55,7 +57,7 @@ export function writeDrafts(storage, drafts) {
   try {
     storage.setItem(STORAGE_KEY, value);
   } catch {
-    throw new DraftError("storage", "Could not save locally. Storage may be full or blocked. Keep this page open and copy your text.");
+    throw new DraftError("storage", "Could not save locally. Storage may be full or blocked. Keep this page open and copy your text.", "write");
   }
 }
 
@@ -77,13 +79,13 @@ export function draftSnapshot(storage) {
 
 export async function prepareFlush(storage, fetcher) {
   const snapshot = draftSnapshot(storage);
-  if (readDrafts(storage).length === 0) throw new DraftError("empty", "No drafts to send.");
+  if (readDrafts(storage).length === 0) throw new DraftError("empty", "No drafts to send.", "emptySend");
   const response = await fetcher("/api/capture", { method: "GET", credentials: "same-origin", cache: "no-store" });
   if (!response.ok) throw new DraftError("auth", "Log in online, then prepare sending again.");
   const identity = await response.json();
   if (typeof identity.ownerId !== "string" || typeof identity.sessionId !== "string"
     || !/^[0-9a-f-]{36}$/.test(identity.ownerId) || !/^[0-9a-f-]{36}$/.test(identity.sessionId)) {
-    throw new DraftError("auth", "Could not verify the current owner. Nothing was sent.");
+    throw new DraftError("auth", "Could not verify the current owner. Nothing was sent.", "identity");
   }
   return { ...identity, snapshot };
 }
@@ -112,14 +114,14 @@ export async function flushDrafts(storage, confirmation, fetcher) {
     }
     if (!response.ok) {
       throw new DraftError(response.status === 401 ? "auth" : response.status === 409 ? "conflict" : "http",
-        `Sending stopped (HTTP ${response.status}). Remaining drafts were kept. Log in if needed, then review and confirm again.`);
+        `Sending stopped (HTTP ${response.status}). Remaining drafts were kept. Log in if needed, then review and confirm again.`, "http", response.status);
     }
     let result;
     try { result = await response.json(); } catch {
-      throw new DraftError("ambiguous", "Unreadable response. Draft kept; confirm again to retry the same request safely.");
+      throw new DraftError("ambiguous", "Unreadable response. Draft kept; confirm again to retry the same request safely.", "unreadable");
     }
     if (!result?.item || typeof result.item.id !== "string" || !/^[0-9a-f-]{36}$/i.test(result.item.id)) {
-      throw new DraftError("ambiguous", "Unverified response. Draft kept; confirm again to retry safely.");
+      throw new DraftError("ambiguous", "Unverified response. Draft kept; confirm again to retry safely.", "unverified");
     }
     // If deletion fails, stop with the original UUID still durable for a safe replay.
     writeDrafts(storage, drafts.slice(1));

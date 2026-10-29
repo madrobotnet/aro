@@ -6,7 +6,7 @@ const days = (count: number) => (count === 1 ? "1 day left" : `${count} days lef
 export const SETTINGS_COPY = defineCopy({
   ko: {
     title: "설정",
-    lead: "화면, 로그인 세션, 선택 기능이 어떻게 동작하는지 확인하고 바꿀 수 있어요.",
+    lead: "화면, 로그인 세션, 선택 기능의 동작을 확인하고 바꿀 수 있어요.",
     groups: {
       account: "계정·보안",
       display: "화면·언어",
