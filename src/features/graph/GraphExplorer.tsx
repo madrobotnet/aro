@@ -113,14 +113,14 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
         ) : null}
         <label className="flex items-center gap-2 text-sm text-mute">
           {copy.toolbar.depth}
-          <select aria-label={copy.toolbar.depthLabel} className="h-touch lg:h-8 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}>
+          <select aria-label={copy.toolbar.depthLabel} className="h-touch lg:h-8 rounded-ctl border border-control-boundary bg-card px-2 text-ink focus-ring" value={depth} onChange={(event) => setDepth(Number(event.target.value) as 1 | 2 | 3)}>
             <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
           </select>
         </label>
         {!compact ? (
           <label className="flex items-center gap-2 text-sm text-mute">
             {copy.toolbar.tagFilter}
-            <select className="h-touch lg:h-8 max-w-40 rounded-ctl border border-line bg-card px-2 text-ink focus-ring" value={tag} onChange={(event) => setTag(event.target.value)}>
+            <select className="h-touch lg:h-8 max-w-40 rounded-ctl border border-control-boundary bg-card px-2 text-ink focus-ring" value={tag} onChange={(event) => setTag(event.target.value)}>
               <option value="">{copy.toolbar.allTags}</option>
               {tagData?.tags.map((item) => <option key={item.tag} value={item.tag}>{item.tag} ({item.count})</option>)}
             </select>
