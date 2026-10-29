@@ -145,6 +145,12 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
       ) : data ? (
         <>
           <div className="relative overflow-hidden rounded-card border border-line bg-card shadow-card">
+            <div className="m-2 flex w-fit gap-1 rounded-ctl border border-line bg-card/90 p-1 shadow-card">
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomIn} title={copy.canvas.zoomIn} onClick={() => canvasRef.current?.zoomBy(1.35)}><Plus aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomOut} title={copy.canvas.zoomOut} onClick={() => canvasRef.current?.zoomBy(0.75)}><Minus aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.fit} title={copy.canvas.fit} onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden className="size-4" /></Button>
+              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.reset} title={copy.canvas.reset} onClick={reset}><RotateCcw aria-hidden className="size-4" /></Button>
+            </div>
             <ForceGraphCanvas
               ref={canvasRef}
               data={data}
@@ -153,12 +159,6 @@ export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, c
               onSelect={(node) => setSelectedId(node?.id ?? null)}
               onPinChange={recordPin}
             />
-            <div className="absolute left-2 top-2 flex gap-1 rounded-ctl border border-line bg-card/90 p-1 shadow-card">
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomIn} title={copy.canvas.zoomIn} onClick={() => canvasRef.current?.zoomBy(1.35)}><Plus aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.zoomOut} title={copy.canvas.zoomOut} onClick={() => canvasRef.current?.zoomBy(0.75)}><Minus aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.fit} title={copy.canvas.fit} onClick={() => canvasRef.current?.fit()}><Maximize2 aria-hidden className="size-4" /></Button>
-              <Button iconOnly size="sm" className="min-h-touch min-w-touch lg:min-h-0 lg:min-w-0" variant="ghost" aria-label={copy.canvas.reset} title={copy.canvas.reset} onClick={reset}><RotateCcw aria-hidden className="size-4" /></Button>
-            </div>
           </div>
           {data.truncated ? <p role="status" className="text-sm text-warn">{copy.status.truncated}</p> : null}
           {legend.length ? (
