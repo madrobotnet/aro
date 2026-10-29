@@ -20,7 +20,7 @@ export const LOGIN_COPY = defineCopy({
       network: "서버에 연결할 수 없어요. 네트워크 연결을 확인한 뒤 다시 시도하세요.",
       unknown: "로그인하지 못했어요. 잠시 후 다시 시도하세요.",
     },
-    locked: (remaining: string) => `시도가 너무 많아 잠시 잠겼어요. ${remaining} 뒤에 다시 시도할 수 있어요.`,
+    locked: (remaining: string) => `시도가 너무 많아 잠시 잠겼어요. ${remaining} 뒤에 다시 시도할\u00a0수\u00a0있어요.`,
     lockedReady: "이제 다시 시도할 수 있어요.",
     duration: (minutes: number, seconds: number) =>
       minutes === 0 ? `${seconds}초` : seconds === 0 ? `${minutes}분` : `${minutes}분 ${seconds}초`,
