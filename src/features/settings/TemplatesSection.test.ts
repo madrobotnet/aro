@@ -22,11 +22,11 @@ beforeAll(async () => {
   script = output;
 });
 
-async function bounded<T>(promise: Promise<T>): Promise<T> {
+async function bounded<T>(promise: Promise<T>, phase: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([promise, new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error("Template focus event did not arrive")), 10_000);
+      timer = setTimeout(() => reject(new Error(`Template focus event did not arrive: ${phase}`)), 10_000);
     })]);
   } finally { clearTimeout(timer); }
 }
@@ -70,15 +70,17 @@ test.each([false, true])("template deletion restores lost focus without stealing
   try {
     // Never attach to a user's browser. BUN_CHROME_PATH supports nonstandard installs.
     view = new Bun.WebView({ backend: { type: "chrome", url: false, argv: ["--no-sandbox"] }, dataStore: "ephemeral" });
-    await bounded(view.navigate(server.url.href));
-    await bounded(view.evaluate("window.templateFocusLoaded"));
-    await bounded(view.evaluate("window.templateFocusTest.ready"));
+    // Complete Chrome's first-target attach before navigating to the fixture.
+    await bounded(view.navigate("about:blank"), "browser initialized");
+    await bounded(view.navigate(server.url.href), "navigate");
+    await bounded(view.evaluate("window.templateFocusLoaded"), "fixture loaded");
+    await bounded(view.evaluate("window.templateFocusTest.ready"), "rows ready");
     const opener = await view.evaluate<string>("window.templateFocusTest.deleteSelector");
-    await bounded(view.click(opener));
-    await bounded(view.evaluate("window.templateFocusTest.opened"));
-    await bounded(view.click("dialog[open] footer button:last-child"));
-    await bounded(listRequested.promise);
-    await bounded(view.evaluate("window.templateFocusTest.closed"));
+    await bounded(view.click(opener), "click opener");
+    await bounded(view.evaluate("window.templateFocusTest.opened"), "dialog opened");
+    await bounded(view.click("dialog[open] footer button:last-child"), "click confirm");
+    await bounded(listRequested.promise, "revalidation requested");
+    await bounded(view.evaluate("window.templateFocusTest.closed"), "dialog closed");
     expect(deletes).toBe(1);
     expect(await view.evaluate<{ readonly rows: number; readonly openerFocused: boolean }>(`({
       rows: document.querySelectorAll('section[aria-labelledby="settings-templates"] li').length,
@@ -88,7 +90,7 @@ test.each([false, true])("template deletion restores lost focus without stealing
 
     // When: revalidation removes the opener after the modal has already closed.
     releaseList.resolve();
-    await bounded(view.evaluate("window.templateFocusTest.removed"));
+    await bounded(view.evaluate("window.templateFocusTest.removed"), "row removed");
 
     // Then: recover to Add template only if the user has not focused another control.
     const expected = moved ? "#other-control" : 'section[aria-labelledby="settings-templates"] button';
