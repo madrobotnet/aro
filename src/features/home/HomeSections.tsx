@@ -108,7 +108,7 @@ export function InboxSection({ count, items, now }: { count: number; items: Inbo
               || (!stripInboxUrlStatus(item.body) ? (status === "pending" ? urlCopy.urlPending : status === "failed" ? urlCopy.urlFailed : "") : "");
             return (
             <li key={item.id}>
-              <Link href="/inbox" className="flex min-h-touch flex-col gap-1 px-4 py-3 hover:bg-desk focus-ring sm:px-5">
+              <Link href="/inbox" className="flex min-h-touch flex-col gap-1 px-4 py-3 hover:bg-desk focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--focus)] sm:px-5">
                 <span className="truncate text-md font-medium">{item.title || copy.untitled}</span>
                 {preview ? <span className="line-clamp-2 text-sm text-mute">{preview}</span> : null}
                 <span className="text-xs text-mute">

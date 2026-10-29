@@ -26,7 +26,7 @@ const ForceGraphCanvas = dynamic(() => import("./ForceGraphCanvas").then((module
 type Props = { noteId?: string; depth?: 1 | 2 | 3; height?: number; compact?: boolean };
 const PALETTE_CLASSES = ["bg-graph-1", "bg-graph-2", "bg-graph-3", "bg-graph-4", "bg-graph-5", "bg-graph-6"] as const;
 // Segmented scope toggle: the pressed state is a raised card on a tonal track, never an accent fill.
-const SCOPE_BUTTON = "aria-pressed:bg-card aria-pressed:font-medium aria-pressed:text-ink aria-pressed:shadow-card aria-pressed:ring-1 aria-pressed:ring-line-strong not-aria-pressed:text-mute not-aria-pressed:hover:text-ink";
+const SCOPE_BUTTON = "aria-pressed:bg-card aria-pressed:font-medium aria-pressed:text-ink aria-pressed:shadow-card aria-pressed:ring-1 aria-pressed:ring-line-strong aria-pressed:focus-visible:[box-shadow:0_0_0_2px_var(--focus)] not-aria-pressed:text-mute not-aria-pressed:hover:text-ink";
 
 export function GraphExplorer({ noteId, depth: initialDepth = 1, height = 560, compact = false }: Props) {
   const router = useRouter();
@@ -205,7 +205,7 @@ function AccessibleGraphList({ data, selectedId, onSelect }: { data: GraphData; 
     <details className="rounded-card border border-line bg-desk p-3">
       <summary className="flex min-h-touch cursor-pointer items-center font-medium text-ink focus-ring">{copy.summary(data.nodes.length)}</summary>
       <ul className="mt-3 grid max-h-72 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-        {data.nodes.map((node) => <li key={node.id}><button type="button" aria-pressed={selectedId === node.id} className="flex min-h-11 w-full items-center justify-between rounded-ctl px-3 py-2 text-left text-sm text-ink hover:bg-line/50 focus-ring aria-pressed:bg-accent-soft" onClick={() => onSelect(node)}><span className="truncate">{node.label}</span><span className="ml-2 shrink-0 text-xs text-mute">{node.degree}</span></button></li>)}
+        {data.nodes.map((node) => <li key={node.id}><button type="button" aria-pressed={selectedId === node.id} className="flex min-h-11 w-full items-center justify-between rounded-ctl px-3 py-2 text-left text-sm text-ink hover:bg-line/50 focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--focus)] aria-pressed:bg-accent-soft" onClick={() => onSelect(node)}><span className="truncate">{node.label}</span><span className="ml-2 shrink-0 text-xs text-mute">{node.degree}</span></button></li>)}
       </ul>
     </details>
   );
