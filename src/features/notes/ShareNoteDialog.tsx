@@ -117,7 +117,7 @@ function ShareBody({ noteId, beforeCreate, busy, setBusy, titleId, onDismiss }: 
     <p className="mt-2 text-sm text-mute">{copy.stop}</p>
     <label className="mt-5 block text-sm font-medium">{copy.duration}
       <select value={hours} disabled={busy} onChange={(event) => setHours(event.target.value)}
-        className="mt-1 block min-h-touch w-full rounded-ctl border border-line bg-card px-3 text-ink">
+        className="mt-1 block min-h-touch w-full rounded-ctl border border-control-boundary bg-card px-3 text-ink">
         <option value="1">{copy.hour}</option><option value="24">{copy.day}</option><option value="168">{copy.week}</option>
       </select>
     </label>

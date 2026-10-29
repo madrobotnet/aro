@@ -83,7 +83,7 @@ export function AgentsSection() {
           </fieldset>
           {scopes.includes("propose-write") && <div>
             <label htmlFor="agent-note-ids" className="block text-sm">{ko ? "수정 제안을 허용할 노트 ID" : "Note IDs allowed for proposals"}</label>
-            <textarea id="agent-note-ids" className="mt-2 w-full rounded border border-line bg-canvas p-3 text-sm focus-ring"
+            <textarea id="agent-note-ids" className="mt-2 w-full rounded border border-control-boundary bg-canvas p-3 text-sm focus-ring"
               rows={3} value={noteIds} onChange={event => setNoteIds(event.target.value)} disabled={busy} />
             <p className="mt-2 text-xs text-mute">{ko ? "노트 주소의 UUID를 줄바꿈이나 쉼표로 구분하세요. 전체 노트 수정 권한은 주지 않아요." : "Separate note URL UUIDs with commas or newlines. This does not grant blanket write access."}</p>
           </div>}
