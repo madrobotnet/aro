@@ -364,7 +364,10 @@ decision or return action. Priorities: 1. content/outcome, 2. relevant context,
 3. expiry or next action. Required: generic unavailable-share behavior, explicit
 consent and non-sensitive failures. Omit app navigation, editing, owner identity,
 credentials and fetched resources from the public reader.
-Layout: readable document-scrolling standalone content. Public shares remain
+Layout: document-scrolling standalone content with a 65ch reading measure.
+Every unavailable share gives the same neutral instruction to request a new
+link from the sender, without disclosing why this link is unavailable.
+Public shares remain
 script/asset-isolated; expiry is localized with an explicit UTC label and ISO
 only in `datetime`. Their system-font fallback is deliberate, with no font fetch.
 Provider completion and invalid consent reuse the existing
