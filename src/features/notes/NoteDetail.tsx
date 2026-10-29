@@ -37,8 +37,8 @@ import { readRawMode, subscribeRawMode, writeRawMode } from "./raw-mode";
 export function NoteDetail({ noteId }: { noteId: string }) {
   const copy = useCopy(NOTES_COPY);
   const detail = useSWR<{ note: Note }>(`/api/notes/${noteId}`, { revalidateOnFocus: true });
-  if (detail.isLoading) return <section className="min-w-0 flex-1 p-5"><SkeletonLines lines={8} /></section>;
-  if (detail.error || !detail.data) return <section className="min-w-0 flex-1 p-5"><EmptyState title={copy.detail.openFailedTitle} description={copy.detail.openFailedDescription} action={<Button onClick={() => void detail.mutate()}>{copy.retry}</Button>} /></section>;
+  if (detail.isLoading) return <section className="min-w-0 flex-1 p-5"><h1 className="sr-only">{copy.list.heading}</h1><SkeletonLines lines={8} /></section>;
+  if (detail.error || !detail.data) return <section className="min-w-0 flex-1 p-5"><h1 className="sr-only">{copy.detail.openFailedTitle}</h1><EmptyState title={copy.detail.openFailedTitle} description={copy.detail.openFailedDescription} action={<Button onClick={() => void detail.mutate()}>{copy.retry}</Button>} /></section>;
   return <LoadedNote note={detail.data.note} checking={detail.isValidating} refresh={() => detail.mutate()} />;
 }
 

@@ -64,11 +64,13 @@ export function NoteList({ selectedId }: { selectedId?: string }) {
     }
   };
 
+  const Heading = selectedId ? "h2" : "h1";
+  const ItemHeading = selectedId ? "h3" : "h2";
   return (
     <aside className={`${selectedId ? "hidden lg:flex" : "flex"} w-full shrink-0 flex-col border-r border-line bg-desk lg:w-80 xl:w-96`} aria-label={copy.list.label}>
       <header className="border-b border-line p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">{copy.list.heading}</h1>
+          <Heading className="text-xl font-semibold">{copy.list.heading}</Heading>
           <Button variant="primary" size="sm" className="max-lg:min-h-touch" leading={<FilePlus2 aria-hidden className="size-4" />} onClick={() => void create()}>{copy.list.newNote}</Button>
         </div>
         {/* Below lg the tag filter shares the search row so the first note sits higher on a phone. */}
@@ -99,7 +101,7 @@ export function NoteList({ selectedId }: { selectedId?: string }) {
           {notes.map((note) => (
             <li key={note.id}>
               <Link href={`/notes/${note.id}${params.size ? `?${params}` : ""}`} aria-current={selectedId === note.id ? "page" : undefined} className={`block rounded-card border px-3 py-3 transition-colors ${selectedId === note.id ? "border-line-strong bg-canvas" : "border-transparent hover:border-line hover:bg-card"}`}>
-                <div className="flex items-start gap-2"><h2 className="min-w-0 flex-1 truncate font-medium">{displayNoteTitle(note, locale)}</h2>{selectedId === note.id ? <Check aria-hidden className="size-4 shrink-0" /> : null}{note.pinned ? <Pin aria-label={copy.list.pinned} className="size-3.5 shrink-0 text-accent" /> : null}</div>
+                <div className="flex items-start gap-2"><ItemHeading className="min-w-0 flex-1 truncate font-medium">{displayNoteTitle(note, locale)}</ItemHeading>{selectedId === note.id ? <Check aria-hidden className="size-4 shrink-0" /> : null}{note.pinned ? <Pin aria-label={copy.list.pinned} className="size-3.5 shrink-0 text-accent" /> : null}</div>
                 {note.excerpt ? <p className="mt-1 line-clamp-2 text-sm text-mute">{note.excerpt}</p> : null}
                 <div className="mt-2 flex items-center gap-1 overflow-hidden">{note.tags.slice(0, 2).map((item) => <TagBadge key={item} tag={item} />)}<ListDate note={note} trash={view === "trash"} /></div>
               </Link>
