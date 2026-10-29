@@ -76,7 +76,7 @@ export function NoteList({ selectedId }: { selectedId?: string }) {
           <Input wrapperClassName="min-w-0 flex-1 lg:flex-none" className="max-lg:min-h-touch" label={copy.list.searchLabel} placeholder={copy.list.searchPlaceholder} value={q} leading={<Search aria-hidden />} onChange={(event) => setParam("q", event.target.value)} trailing={q ? <button type="button" className="control-target inline-flex items-center justify-center" aria-label={copy.list.clearSearch} onClick={() => setParam("q", "")}><X aria-hidden className="size-4" /></button> : null} />
           {(tags.data?.tags.length ?? 0) > 0 ? (
             <label className="flex w-32 shrink-0 flex-col gap-1.5 text-xs text-mute lg:w-auto"><span>{copy.list.tagFilter}</span>
-              <select className="h-10 min-w-0 flex-1 rounded-ctl border border-line bg-card px-2 text-sm text-ink max-lg:min-h-touch lg:h-auto lg:py-1.5" value={tag} onChange={(event) => setParam("tag", event.target.value)}>
+              <select className="h-10 min-w-0 flex-1 rounded-ctl border border-control-boundary bg-card px-2 text-sm text-ink max-lg:min-h-touch lg:h-auto lg:py-1.5" value={tag} onChange={(event) => setParam("tag", event.target.value)}>
                 <option value="">{copy.list.allTags}</option>
                 {tags.data?.tags.map((item) => <option key={item.tag} value={item.tag}>{item.tag} ({item.count})</option>)}
               </select>
