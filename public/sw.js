@@ -1,6 +1,6 @@
 /* Capture-only cache. Never intercept/cache authenticated app pages, API data, or providers. */
 const CACHE_PREFIX = "aro-offline-capture-";
-const CACHE_NAME = `${CACHE_PREFIX}v3`;
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
 const ASSETS = [
   "/icons/offline-capture.html",
   "/icons/offline-capture.js",
