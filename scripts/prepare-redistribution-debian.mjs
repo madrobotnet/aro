@@ -18,17 +18,17 @@ import { gunzipSync } from "node:zlib";
 //     --out <new-directory> \
 //     [--expected-index sha256:<64-hex>] \
 //     [--receipts <debian-source-receipts.json>] \
-//     [--cache <prepared-source-directory>]
+//     [--cache <prepared-source-directory>] [--snapshot <YYYYMMDDTHHMMSSZ>]
 //
 // --expected-index is required with --image. --image and --root are mutually
 // exclusive. --receipts reuses matching .dsc text; --cache reuses matching
 // indexed source files. Both are optional and have no default evidence path.
-// Source URLs come only from the image apt configuration's source indexes, or
-// from a receipt entry whose name, version, URL path, and hash match that index.
-// A commented snapshot URL is not a source.
+// --snapshot explicitly permits historical Debian indexes for missing versions,
+// retaining the configured suites/components and every index/DSC/hash check.
+// Receipts must still match the selected index. Comments never enable fallback.
 
-const USAGE = "Usage: bun scripts/prepare-redistribution-debian.mjs (--image <ref> | --root <rootfs>) --out <new-directory> [--expected-index sha256:<64-hex>] [--receipts <debian-source-receipts.json>] [--cache <prepared-source-directory>]";
-const FLAGS = ["--image", "--root", "--out", "--expected-index", "--receipts", "--cache"];
+const USAGE = "Usage: bun scripts/prepare-redistribution-debian.mjs (--image <ref> | --root <rootfs>) --out <new-directory> [--expected-index sha256:<64-hex>] [--receipts <debian-source-receipts.json>] [--cache <prepared-source-directory>] [--snapshot <YYYYMMDDTHHMMSSZ>]";
+const FLAGS = ["--image", "--root", "--out", "--expected-index", "--receipts", "--cache", "--snapshot"];
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROBE = `
 import fs from "node:fs";
@@ -126,6 +126,7 @@ const parseArgs = (argv) => {
     fail("--expected-index must be sha256: followed by 64 hex characters");
   }
   if (options["--image"] && /\s/.test(options["--image"])) fail("--image must be one image reference");
+  if (options["--snapshot"] && !/^\d{8}T\d{6}Z$/.test(options["--snapshot"])) fail("--snapshot must be YYYYMMDDTHHMMSSZ");
   return options;
 };
 
@@ -233,7 +234,17 @@ const fetchExact = async (url, timeoutMs) => {
       if (!location) fail(`redirect without location from ${current}`);
       const next = new URL(location, current);
       if (next.host !== current.host) fail(`refusing cross-host redirect ${current} -> ${next}`);
-      if (next.pathname !== current.pathname || next.search !== current.search) fail(`refusing path-changing redirect ${current} -> ${next}`);
+      // Snapshot serves dated archive objects through its same-origin file farm.
+      // Keep the logical URL for index paths; payload hashes are checked below.
+      const snapshotFile = current.origin === "https://snapshot.debian.org" &&
+        next.origin === current.origin && !next.search &&
+        /^\/archive\/debian(?:-security)?\/\d{8}T\d{6}Z\//.test(current.pathname) &&
+        /^\/file\/[a-f0-9]{40}\/[^/]+$/.test(next.pathname) &&
+        (decodeURIComponent(basename(next.pathname)) === decodeURIComponent(basename(current.pathname)) ||
+          /^[a-f0-9]{64}$/.test(basename(next.pathname)));
+      if (!snapshotFile && (next.pathname !== current.pathname || next.search !== current.search)) {
+        fail(`refusing path-changing redirect ${current} -> ${next}`);
+      }
       if (next.protocol !== current.protocol && !(current.protocol === "http:" && next.protocol === "https:")) {
         fail(`refusing scheme change ${current} -> ${next}`);
       }
@@ -619,33 +630,40 @@ const prepare = async (options) => {
   const entries = aptEntries(aptFiles);
   const indexes = [];
   const seenIndex = new Set();
-  for (const entry of entries) {
+  const bySource = new Map();
+  const addEntry = async (entry) => {
     for (const component of entry.components) {
       const key = `${entry.uri}|${entry.suite}|${component}`;
       if (seenIndex.has(key)) continue;
       seenIndex.add(key);
-      indexes.push(await loadIndex(entry, component));
+      const index = await loadIndex(entry, component);
+      indexes.push(index);
+      for (const stanza of index.stanzas) {
+        const name = one(stanza, "Package");
+        const version = one(stanza, "Version");
+        const directory = one(stanza, "Directory");
+        if (directory.split("/").some((part) => part === "" || part === "." || part === "..")) fail(`unsafe directory for ${name}`);
+        const files = parseChecksums(stanza.get("Checksums-Sha256"), `${name} ${version}`);
+        const dscs = files.filter((file) => file.name.endsWith(".dsc"));
+        if (dscs.length !== 1) fail(`${name} ${version} does not name exactly one .dsc`);
+        const record = {
+          name, version, directory, index,
+          dsc: { ...dscs[0], url: `${index.archive}/${directory}/${dscs[0].name}` },
+          files: files.filter((file) => file.name !== dscs[0].name).map((file) => ({ ...file, url: `${index.archive}/${directory}/${file.name}` })),
+        };
+        const key = `${name}\t${version}`;
+        const variants = bySource.get(key) ?? [];
+        variants.push(record);
+        bySource.set(key, variants);
+      }
     }
-  }
-  const bySource = new Map();
-  for (const index of indexes) {
-    for (const stanza of index.stanzas) {
-      const name = one(stanza, "Package");
-      const version = one(stanza, "Version");
-      const directory = one(stanza, "Directory");
-      if (directory.split("/").some((part) => part === "" || part === "." || part === "..")) fail(`unsafe directory for ${name}`);
-      const files = parseChecksums(stanza.get("Checksums-Sha256"), `${name} ${version}`);
-      const dscs = files.filter((file) => file.name.endsWith(".dsc"));
-      if (dscs.length !== 1) fail(`${name} ${version} does not name exactly one .dsc`);
-      const record = {
-        name, version, directory, index,
-        dsc: { ...dscs[0], url: `${index.archive}/${directory}/${dscs[0].name}` },
-        files: files.filter((file) => file.name !== dscs[0].name).map((file) => ({ ...file, url: `${index.archive}/${directory}/${file.name}` })),
-      };
-      const key = `${name}\t${version}`;
-      const variants = bySource.get(key) ?? [];
-      variants.push(record);
-      bySource.set(key, variants);
+  };
+  for (const entry of entries) await addEntry(entry);
+  if (options["--snapshot"] && packages.some(pkg => !bySource.has(`${pkg.sourcePackage}\t${pkg.sourceVersion}`))) {
+    for (const entry of entries) {
+      const archive = /^https?:\/\/(?:deb|security|ftp)\.debian\.org\/(debian(?:-security)?)$/.exec(entry.uri)?.[1];
+      if (!archive) continue;
+      await addEntry({ ...entry, uri: `https://snapshot.debian.org/archive/${archive}/${options["--snapshot"]}` });
     }
   }
   const fileIdentity = (record) => [record.dsc, ...record.files].map((file) => `${file.name} ${file.sha256} ${file.bytes}`).sort().join("\n");
@@ -806,6 +824,7 @@ const prepare = async (options) => {
       debianVersion: debianVersion.text.trim(),
       apt: aptFiles.map((file) => ({ path: file.path, sha256: file.sha256, bytes: file.bytes })),
       snapshotCommentIgnored: snapshotComment && !configuredSnapshot,
+      snapshotFallback: options["--snapshot"] ?? null,
       indexes: indexes.map((index) => ({
         url: index.url, sha256: index.sha256, bytes: index.bytes, releaseUrl: index.releaseUrl, compressedSha256: index.compressedSha256,
       })),

@@ -276,7 +276,8 @@ export async function prepareReleaseMaterials(options) {
   // Validate exact system source availability before the larger native/runtime
   // acquisitions, so a system inventory failure does not discard that work.
   await run([process.execPath, "--no-env-file", resolve(repository, "scripts/prepare-redistribution-debian.mjs"),
-    "--root", root, "--out", resolve(out, "debian")]);
+    "--root", root, "--out", resolve(out, "debian"),
+    ...(options["debian-snapshot"] ? ["--snapshot", options["debian-snapshot"]] : [])]);
   const replacements = await replaceWidth(root);
   assert(replacements.length, "No original width modules found in target");
   await assertNoOriginalWidth(root);
@@ -339,7 +340,7 @@ if (import.meta.main) {
     const args = process.argv.slice(2);
     for (let i = 0; i < args.length; i += 2) {
       const key = args[i]?.slice(2);
-      assert(args[i].startsWith("--") && ["root", "out", "version", "revision", "platform"].includes(key) &&
+      assert(args[i].startsWith("--") && ["root", "out", "version", "revision", "platform", "debian-snapshot"].includes(key) &&
         !options[key] && args[i + 1] && !args[i + 1].startsWith("--"), "Invalid material argument");
       options[key] = args[i + 1];
     }

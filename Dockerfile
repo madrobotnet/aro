@@ -85,9 +85,12 @@ COPY --from=filesystem / /target/
 ARG TARGETARCH
 ARG VERSION=2.4.0
 ARG REVISION=local
+# Match the Debian snapshot recorded in the pinned NODE_IMAGE's apt sources.
+# Update this alongside that digest; runtime apt sources remain unchanged.
+ARG DEBIAN_SNAPSHOT=20261005T000000Z
 RUN bun --no-env-file scripts/prepare-release-materials.mjs \
     --root /target --out /materials --version "$VERSION" --revision "$REVISION" \
-    --platform "linux/$TARGETARCH"
+    --platform "linux/$TARGETARCH" --debian-snapshot "$DEBIAN_SNAPSHOT"
 
 FROM materials AS source-export
 RUN bun --no-env-file scripts/prepare-source-assets.mjs \
