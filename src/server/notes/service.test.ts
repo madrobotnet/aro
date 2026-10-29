@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { UNTITLED } from "@/server/i18n/copy";
 import { query, tx } from "@/server/db";
 import { closeDb, connectTestDatabase, resetData } from "@/server/test/db";
+import { findNoteReference } from "./reference";
 import {
   createNote,
   findNoteTitles,
@@ -21,6 +22,31 @@ beforeEach(resetData);
 afterAll(closeDb);
 
 describe("note service", () => {
+  test("reference reads preserve normalized archived alias ordering without creating notes", async () => {
+    const older = await createNote({ title: "ÉTUDE  계획" });
+    const newer = await createNote({ title: "old name" });
+    await updateNote(older.id, { archived: true, aliases: ["Old  Name"] });
+    await query("UPDATE notes SET created_at=$2 WHERE id=$1", [older.id, "2026-01-01T00:00:00Z"]);
+    await query("UPDATE notes SET created_at=$2 WHERE id=$1", [newer.id, "2026-01-02T00:00:00Z"]);
+    const before = await query<{ count: number }>("SELECT count(*)::int AS count FROM notes");
+
+    const results = await Promise.all([" étude   계획 ", " OLD\tNAME ", "Missing"].map(findNoteReference));
+
+    expect(results).toEqual([{ id: older.id, title: older.title }, { id: older.id, title: older.title }, null]);
+    expect(await query("SELECT count(*)::int AS count FROM notes")).toEqual(before);
+  });
+
+  test("reference reads exclude trashed titles and aliases", async () => {
+    const note = await createNote({ title: "Trashed" });
+    await updateNote(note.id, { aliases: ["Hidden"] });
+    await trashNote(note.id);
+
+    const results = await Promise.all(["Trashed", "Hidden"].map(findNoteReference));
+
+    expect(results).toEqual([null, null]);
+    expect(await query("SELECT count(*)::int AS count FROM notes")).toEqual([{ count: 1 }]);
+  });
+
   test("finds a renamed note by its preserved alias without returning archived notes", async () => {
     const note = await createNote({ title: "이전 제목" });
     await updateNote(note.id, { title: "Canonical name" });

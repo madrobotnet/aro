@@ -78,6 +78,7 @@ export function CaptureDialog({ open, onOpenChange }: CaptureDialogProps) {
   };
 
   const onFormKeyDown = (event: ReactKeyboardEvent<HTMLFormElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
       event.currentTarget.requestSubmit();
@@ -88,6 +89,7 @@ export function CaptureDialog({ open, onOpenChange }: CaptureDialogProps) {
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      dismissible={!saving}
       title={copy.title}
       description={copy.description}
       initialFocusRef={textRef}

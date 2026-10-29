@@ -95,7 +95,7 @@ export function MiniCalendar({ selected, today, onSelect }: MiniCalendarProps) {
                       aria-current={isToday ? "date" : undefined}
                       onClick={() => onSelect(key, noteId)}
                       className={cn(
-                        "relative flex size-11 items-center justify-center rounded-ctl text-base tabular-nums transition-colors duration-150 focus-ring sm:size-9",
+                        "relative flex size-11 items-center justify-center rounded-ctl text-base tabular-nums transition-colors duration-150 focus-ring sm:size-9 [@media(pointer:coarse)]:size-11",
                         isSelected ? "bg-accent-soft font-semibold" : "hover:bg-line/50",
                         isToday ? "font-semibold text-accent" : inMonth ? "text-ink" : "text-mute",
                       )}
@@ -117,7 +117,7 @@ export function MiniCalendar({ selected, today, onSelect }: MiniCalendarProps) {
         {error ? (
           <p role="alert" className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 text-xs text-danger">
             {copy.loadFailed}
-            <button type="button" className="rounded-ctl font-semibold text-accent underline underline-offset-2 focus-ring" onClick={retry}>{copy.retry}</button>
+            <button type="button" className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-ctl font-semibold text-accent underline underline-offset-2 focus-ring" onClick={retry}>{copy.retry}</button>
           </p>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-xs text-mute">

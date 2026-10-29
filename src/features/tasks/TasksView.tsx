@@ -103,9 +103,9 @@ export function TasksView() {
           <h1 className="text-2xl font-semibold tracking-tight lg:text-3xl">{copy.title}</h1>
           <p className="mt-1 max-w-prose text-sm text-mute">{copy.lead}</p>
         </div>
-        <div role="group" className="flex shrink-0 rounded-ctl bg-line/50 p-1 sm:w-72" aria-label={copy.filterLabel}>
+        <div role="group" className="flex shrink-0 rounded-ctl bg-canvas p-1 ring-1 ring-inset ring-line sm:w-72" aria-label={copy.filterLabel}>
           {TASK_STATES.map((value) => (
-            <button key={value} type="button" data-task-filter aria-pressed={state === value} onClick={() => setState(value)} className={`flex-1 rounded-ctl px-3 py-1.5 text-sm max-lg:min-h-touch ${state === value ? "bg-card font-medium text-ink shadow-card" : "text-mute hover:text-ink"}`}>{copy.filters[value]}</button>
+            <button key={value} type="button" data-task-filter aria-pressed={state === value} onClick={() => setState(value)} className={`control-target flex-1 rounded-ctl px-3 py-1.5 text-sm max-lg:min-h-touch ${state === value ? "bg-card font-medium text-ink shadow-card ring-1 ring-line-strong" : "text-mute hover:text-ink"}`}>{copy.filters[value]}</button>
           ))}
         </div>
       </header>
