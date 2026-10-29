@@ -88,7 +88,7 @@ export function LanguageSwitch({ hideLabel = false, className }: LanguageSwitchP
               onKeyDown={onKeyDown(option)}
               className={cn(
                 "flex min-h-touch items-center justify-center rounded-ctl px-3 text-base font-medium transition-[background-color,color,box-shadow] duration-150 focus-ring",
-                checked ? "bg-card text-ink shadow-card" : "text-mute hover:text-ink",
+                checked ? "bg-card text-ink shadow-card ring-1 ring-inset ring-control-boundary" : "text-mute hover:bg-line/50 hover:text-ink active:bg-line/80",
               )}
             >
               {LOCALE_NAMES[option]}

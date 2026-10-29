@@ -25,10 +25,11 @@ const props = (onSubmitAction: () => void) => ({
   onSubmitAction,
 });
 
-function pressEnter(input: ReactElement<InputProps>, isComposing: boolean) {
+function pressEnter(input: ReactElement<InputProps>, isComposing: boolean, keyCode = 13) {
   let prevented = false;
   input.props.onKeyDown({
     key: "Enter",
+    keyCode,
     nativeEvent: { isComposing },
     preventDefault: () => { prevented = true; },
   } as unknown as KeyboardEvent<HTMLInputElement>);
@@ -44,6 +45,15 @@ test("Enter in the Google code field submits the code instead of the surrounding
   expect(submissions).toBe(0);
   expect(pressEnter(input, false)).toBe(true);
   expect(submissions).toBe(1);
+});
+
+test("Enter with IME keyCode 229 does not submit the Google authorization code", () => {
+  let submissions = 0;
+  const input = findInput(captureTree(AuthCodeField, props(() => { submissions += 1; })));
+  if (!input) throw new Error("The code field must render an input");
+
+  expect(pressEnter(input, false, 229)).toBe(false);
+  expect(submissions).toBe(0);
 });
 
 test("the Google code field adds no nested form, submit button or form-data entry", () => {

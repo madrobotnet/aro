@@ -17,10 +17,10 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-accent text-accent-ink border-transparent hover:brightness-95 active:brightness-90",
-  secondary: "bg-card text-ink border-line hover:bg-desk active:bg-line/60 shadow-card",
+  secondary: "bg-card text-ink border-control-boundary hover:bg-desk active:bg-line/60 shadow-card",
   ghost: "bg-transparent text-ink border-transparent hover:bg-line/50 active:bg-line/80",
-  danger: "bg-danger-soft text-danger border-transparent hover:brightness-95",
-  rail: "bg-transparent text-rail-ink border-transparent hover:bg-rail-hover",
+  danger: "bg-danger-soft text-danger border-transparent hover:bg-desk active:bg-canvas",
+  rail: "bg-transparent text-rail-ink border-transparent hover:bg-rail-hover active:bg-rail-pressed [--focus:var(--rail-ink)]",
 };
 
 const SIZE: Record<ButtonSize, string> = {
@@ -37,7 +37,7 @@ const ICON_ONLY: Record<ButtonSize, string> = {
 
 export const buttonClassName = (opts: { variant?: ButtonVariant; size?: ButtonSize; iconOnly?: boolean } = {}) =>
   cn(
-    "inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-ctl border font-medium",
+    "control-target inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-ctl border font-medium",
     "transition-[background-color,filter,color] duration-150 disabled:opacity-50 disabled:pointer-events-none",
     opts.variant === "primary" ? "focus-ring-offset" : "focus-ring",
     VARIANT[opts.variant ?? "secondary"],

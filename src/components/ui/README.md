@@ -23,6 +23,28 @@ Never mark selection or the active item with an accent edge (stripe, side border
 outline); use a tonal wash plus a label or glyph. Page headers follow the recipe in
 `DESIGN.md` §4 (no eyebrow).
 
+## Consumer acceptance contract
+
+The screen briefs and explicit scroll owners are in `DESIGN.md` §11. A primitive
+change must be checked in every actual sibling consumer, not just a sample page.
+Record rest, focus, pressed, disabled, busy and failure behavior where applicable,
+including native fields that reuse `inputClassName`.
+
+Control boundaries and focus cues must remain distinguishable from their surface;
+decorative dividers do not need to become equally strong. Coarse-pointer targets
+aim for 44px without overlapping neighbors or enlarging the glyph itself. Labels
+retain the 12px floor. Keyboard focus is a solid interaction cue, not a decorative
+selection edge.
+
+Dialogs and sheets have one modal owner, bounded body overflow and reachable
+actions. Busy dismissal rules do not permit a background shortcut to open another
+modal. Errors belong to the interaction that failed.
+
+Action-bearing toasts preserve recovery through elapsed time and notification
+bursts. Pending actions cannot run twice; failed restoration keeps its action
+available, while confirmed success dismisses it. Reduced motion reduces movement
+without removing meaningful progress, focus or caret feedback.
+
 ## `@/components/ui`
 
 | Export | Signature | Notes |

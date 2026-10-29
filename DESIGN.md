@@ -21,8 +21,9 @@ Use `bg-canvas`, `bg-desk`, `bg-card`, `text-ink`, `text-mute`, `border-line` an
 the semantic `ok`, `warn`, `danger` tokens. Card elevation is subtle; floating
 dialogs use `shadow-pop`. Selection uses a tonal wash and an understandable
 label or glyph. Accent is reserved for actionable emphasis and focus.
-Never mark a selected, active or focused item with an accent edge (a stripe,
-a one-sided border or an accent outline); the rail's active item is the
+Never mark selection or an active item with a decorative accent edge (a stripe,
+a one-sided border or a selection outline). Keyboard focus is a separate cue,
+using the solid focus treatment below. The rail's active item is the
 `rail-hover` wash with a `rail-accent` icon (`--rail-accent`, the dark-theme
 accent, 5.81:1 on `rail-hover`; the rail is dark in both themes).
 
@@ -197,3 +198,184 @@ September 29`), `localDateKey` and `calendarDaysAgo`. Times never show
 seconds; recent items may use relative labels, and older ones use these
 absolute formats. Verify English long labels and Korean text
 at desktop, tablet and mobile widths; `한국어` as a language endonym is intentional.
+
+## 11. Screen briefs and layout contracts
+
+These are repair requirements, not a claim that every existing state passes.
+Each region has one current task, three reading priorities and an explicit scroll
+owner. A persistent shell Capture action is distinct from the current view's task.
+Preserve the existing responsive arrangement unless a recorded defect requires
+changing it.
+
+### Setup and login
+
+Primary: complete first-time setup; on the separate login screen, sign in.
+Priorities: 1. required credentials, 2. validation or progress, 3. optional AI or
+language controls. Required: installer authorization, password confirmation,
+recoverable setup input, and the ordinary login redirect. Omit registration,
+public database configuration and an existing-installation password-reset form.
+Layout: centered public content; setup summary beside its form on desktop and
+above it on narrow screens; login is one bounded-width card. The document owns
+overflow. Do not create a second page scroller or cover the submit action.
+
+### Shell, command palette and More
+
+Primary: navigate to the selected destination or invoke the selected command.
+Priorities: 1. current location, 2. reachable destinations/results, 3. secondary
+preferences. Required: skip-to-content, non-color current-route cues, all existing
+destinations and meaningful titles. Omit decorative route labels and duplicate
+Home quick actions.
+Layout: retain the 64/220px rail and 52/60px mobile shell contract, including the
+accepted tablet behavior. The main region owns its declared page/pane scrollers;
+palette results and an overflowing More sheet scroll inside their own modal.
+One modal owns interaction; another command must not act underneath it.
+
+### Capture and confirmations
+
+Primary: save the capture; a confirmation has one explicitly named outcome.
+Priorities: 1. draft or affected item, 2. primary action, 3. status and cancellation.
+Required: retained drafts, visible in-dialog errors, busy protection, IME-safe
+activation and focus restoration. Omit forced categorization and silent loss.
+Layout: centered dialog or bottom sheet with one bounded body scroller and
+reachable actions. Safe-area padding belongs to the sheet. A confirmation inside
+an existing dialog stays within that modal rather than opening a second one.
+
+### Home
+
+Primary: resume useful work; the empty state offers a concrete first action.
+Priorities: 1. actionable inbox/today work, 2. recent or pinned notes,
+3. resurfacing and counts. Required: actual data, section-specific empty states
+and usable retry. Omit marketing heroes, invented statistics and repeated
+navigation controls already supplied by the shell.
+Layout: centered max-width page grid with document scrolling. Section groups,
+not repeated framed cards or accents, establish hierarchy.
+
+### Notes, editor and daily
+
+Primary: open or edit a note; the daily launcher selects a local calendar day.
+Priorities: 1. note title/content, 2. persistence state and recovery,
+3. metadata, history and connections. Required: list filters/pagination, named
+editor modes, visible focus/caret, retained edits and actual save outcomes.
+Omit automatic note creation from a reference read and ornamental editor chrome.
+Layout: bounded list/detail workspace with explicit list and editor/preview
+scrollers and `min-height: 0`. Narrow screens expose the current list or detail
+with a reachable return action. Tables and code may scroll locally; the document
+must not widen. The editor dock must not obscure content or the caret.
+
+### Missing reference destination
+
+Primary: explicitly create the requested missing note, or return to reading.
+Priorities: 1. requested title, 2. lookup outcome, 3. creation/retry action.
+Required: authenticated exact title/alias resolution and an explicit creation
+boundary. Omit speculative autocomplete matches and mutation during navigation.
+Layout: a readable document-scrolling destination using the page contract; no
+empty editor is fabricated while lookup is pending or has failed.
+
+### Inbox
+
+Primary: resolve the selected capture, with promotion as the main completion path.
+Priorities: 1. editable capture, 2. resolution actions and status,
+3. suggestions and list context. Required: Open/Later, retained per-item drafts,
+truthful enrichment state, merge/snooze/discard and usable Undo.
+Omit mandatory AI decisions and silent resets on selection.
+Layout: desktop list/detail workspace with named pane overflow; narrow detail has
+a visible Back action. Keep actions within the active detail and preserve draft
+ownership when changing selection, filters or language.
+
+### Tasks
+
+Primary: change the selected task's completion state.
+Priorities: 1. task text, 2. source note/day, 3. filters and status.
+Required: open/done/all views, accurate rollback/refetch and focus after a row
+leaves the filtered view. Omit unexplained disabled checkboxes and silent errors.
+Layout: document-scrolling grouped list; labels and long note titles wrap without
+forcing horizontal page overflow.
+
+### Search
+
+Primary: open the relevant note or source passage.
+Priorities: 1. query/refinement, 2. result title and evidence,
+3. match/index status. Required: URL-owned query state, a visible query label,
+stale-response protection and distinct idle/loading/empty/error outcomes.
+Omit claims of learned semantic intelligence where only textual similarity exists.
+Layout: centered document-scrolling results; snippets wrap within the reading
+column and each result has a coherent navigation target.
+
+### Graph
+
+Primary: inspect a relationship and open its real note.
+Priorities: 1. graph or accessible list, 2. selected-node context,
+3. scope and camera controls. Required: filters, legend, inspector, keyboard list,
+empty/error recovery and explicit missing-note creation. Omit color-only meaning
+and fabricated camera telemetry.
+Layout: the canvas owns pan/zoom inside its bounded region; the inspector/list
+has reachable overflow outside the canvas. Narrow layout must keep both controls
+and context reachable. Preserve user camera intent until documented reset/resize.
+
+### Chat
+
+Primary: send a question; during streaming, stop is the active control.
+Priorities: 1. readable conversation, 2. composer/status,
+3. threads and source citations. Required: truthful availability, retained failed
+input, genuine stream completion and an explicit return-to-latest action when
+reading earlier content. Omit fabricated answers and forced reading-position jumps.
+Layout: bounded thread/history/composer workspace. History owns message scrolling;
+the composer remains reachable above the mobile shell and keyboard area. Thread
+changes and explicit follow actions, not locale updates, govern reading position.
+
+### Settings and connection forms
+
+Primary: complete the current settings task; a connection dialog saves its draft.
+Priorities: 1. purpose and current value, 2. action and status,
+3. explanation or advanced options. Required: all six existing purpose groups,
+API/Auth paths, explicit sharing consent, retained localized failures, readable
+dates and deliberate access revocation. Omit a new global Save action, exposed
+stored credentials and unverified connection-success claims.
+Layout: max-width document-scrolling groups with desktop label/control columns
+and stacked narrow rows. Dialog bodies scroll locally. Capture overlapping middle
+regions, not just page top and bottom. Code verification Enter must not save the
+outer connection form.
+
+### Recovery notifications
+
+Primary: perform or dismiss the offered recovery action.
+Priorities: 1. outcome, 2. actionable recovery, 3. dismiss/status.
+Required: persistent action-bearing notifications, pending duplicate protection
+and truthful asynchronous outcomes. Omit timer expiry or burst eviction that
+removes an available Undo.
+Layout: a bounded accessible notification scroller above, not over, required
+mobile actions. Non-action notifications may retain the existing bounded policy.
+
+### Offline capture
+
+Primary: save a local draft; sending is a separate reviewed, confirmed action.
+Priorities: 1. draft and consent, 2. queue/owner review,
+3. help and status. Required: durable request IDs/content, explicit deletion,
+failure recovery and bilingual labels/dates. Omit automatic sending or deletion
+and any claim that emulation certifies native installed-app behavior.
+Layout: standalone document-scrolling form and queue with wrapping content and
+reachable actions. Its system-font fallback is deliberate; align semantic color,
+geometry and state behavior without adding a framework or font dependency.
+
+### Public reader and protocol outcomes
+
+Primary: read the snapshot; completion/consent pages expose their actual next
+decision or return action. Priorities: 1. content/outcome, 2. relevant context,
+3. expiry or next action. Required: generic unavailable-share behavior, explicit
+consent and non-sensitive failures. Omit app navigation, editing, owner identity,
+credentials and fetched resources from the public reader.
+Layout: readable document-scrolling standalone content. Public shares remain
+script/asset-isolated; expiry is localized with an explicit UTC label and ISO
+only in `datetime`. Their system-font fallback is deliberate, with no font fetch.
+Provider completion and invalid consent reuse the existing
+public-page geometry, with reachable controls rather than raw protocol text.
+
+### Framework boundaries
+
+Primary: retry when recovery exists, otherwise take the safe return action.
+Priorities: 1. clear outcome, 2. next action, 3. non-sensitive diagnostic identifier.
+Required: readable 404/error presentation and honest verification limits.
+Omit raw exceptions, fake recovery and claims that isolated component rendering
+proves the complete framework error lifecycle.
+Layout: centered responsive status content with document overflow when needed;
+never a blank viewport or inaccessible action outside the visible area.

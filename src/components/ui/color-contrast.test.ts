@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "bun:test";
+import { buttonClassName } from "./Button";
 
 const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
 type Rgb = readonly [number, number, number];
@@ -7,9 +8,11 @@ const pairs = [
   ["mute", "canvas"], ["mute", "card"], ["accent", "canvas"], ["accent", "accent-soft"],
   ["accent-ink", "accent"], ["ok", "ok-soft"], ["ok", "canvas"],
   ["warn", "canvas"], ["warn", "warn-soft"],
+  ["danger", "danger-soft"], ["rail-ink", "rail-hover"], ["rail-ink", "rail-pressed"],
 ] as const;
 /** Focus rings and graph marks are non-text UI: WCAG 1.4.11 needs 3:1 against their surface. */
 const focusPairs = [["accent", "card"], ["accent", "desk"], ["rail-ink", "rail"], ["rail-accent", "rail-hover"]] as const;
+const controlPairs = ["canvas", "desk", "card"].map((surface) => ["control-boundary", surface] as const);
 const graphPairs = ([1, 2, 3, 4, 5, 6] as const).map((index) => [`graph-${index}`, "card"] as const);
 
 function colors(selector: string) {
@@ -44,6 +47,15 @@ for (const theme of [":root", "\\.dark"]) {
     expect(contrast(color(foreground), color(background))).toBeGreaterThanOrEqual(3);
   });
 
+  test.each(controlPairs)(`${theme} control boundary %s on %s meets non-text contrast`, (foreground, background) => {
+    // Given the theme's actual control boundary and its adjacent surface.
+    const boundary = color(foreground), surface = color(background);
+    // When their relative luminances are compared.
+    const ratio = contrast(boundary, surface);
+    // Then the control remains distinguishable without relying on its text.
+    expect(ratio).toBeGreaterThanOrEqual(3);
+  });
+
   test.each(graphPairs)(`${theme} graph color %s on %s meets non-text contrast`, (foreground, background) => {
     expect(contrast(color(foreground), color(background))).toBeGreaterThanOrEqual(3);
   });
@@ -57,5 +69,19 @@ for (const theme of [":root", "\\.dark"]) {
     const channel = (index: 0 | 1 | 2) => mute[index] * opacity + background[index] * (1 - opacity);
     const foreground = [channel(0), channel(1), channel(2)] as const;
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test.each(["rest", "hover", "active"] as const)(`${theme} destructive %s text meets AA after its visual effects`, (state) => {
+    const classes = buttonClassName({ variant: "danger" }).split(/\s+/);
+    const prefixes = state === "active" ? ["active:", "hover:", ""] : state === "hover" ? ["hover:", ""] : [""];
+    const foreground = classes.find((name) => name.startsWith("text-"))?.slice(5);
+    const background = prefixes.map((prefix) => classes.find((name) => name.startsWith(`${prefix}bg-`))
+      ?.slice(prefix.length + 3)).find(Boolean);
+    const brightness = prefixes.map((prefix) => classes.find((name) => name.startsWith(`${prefix}brightness-`))
+      ?.slice(prefix.length + 11)).find(Boolean);
+    if (!foreground || !background) throw new Error("The destructive recipe must declare its text and background colors");
+    const factor = brightness === undefined ? 1 : Number(brightness) / 100;
+    const filtered = (rgb: Rgb): Rgb => [rgb[0] * factor, rgb[1] * factor, rgb[2] * factor];
+    expect(contrast(filtered(color(foreground)), filtered(color(background)))).toBeGreaterThanOrEqual(4.5);
   });
 }

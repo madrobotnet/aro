@@ -58,7 +58,7 @@ export function SetupCredentialFields({ value, onChangeAction, errors, tokenFail
               aria-label={tokenVisible ? copy.hideToken : copy.showToken}
               aria-pressed={tokenVisible}
               onClick={() => setTokenVisible((current) => !current)}
-              className="absolute inset-y-0 right-0 my-auto flex size-11 items-center justify-center rounded-ctl text-mute hover:bg-line/60 hover:text-ink focus-ring sm:right-1 sm:size-9"
+              className="control-target absolute inset-y-0 right-0 my-auto flex size-11 items-center justify-center rounded-ctl text-mute hover:bg-line/60 hover:text-ink focus-ring sm:right-1 sm:size-9"
             >
               {tokenVisible ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
             </button>
@@ -105,7 +105,7 @@ export function SetupCredentialFields({ value, onChangeAction, errors, tokenFail
               aria-label={passwordVisible ? copy.hidePassword : copy.showPassword}
               aria-pressed={passwordVisible}
               onClick={() => setPasswordVisible((current) => !current)}
-              className="absolute inset-y-0 right-0 my-auto flex size-11 items-center justify-center rounded-ctl text-mute hover:bg-line/60 hover:text-ink focus-ring sm:right-1 sm:size-9"
+              className="control-target absolute inset-y-0 right-0 my-auto flex size-11 items-center justify-center rounded-ctl text-mute hover:bg-line/60 hover:text-ink focus-ring sm:right-1 sm:size-9"
             >
               {passwordVisible ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
             </button>

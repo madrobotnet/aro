@@ -1,9 +1,10 @@
 import { api, ApiClientError } from "@/lib/api-client";
 import { AuthCodeInputSchema, type AuthAttemptView } from "@/lib/ai-auth-flow";
 import type { WebAuthProvider } from "@/lib/ai-auth";
-import { localizedApiError } from "@/lib/i18n/api-error";
-import type { Locale } from "@/lib/i18n/locale";
-import { AI_COPY, type AuthCodeErrorKey, type AuthErrorKey } from "./ai-copy";
+import type { AuthCodeErrorKey, AuthErrorKey } from "./ai-copy";
+import { attemptError, awaitingAuthCode, isActiveAttempt, type AuthPanelError } from "./auth-attempt-presentation";
+
+export { attemptError, authPanelErrorText, awaitingAuthCode, isActiveAttempt, type AuthPanelError } from "./auth-attempt-presentation";
 
 export type AuthRequest = <T>(path: string, init: RequestInit & { json?: unknown }) => Promise<T>;
 export type AuthTimers = {
@@ -15,12 +16,6 @@ export type AuthTimers = {
 type AuthScope = {
   readonly setupToken?: string;
 };
-
-/**
- * A sign-in problem kept as a reason plus the failed request, never as rendered text, so
- * the panel re-renders it in the current language without rebuilding the controller.
- */
-export type AuthPanelError = { readonly key: AuthErrorKey; readonly cause?: unknown };
 
 export type AuthPanelSnapshot = {
   readonly attempt: AuthAttemptView | null;
@@ -47,38 +42,8 @@ function failure(key: AuthErrorKey, cause: unknown): AuthPanelError {
   return { key, cause };
 }
 
-/** Render a retained sign-in problem in `locale`. */
-export function authPanelErrorText(error: AuthPanelError, locale: Locale): string {
-  const fallback = AI_COPY[locale].auth.errors[error.key];
-  return "cause" in error ? localizedApiError(error.cause, locale, fallback) : fallback;
-}
-
 export async function abandonAuthAttempt(id: string, scope: AuthScope, request: AuthRequest = api): Promise<void> {
   await request<{ ok: true }>(`/api/ai/auth/${id}`, { method: "DELETE", json: scopeBody(scope.setupToken) });
-}
-
-export function isActiveAttempt(attempt: AuthAttemptView | null): attempt is AuthAttemptView {
-  return attempt?.status === "starting" || attempt?.status === "pending";
-}
-
-/** Google waits for a pasted authorization code; polling before that cannot change anything. */
-export function awaitingAuthCode(attempt: AuthAttemptView | null): boolean {
-  return attempt?.status === "pending" && attempt.requiresCode === true;
-}
-
-export function attemptError(status: AuthAttemptView["status"], provider?: WebAuthProvider): AuthPanelError | null {
-  switch (status) {
-    case "denied":
-      return { key: "denied" };
-    case "expired":
-      return { key: "expired" };
-    case "failed":
-      return { key: provider === "google" ? "googleFailed" : "failed" };
-    case "starting":
-    case "pending":
-    case "ready":
-      return null;
-  }
 }
 
 /**

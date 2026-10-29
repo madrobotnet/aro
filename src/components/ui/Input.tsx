@@ -16,9 +16,9 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement> &
   };
 
 export const inputClassName =
-  "h-10 w-full min-w-0 rounded-ctl border border-line bg-card px-3 text-md text-ink shadow-none transition-colors " +
-  "placeholder:text-mute hover:border-line-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 " +
-  "disabled:opacity-60 disabled:bg-desk aria-invalid:border-danger aria-invalid:focus:ring-danger/30";
+  "control-target h-10 w-full min-w-0 rounded-ctl border border-control-boundary bg-card px-3 text-md text-ink shadow-none transition-colors " +
+  "placeholder:text-mute hover:border-mute focus:border-accent focus-ring " +
+  "disabled:opacity-60 disabled:bg-desk aria-invalid:border-danger";
 
 function Field({
   id,

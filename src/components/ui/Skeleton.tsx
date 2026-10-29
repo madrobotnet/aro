@@ -7,8 +7,9 @@ export function Skeleton({ className, ...rest }: HTMLAttributes<HTMLDivElement>)
     <div
       aria-hidden
       className={cn(
-        "rounded-ctl bg-[linear-gradient(90deg,var(--line)_25%,var(--desk)_50%,var(--line)_75%)] bg-[length:200%_100%]",
-        "motion-safe:animate-[sb-shimmer_1.6s_linear_infinite]",
+        "relative isolate overflow-hidden rounded-ctl bg-line",
+        "after:pointer-events-none after:absolute after:inset-0 after:bg-[linear-gradient(90deg,transparent,var(--desk),transparent)] after:content-['']",
+        "motion-safe:after:animate-[sb-shimmer_1.6s_linear_infinite] motion-reduce:after:hidden",
         className,
       )}
       {...rest}
